@@ -1,0 +1,9 @@
+[package]
+name = "nl"
+version = "0.1.0"
+authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+
+[dependencies]
+serde = "*"
+serde_derive = "*"
+byteorder = "1"
