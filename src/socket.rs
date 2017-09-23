@@ -3,14 +3,17 @@ use std::mem::{zeroed,size_of};
 
 use libc::{self,c_int,c_void};
 
+use ffi::NlFamily;
+
 pub struct NlSocket {
     fd: c_int,
 }
 
 impl NlSocket {
-    pub fn new(proto: i32) -> Result<Self, io::Error> {
+    pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
+        let proto_u32: u32 = proto.into();
         let fd = match unsafe {
-            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto as libc::c_int)
+            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto_u32 as libc::c_int)
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
@@ -52,10 +55,16 @@ impl NlSocket {
     }
 
     // Higher level API
-    pub fn connect(proto: i32, groups: u32) -> Result<Self, io::Error> {
+    pub fn connect(proto: NlFamily, groups: u32) -> Result<Self, io::Error> {
         let mut s = try!(NlSocket::new(proto));
         try!(s.bind(groups));
         Ok(s)
+    }
+}
+
+impl Drop for NlSocket {
+    fn drop(&mut self) {
+        unsafe { libc::close(self.fd); }
     }
 }
 
@@ -65,7 +74,7 @@ mod test {
 
     #[test]
     fn test_socket_creation() {
-        match NlSocket::connect(0, 0) {
+        match NlSocket::connect(NlFamily::NlGeneric, 0) {
             Err(_) => panic!(),
             _ => (),
         }

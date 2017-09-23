@@ -1,15 +1,21 @@
 macro_rules! impl_var {
-    ( $name:ident, u16; $( $var:ident => $val:ident ),* ) => (
-    );
-    ( $name:ident, u32; $( $var:ident => $val:ident ),* ) => (
+    ( $name:ident, $ty:ty, $from_str:tt; $( $var:ident => $val:ident ),* ) => (
         #[derive(Clone,Debug,Eq,PartialEq,Serialize,Deserialize)]
-        #[serde(from="u32")]
+        #[serde(from=$from_str)]
         pub enum $name {
             $( $var, )*
         }
 
-        impl From<u32> for $name {
-            fn from(v: u32) -> Self {
+        impl From<$name> for $ty {
+            fn from(v: $name) -> Self {
+                match v {
+                    $( $name::$var => unsafe { $val }, )*
+                }
+            }
+        }
+
+        impl From<$ty> for $name {
+            fn from(v: $ty) -> Self {
                 match v {
                     $( i if i == unsafe { $val } => $name::$var, )*
                     _ => unimplemented!(),
@@ -21,6 +27,7 @@ macro_rules! impl_var {
 
 #[link(name = "netlink")]
 extern {
+    /// Values for netlink_family in `NlSocket`
     pub static netlink_route: u32;
     pub static netlink_unused: u32;
     pub static netlink_usersock: u32;
@@ -43,6 +50,12 @@ extern {
     pub static netlink_rdma: u32;
     pub static netlink_crypto: u32;
 
+    /// Values for nlmsg_type in `NlHdr`
+    pub static nlmsg_noop: u16;
+    pub static nlmsg_error: u16;
+    pub static nlmsg_done: u16;
+    pub static nlmsg_overrun: u16;
+
     pub static nlm_f_request: u16;
     pub static nlm_f_multi: u16;
     pub static nlm_f_ack: u16;
@@ -61,7 +74,7 @@ extern {
     pub static nlm_f_append: u16;
 }
 
-impl_var!(NlProto, u32;
+impl_var!(NlFamily, u32, "u32";
     NlRoute => netlink_route,
     NlUnused => netlink_unused,
     NlUsersock => netlink_usersock,
@@ -85,6 +98,12 @@ impl_var!(NlProto, u32;
     NlCrypto => netlink_crypto
 );
 
+impl_var!(NlType, u16, "u16";
+    NlNoop => nlmsg_noop,
+    NlError => nlmsg_error,
+    NlDone => nlmsg_done,
+    NlOverrun => nlmsg_overrun
+);
 
 #[cfg(test)]
 mod test {
@@ -102,10 +121,10 @@ mod test {
     #[test]
     fn test_enum_serde() {
         let mut de = NlDeserializer::new(&[1, 0, 0, 0]);
-        let v = match NlProto::deserialize(&mut de) {
+        let v = match NlFamily::deserialize(&mut de) {
             Ok(val) => val,
             _ => panic!(),
         };
-        assert_eq!(v, NlProto::NlUnused);
+        assert_eq!(v, NlFamily::NlUnused);
     }
 }
