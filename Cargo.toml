@@ -7,3 +7,4 @@ authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 serde = "*"
 serde_derive = "*"
 byteorder = "1"
+libc = "*"

@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use serde::{Deserialize,Deserializer};
+use serde::Deserializer;
 use serde::de::{DeserializeSeed,Visitor,SeqAccess};
 use byteorder::{NativeEndian,ReadBytesExt};
 
@@ -23,12 +23,20 @@ impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
         unimplemented!()
     }
 
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+        visitor.visit_u8(try!(self.buf.read_u8()))
+    }
+
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
         visitor.visit_u16(try!(self.buf.read_u16::<NativeEndian>()))
     }
 
-    fn deserialize_struct<V>(mut self, name: &'static str,
-                             fields: &'static [&'static str],
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+        visitor.visit_u32(try!(self.buf.read_u32::<NativeEndian>()))
+    }
+
+    fn deserialize_struct<V>(mut self, _name: &'static str,
+                             _fields: &'static [&'static str],
                              visitor: V) -> Result<V::Value, Self::Error>
                              where V: Visitor<'de> {
         struct NlSeqAccess<'de: 'a, 'a> {
@@ -48,7 +56,7 @@ impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
     }
 
     forward_to_deserialize_any!{
-        bool i8 i16 i32 i64 u8 u32 u64 f32 f64 char str string
+        bool i8 i16 i32 i64 u64 f32 f64 char str string
         bytes byte_buf option unit unit_struct newtype_struct seq
         tuple tuple_struct map enum identifier ignored_any
     }
@@ -57,6 +65,7 @@ impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use serde::Deserialize;
 
     #[derive(Debug,Deserialize)]
     struct Something {
@@ -68,11 +77,14 @@ mod test {
 
     #[test]
     fn test_deserialize_struct() {
-        let mut nde = NlDeserializer::new(&[0, 1, 2, 3, 4, 5, 6, 7]);
+        let mut nde = NlDeserializer::new(&[0x1, 0x1, 0xf, 0x1, 0x0, 0x0, 0x0, 0x1]);
         let s = match Something::deserialize(&mut nde) {
             Ok(v) => v,
             _ => panic!(),
         };
-        println!("{:?}", s);
+        assert_eq!(s.onefish, 257);
+        assert_eq!(s.twofish, 271);
+        assert_eq!(s.redfish, 0);
+        assert_eq!(s.bluefish, 256);
     }
 }
