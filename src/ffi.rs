@@ -1,3 +1,24 @@
+macro_rules! impl_var {
+    ( $name:ident, u16; $( $var:ident => $val:ident ),* ) => (
+    );
+    ( $name:ident, u32; $( $var:ident => $val:ident ),* ) => (
+        #[derive(Clone,Debug,Eq,PartialEq,Serialize,Deserialize)]
+        #[serde(from="u32")]
+        pub enum $name {
+            $( $var, )*
+        }
+
+        impl From<u32> for $name {
+            fn from(v: u32) -> Self {
+                match v {
+                    $( i if i == unsafe { $val } => $name::$var, )*
+                    _ => unimplemented!(),
+                }
+            }
+        }
+    );
+}
+
 #[link(name = "netlink")]
 extern {
     pub static netlink_route: u32;
@@ -40,14 +61,51 @@ extern {
     pub static nlm_f_append: u16;
 }
 
+impl_var!(NlProto, u32;
+    NlRoute => netlink_route,
+    NlUnused => netlink_unused,
+    NlUsersock => netlink_usersock,
+    NlFirewall => netlink_firewall,
+    NlSockDiag => netlink_sock_diag,
+    NlNflog => netlink_nflog,
+    NlXfrm => netlink_xfrm,
+    NlSelinux => netlink_selinux,
+    NlIscsi => netlink_iscsi,
+    NlAudit => netlink_audit,
+    NlFibLookup => netlink_fib_lookup,
+    NlConnector => netlink_connector,
+    NlNetfilter => netlink_netfilter,
+    NlIp6Fw => netlink_ip6_fw,
+    NlDnrtmsg => netlink_dnrtmsg,
+    NlKobjectUevent => netlink_kobject_uevent,
+    NlGeneric => netlink_generic,
+    NlScsitransport => netlink_scsitransport,
+    NlEcryptfs => netlink_ecryptfs,
+    NlRdma => netlink_rdma,
+    NlCrypto => netlink_crypto
+);
+
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use serde::Deserialize;
+    use de::NlDeserializer;
 
     #[test]
     fn test_flags() {
         assert_eq!(unsafe { nlm_f_request }, 1);
         assert_eq!(unsafe { nlm_f_multi }, 2);
         assert_eq!(unsafe { nlm_f_ack }, 4);
+    }
+
+    #[test]
+    fn test_enum_serde() {
+        let mut de = NlDeserializer::new(&[1, 0, 0, 0]);
+        let v = match NlProto::deserialize(&mut de) {
+            Ok(val) => val,
+            _ => panic!(),
+        };
+        assert_eq!(v, NlProto::NlUnused);
     }
 }
