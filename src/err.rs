@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::error::Error;
 
-use serde::de;
+use serde::{ser,de};
 
 #[derive(Debug)]
 pub struct NlError(String);
@@ -22,6 +22,12 @@ impl fmt::Display for NlError {
 impl Error for NlError {
     fn description(&self) -> &str {
         &self.0.as_ref()
+    }
+}
+
+impl ser::Error for NlError {
+    fn custom<T>(msg: T) -> Self where T: fmt::Display {
+        NlError(msg.to_string())
     }
 }
 
