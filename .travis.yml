@@ -2,9 +2,9 @@ language: rust
 rust:
   nightly
 
-test:
-  script:
-    - cargo test
+script:
+  - cargo test
+  - cargo doc
 
 deploy:
   provider: pages
@@ -12,6 +12,5 @@ deploy:
   github_token: $GITHUB_TOKEN
   local_dir: ./target/doc/
   script:
-    - cargo doc
   on:
     branch: master
