@@ -1,0 +1,17 @@
+language: rust
+rust:
+  nightly
+
+test:
+  script:
+    - cargo test
+
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: $GITHUB_TOKEN
+  local_dir: ./target/doc/
+  script:
+    - cargo doc
+  on:
+    branch: master
