@@ -1,7 +1,7 @@
-#include<stdint.h>
+#include <stdint.h>
 
-#include<linux/netlink.h>
-#include<linux/genetlink.h>
+#include <linux/netlink.h>
+#include <linux/genetlink.h>
 
 const uint32_t netlink_route = NETLINK_ROUTE;
 const uint32_t netlink_unused = NETLINK_UNUSED;
