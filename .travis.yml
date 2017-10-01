@@ -3,7 +3,8 @@ rust:
   nightly
 
 before_install:
-  - apt-get install linux-libc-dev
+  - sudo apt-get update
+  - sudo apt-get install linux-libc-dev
 script:
   - cargo test
   - cargo doc
