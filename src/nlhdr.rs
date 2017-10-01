@@ -5,8 +5,6 @@ use serde::{Serialize,Serializer,Deserialize,Deserializer};
 use serde::de::{Visitor,Error};
 
 use ffi::{NlType,NlFlags};
-use ser::NlSerializer;
-use de::NlDeserializer;
 
 fn flags_ser<S>(flags: &Vec<NlFlags>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
     let val = flags.iter().fold(0, |acc: u16, val| {
@@ -34,7 +32,7 @@ fn flags_de<'a, D>(de: D) -> Result<Vec<NlFlags>, D::Error> where D: Deserialize
     let flags = try!(de.deserialize_u16(U16Visitor));
     let mut vec = Vec::<NlFlags>::new();
     for i in 0..mem::size_of::<u16>() {
-        let bit = (1 << i);
+        let bit = 1 << i;
         if bit & flags == bit {
             vec.push(bit.into());
         }
@@ -42,28 +40,33 @@ fn flags_de<'a, D>(de: D) -> Result<Vec<NlFlags>, D::Error> where D: Deserialize
     Ok(vec)
 }
 
-#[derive(Serialize,Deserialize)]
-pub struct NlHdr {
+#[derive(Serialize,Deserialize,Debug,PartialEq)]
+pub struct NlHdr<T> {
     nl_len: u32,
     nl_type: NlType,
     #[serde(serialize_with="flags_ser", deserialize_with="flags_de")]
     nl_flags: Vec<NlFlags>,
     nl_seq: u32,
     nl_pid: u32,
+    nl_pl: T,
 }
 
-impl NlHdr {
+impl<'a, T: Serialize + Deserialize<'a>> NlHdr<T> {
     pub fn new(nl_len: Option<u32>, nl_type: NlType, nl_flags: Vec<NlFlags>,
-               nl_seq: Option<u32>, nl_pid: Option<u32>) -> Self {
+               nl_seq: Option<u32>, nl_pid: Option<u32>, nl_pl: T) -> Self {
         NlHdr {
             nl_len: nl_len.unwrap_or(0),
             nl_type,
             nl_flags,
             nl_seq: nl_seq.unwrap_or(0),
             nl_pid: nl_pid.unwrap_or(0),
+            nl_pl
         }
     }
 }
+
+#[derive(Serialize,Deserialize,Debug,PartialEq)]
+pub struct NlEmpty;
 
 #[cfg(test)]
 mod test {
@@ -75,8 +78,24 @@ mod test {
     #[test]
     fn test_nlhdr_serialize() {
         let mut ser = NlSerializer::new();
-        let hdr = NlHdr::new(None, NlType::NlNoop, Vec::new(), None, None);
-        hdr.serialize(&mut ser);
+        let hdr = NlHdr::new(None, NlType::NlNoop, Vec::new(), None, None, NlEmpty);
+        match hdr.serialize(&mut ser) {
+            Ok(_) => (),
+            Err(_) => panic!(),
+        };
         assert_eq!(ser.into_inner(), &[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    }
+
+    #[test]
+    fn test_nlhdr_deserialize() {
+        let hdr_bytes = &[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut de = NlDeserializer::new(hdr_bytes);
+        let nlhdr = match NlHdr::<NlEmpty>::deserialize(&mut de) {
+            Ok(n) => n,
+            Err(_) => panic!(),
+        };
+        assert_eq!(nlhdr, NlHdr::new(
+            None, NlType::NlNoop, Vec::new(), None, None, NlEmpty
+        ))
     }
 }

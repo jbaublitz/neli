@@ -19,7 +19,8 @@ impl<'a> NlDeserializer<'a> {
 impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
     type Error = NlError;
 
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+            where V: Visitor<'de> {
         unimplemented!()
     }
 
@@ -33,6 +34,12 @@ impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
 
     fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
         visitor.visit_u32(try!(self.buf.read_u32::<NativeEndian>()))
+    }
+
+    fn deserialize_unit_struct<V>(self, _name: &'static str, visitor: V)
+                                  -> Result<V::Value, Self::Error>
+                                  where V: Visitor<'de> {
+        visitor.visit_unit()
     }
 
     fn deserialize_struct<V>(mut self, _name: &'static str,
@@ -57,7 +64,7 @@ impl<'de: 'a, 'a> Deserializer<'de> for &'a mut NlDeserializer<'de> {
 
     forward_to_deserialize_any!{
         bool i8 i16 i32 i64 u64 f32 f64 char str string
-        bytes byte_buf option unit unit_struct newtype_struct seq
+        bytes byte_buf option newtype_struct seq unit
         tuple tuple_struct map enum identifier ignored_any
     }
 }

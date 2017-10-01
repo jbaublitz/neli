@@ -1,6 +1,7 @@
 #include<stdint.h>
 
 #include<linux/netlink.h>
+#include<linux/genetlink.h>
 
 const uint32_t netlink_route = NETLINK_ROUTE;
 const uint32_t netlink_unused = NETLINK_UNUSED;
@@ -45,3 +46,14 @@ const uint16_t nlm_f_replace = NLM_F_REPLACE;
 const uint16_t nlm_f_excl = NLM_F_EXCL;
 const uint16_t nlm_f_create = NLM_F_CREATE;
 const uint16_t nlm_f_append = NLM_F_APPEND;
+
+const uint8_t ctrl_cmd_unspec = CTRL_CMD_UNSPEC;
+const uint8_t ctrl_cmd_newfamily = CTRL_CMD_NEWFAMILY;
+const uint8_t ctrl_cmd_delfamily = CTRL_CMD_DELFAMILY;
+const uint8_t ctrl_cmd_getfamily = CTRL_CMD_GETFAMILY;
+const uint8_t ctrl_cmd_newops = CTRL_CMD_NEWOPS;
+const uint8_t ctrl_cmd_delops = CTRL_CMD_DELOPS;
+const uint8_t ctrl_cmd_getops = CTRL_CMD_GETOPS;
+const uint8_t ctrl_cmd_newmcast_grp = CTRL_CMD_NEWMCAST_GRP;
+const uint8_t ctrl_cmd_delmcast_grp = CTRL_CMD_DELMCAST_GRP;
+const uint8_t ctrl_cmd_getmcast_grp = CTRL_CMD_GETMCAST_GRP;

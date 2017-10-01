@@ -27,7 +27,7 @@ macro_rules! impl_var {
 
 #[link(name = "netlink")]
 extern {
-    /// Values for nl_family in `NlSocket`
+    /// Values for `nl_family` in `NlSocket`
     pub static netlink_route: u32;
     pub static netlink_unused: u32;
     pub static netlink_usersock: u32;
@@ -50,13 +50,13 @@ extern {
     pub static netlink_rdma: u32;
     pub static netlink_crypto: u32;
 
-    /// Values for nl_type in `NlHdr`
+    /// Values for `nl_type` in `NlHdr`
     pub static nlmsg_noop: u16;
     pub static nlmsg_error: u16;
     pub static nlmsg_done: u16;
     pub static nlmsg_overrun: u16;
 
-    /// Values for nl_flags in `NlHdr`
+    /// Values for `nl_flags` in `NlHdr`
     pub static nlm_f_request: u16;
     pub static nlm_f_multi: u16;
     pub static nlm_f_ack: u16;
@@ -73,6 +73,18 @@ extern {
     pub static nlm_f_excl: u16;
     pub static nlm_f_create: u16;
     pub static nlm_f_append: u16;
+
+    // Values for `cmd` in `GenlHdr`
+    pub static ctrl_cmd_unspec: u8;
+    pub static ctrl_cmd_newfamily: u8;
+    pub static ctrl_cmd_delfamily: u8;
+    pub static ctrl_cmd_getfamily: u8;
+    pub static ctrl_cmd_newops: u8;
+    pub static ctrl_cmd_delops: u8;
+    pub static ctrl_cmd_getops: u8;
+    pub static ctrl_cmd_newmcast_grp: u8;
+    pub static ctrl_cmd_delmcast_grp: u8;
+    pub static ctrl_cmd_getmcast_grp: u8;
 }
 
 impl_var!(NlFamily, u32, "u32";
@@ -121,6 +133,19 @@ impl_var!(NlFlags, u16, "u16";
     NlExcl => nlm_f_excl,
     NlCreate => nlm_f_create,
     NlAppend => nlm_f_append
+);
+
+impl_var!(GenlCmds, u8, "u8";
+    CmdUnspec => ctrl_cmd_unspec,
+    CmdNewfamily => ctrl_cmd_newfamily,
+    CmdDelfamily => ctrl_cmd_delfamily,
+    CmdGetfamily => ctrl_cmd_getfamily,
+    CmdNewops => ctrl_cmd_newops,
+    CmdDelops => ctrl_cmd_delops,
+    CmdGetops => ctrl_cmd_getops,
+    CmdNewmcastGrp => ctrl_cmd_newmcast_grp,
+    CmdDelmcastGrp => ctrl_cmd_delmcast_grp,
+    CmdGetmcastGrp => ctrl_cmd_getmcast_grp
 );
 
 #[cfg(test)]
