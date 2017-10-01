@@ -35,7 +35,13 @@ const uint16_t nlm_f_multi = NLM_F_MULTI;
 const uint16_t nlm_f_ack = NLM_F_ACK;
 const uint16_t nlm_f_echo = NLM_F_ECHO;
 const uint16_t nlm_f_dump_intr = NLM_F_DUMP_INTR;
+
+// To fix linking error for older versions of netlink
+#ifdef NLM_F_DUMP_FILTERED
 const uint16_t nlm_f_dump_filtered = NLM_F_DUMP_FILTERED;
+#else
+const uint16_t nlm_f_dump_filtered = 32;
+#endif
 
 const uint16_t nlm_f_root = NLM_F_ROOT;
 const uint16_t nlm_f_match = NLM_F_MATCH;
