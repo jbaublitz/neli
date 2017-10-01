@@ -1,7 +1,7 @@
 macro_rules! impl_var {
     ( $name:ident, $ty:ty, $from_str:tt; $( $var:ident => $val:ident ),* ) => (
         #[derive(Clone,Debug,Eq,PartialEq,Serialize,Deserialize)]
-        #[serde(from=$from_str)]
+        #[serde(from=$from_str, into=$from_str)]
         pub enum $name {
             $( $var, )*
         }

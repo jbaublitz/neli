@@ -8,29 +8,6 @@ use ffi::{NlType,NlFlags};
 use ser::NlSerializer;
 use de::NlDeserializer;
 
-struct U16Visitor;
-
-impl<'a> Visitor<'a> for U16Visitor {
-    type Value = u16;
-
-    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "a u16 typed integer")
-    }
-
-    fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E> where E: Error {
-        Ok(v)
-    }
-}
-
-fn type_ser<S>(nltype: &NlType, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
-    ser.serialize_u16(nltype.clone().into())
-}
-
-fn type_de<'a, D>(de: D) -> Result<NlType, D::Error> where D: Deserializer<'a> {
-    let u = try!(de.deserialize_u16(U16Visitor));
-    Ok(u.into())
-}
-
 fn flags_ser<S>(flags: &Vec<NlFlags>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
     let val = flags.iter().fold(0, |acc: u16, val| {
         let v: u16 = val.clone().into();
@@ -40,6 +17,20 @@ fn flags_ser<S>(flags: &Vec<NlFlags>, ser: S) -> Result<S::Ok, S::Error> where S
 }
 
 fn flags_de<'a, D>(de: D) -> Result<Vec<NlFlags>, D::Error> where D: Deserializer<'a> {
+    struct U16Visitor;
+
+    impl<'a> Visitor<'a> for U16Visitor {
+        type Value = u16;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "a u16 typed integer")
+        }
+
+        fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E> where E: Error {
+            Ok(v)
+        }
+    }
+
     let flags = try!(de.deserialize_u16(U16Visitor));
     let mut vec = Vec::<NlFlags>::new();
     for i in 0..mem::size_of::<u16>() {
@@ -54,7 +45,6 @@ fn flags_de<'a, D>(de: D) -> Result<Vec<NlFlags>, D::Error> where D: Deserialize
 #[derive(Serialize,Deserialize)]
 pub struct NlHdr {
     nl_len: u32,
-    #[serde(serialize_with="type_ser", deserialize_with="type_de")]
     nl_type: NlType,
     #[serde(serialize_with="flags_ser", deserialize_with="flags_de")]
     nl_flags: Vec<NlFlags>,
