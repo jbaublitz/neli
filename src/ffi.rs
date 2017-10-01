@@ -27,7 +27,7 @@ macro_rules! impl_var {
 
 #[link(name = "netlink")]
 extern {
-    /// Values for netlink_family in `NlSocket`
+    /// Values for nl_family in `NlSocket`
     pub static netlink_route: u32;
     pub static netlink_unused: u32;
     pub static netlink_usersock: u32;
@@ -50,12 +50,13 @@ extern {
     pub static netlink_rdma: u32;
     pub static netlink_crypto: u32;
 
-    /// Values for nlmsg_type in `NlHdr`
+    /// Values for nl_type in `NlHdr`
     pub static nlmsg_noop: u16;
     pub static nlmsg_error: u16;
     pub static nlmsg_done: u16;
     pub static nlmsg_overrun: u16;
 
+    /// Values for nl_flags in `NlHdr`
     pub static nlm_f_request: u16;
     pub static nlm_f_multi: u16;
     pub static nlm_f_ack: u16;
@@ -103,6 +104,23 @@ impl_var!(NlType, u16, "u16";
     NlError => nlmsg_error,
     NlDone => nlmsg_done,
     NlOverrun => nlmsg_overrun
+);
+
+impl_var!(NlFlags, u16, "u16";
+    NlRequest => nlm_f_request,
+    NlMulti => nlm_f_multi,
+    NlAck => nlm_f_ack,
+    NlEcho => nlm_f_echo,
+    NlDumpIntr => nlm_f_dump_intr,
+    NlDumpFiltered => nlm_f_dump_filtered,
+    NlRoot => nlm_f_root,
+    NlMatch => nlm_f_match,
+    NlAtomic => nlm_f_atomic,
+    NlDump => nlm_f_dump,
+    NlReplace => nlm_f_replace,
+    NlExcl => nlm_f_excl,
+    NlCreate => nlm_f_create,
+    NlAppend => nlm_f_append
 );
 
 #[cfg(test)]

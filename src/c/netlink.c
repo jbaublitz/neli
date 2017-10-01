@@ -24,6 +24,11 @@ const uint32_t netlink_ecryptfs = NETLINK_ECRYPTFS;
 const uint32_t netlink_rdma = NETLINK_RDMA;
 const uint32_t netlink_crypto = NETLINK_CRYPTO;
 
+const uint16_t nlmsg_noop = NLMSG_NOOP;
+const uint16_t nlmsg_error = NLMSG_ERROR;
+const uint16_t nlmsg_done = NLMSG_DONE;
+const uint16_t nlmsg_overrun = NLMSG_OVERRUN;
+
 const uint16_t nlm_f_request = NLM_F_REQUEST;
 const uint16_t nlm_f_multi = NLM_F_MULTI;
 const uint16_t nlm_f_ack = NLM_F_ACK;

@@ -1,10 +1,92 @@
-use ffi::NlType;
+use std::mem;
+use std::fmt;
+
+use serde::{Serialize,Serializer,Deserialize,Deserializer};
+use serde::de::{Visitor,Error};
+
+use ffi::{NlType,NlFlags};
+use ser::NlSerializer;
+use de::NlDeserializer;
+
+struct U16Visitor;
+
+impl<'a> Visitor<'a> for U16Visitor {
+    type Value = u16;
+
+    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "a u16 typed integer")
+    }
+
+    fn visit_u16<E>(self, v: u16) -> Result<Self::Value, E> where E: Error {
+        Ok(v)
+    }
+}
+
+fn type_ser<S>(nltype: &NlType, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    ser.serialize_u16(nltype.clone().into())
+}
+
+fn type_de<'a, D>(de: D) -> Result<NlType, D::Error> where D: Deserializer<'a> {
+    let u = try!(de.deserialize_u16(U16Visitor));
+    Ok(u.into())
+}
+
+fn flags_ser<S>(flags: &Vec<NlFlags>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    let val = flags.iter().fold(0, |acc: u16, val| {
+        let v: u16 = val.clone().into();
+        acc | v
+    });
+    val.serialize(ser)
+}
+
+fn flags_de<'a, D>(de: D) -> Result<Vec<NlFlags>, D::Error> where D: Deserializer<'a> {
+    let flags = try!(de.deserialize_u16(U16Visitor));
+    let mut vec = Vec::<NlFlags>::new();
+    for i in 0..mem::size_of::<u16>() {
+        let bit = (1 << i);
+        if bit & flags == bit {
+            vec.push(bit.into());
+        }
+    }
+    Ok(vec)
+}
 
 #[derive(Serialize,Deserialize)]
 pub struct NlHdr {
     nl_len: u32,
+    #[serde(serialize_with="type_ser", deserialize_with="type_de")]
     nl_type: NlType,
-    nl_flags: u16,
+    #[serde(serialize_with="flags_ser", deserialize_with="flags_de")]
+    nl_flags: Vec<NlFlags>,
     nl_seq: u32,
     nl_pid: u32,
+}
+
+impl NlHdr {
+    pub fn new(nl_len: Option<u32>, nl_type: NlType, nl_flags: Vec<NlFlags>,
+               nl_seq: Option<u32>, nl_pid: Option<u32>) -> Self {
+        NlHdr {
+            nl_len: nl_len.unwrap_or(0),
+            nl_type,
+            nl_flags,
+            nl_seq: nl_seq.unwrap_or(0),
+            nl_pid: nl_pid.unwrap_or(0),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ser::NlSerializer;
+    use de::NlDeserializer;
+    use serde::{Serialize,Deserialize};
+
+    #[test]
+    fn test_nlhdr_serialize() {
+        let mut ser = NlSerializer::new();
+        let hdr = NlHdr::new(None, NlType::NlNoop, Vec::new(), None, None);
+        hdr.serialize(&mut ser);
+        assert_eq!(ser.into_inner(), &[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    }
 }
