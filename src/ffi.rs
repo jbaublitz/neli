@@ -85,6 +85,15 @@ extern {
     pub static ctrl_cmd_newmcast_grp: u8;
     pub static ctrl_cmd_delmcast_grp: u8;
     pub static ctrl_cmd_getmcast_grp: u8;
+
+    pub static ctrl_attr_unspec: u16;
+    pub static ctrl_attr_family_id: u16;
+    pub static ctrl_attr_family_name: u16;
+    pub static ctrl_attr_version: u16;
+    pub static ctrl_attr_hdrsize: u16;
+    pub static ctrl_attr_maxattr: u16;
+    pub static ctrl_attr_ops: u16;
+    pub static ctrl_attr_mcast_groups: u16;
 }
 
 impl_var!(NlFamily, u32, "u32";
@@ -146,6 +155,17 @@ impl_var!(GenlCmds, u8, "u8";
     CmdNewmcastGrp => ctrl_cmd_newmcast_grp,
     CmdDelmcastGrp => ctrl_cmd_delmcast_grp,
     CmdGetmcastGrp => ctrl_cmd_getmcast_grp
+);
+
+impl_var!(NlaTypes, u16, "u16";
+    AttrUnspec => ctrl_attr_unspec,
+    AttrFamilyId => ctrl_attr_family_id,
+    AttrFamilyName => ctrl_attr_family_name,
+    AttrVersion => ctrl_attr_version,
+    AttrHdrsize => ctrl_attr_hdrsize,
+    AttrMaxattr => ctrl_attr_maxattr,
+    AttrOps => ctrl_attr_ops,
+    AttrMcastGroups => ctrl_attr_mcast_groups
 );
 
 #[cfg(test)]

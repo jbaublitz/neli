@@ -63,3 +63,12 @@ const uint8_t ctrl_cmd_getops = CTRL_CMD_GETOPS;
 const uint8_t ctrl_cmd_newmcast_grp = CTRL_CMD_NEWMCAST_GRP;
 const uint8_t ctrl_cmd_delmcast_grp = CTRL_CMD_DELMCAST_GRP;
 const uint8_t ctrl_cmd_getmcast_grp = CTRL_CMD_GETMCAST_GRP;
+
+const uint16_t ctrl_attr_unspec = CTRL_ATTR_UNSPEC;
+const uint16_t ctrl_attr_family_id = CTRL_ATTR_FAMILY_ID;
+const uint16_t ctrl_attr_family_name = CTRL_ATTR_FAMILY_NAME;
+const uint16_t ctrl_attr_version = CTRL_ATTR_VERSION;
+const uint16_t ctrl_attr_hdrsize = CTRL_ATTR_HDRSIZE;
+const uint16_t ctrl_attr_maxattr = CTRL_ATTR_MAXATTR;
+const uint16_t ctrl_attr_ops = CTRL_ATTR_OPS;
+const uint16_t ctrl_attr_mcast_groups = CTRL_ATTR_MCAST_GROUPS;
