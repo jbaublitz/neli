@@ -1,3 +1,7 @@
+use std::mem;
+
+use Nl;
+
 macro_rules! impl_var {
     ( $name:ident, $ty:ty, $from_str:tt; $( $var:ident => $val:ident ),* ) => (
         #[derive(Clone,Debug,Eq,PartialEq,Serialize,Deserialize)]
@@ -22,12 +26,23 @@ macro_rules! impl_var {
                 }
             }
         }
+
+        impl Nl for $name {
+            fn size(&self) -> usize {
+                mem::size_of::<$ty>()
+            }
+
+            fn asize(&self) -> usize {
+                alignto(mem::size_of::<$ty>())
+            }
+        }
     );
 }
 
 #[link(name = "netlink")]
 extern {
-    /// Values for `nl_family` in `NlSocket`
+    pub static nla_alignto: usize;
+
     pub static netlink_route: u32;
     pub static netlink_unused: u32;
     pub static netlink_usersock: u32;
@@ -50,13 +65,11 @@ extern {
     pub static netlink_rdma: u32;
     pub static netlink_crypto: u32;
 
-    /// Values for `nl_type` in `NlHdr`
     pub static nlmsg_noop: u16;
     pub static nlmsg_error: u16;
     pub static nlmsg_done: u16;
     pub static nlmsg_overrun: u16;
 
-    /// Values for `nl_flags` in `NlHdr`
     pub static nlm_f_request: u16;
     pub static nlm_f_multi: u16;
     pub static nlm_f_ack: u16;
@@ -74,7 +87,6 @@ extern {
     pub static nlm_f_create: u16;
     pub static nlm_f_append: u16;
 
-    // Values for `cmd` in `GenlHdr`
     pub static ctrl_cmd_unspec: u8;
     pub static ctrl_cmd_newfamily: u8;
     pub static ctrl_cmd_delfamily: u8;
@@ -96,6 +108,12 @@ extern {
     pub static ctrl_attr_mcast_groups: u16;
 }
 
+/// Reimplementation of alignto macro in C
+pub fn alignto(len: usize) -> usize {
+    (len + unsafe { nla_alignto } - 1) & !(unsafe { nla_alignto } - 1)
+}
+
+/// Values for `nl_family` in `NlSocket`
 impl_var!(NlFamily, u32, "u32";
     NlRoute => netlink_route,
     NlUnused => netlink_unused,
@@ -120,6 +138,7 @@ impl_var!(NlFamily, u32, "u32";
     NlCrypto => netlink_crypto
 );
 
+/// Values for `nl_type` in `NlHdr`
 impl_var!(NlType, u16, "u16";
     NlNoop => nlmsg_noop,
     NlError => nlmsg_error,
@@ -127,6 +146,7 @@ impl_var!(NlType, u16, "u16";
     NlOverrun => nlmsg_overrun
 );
 
+/// Values for `nl_flags` in `NlHdr`
 impl_var!(NlFlags, u16, "u16";
     NlRequest => nlm_f_request,
     NlMulti => nlm_f_multi,
@@ -144,6 +164,7 @@ impl_var!(NlFlags, u16, "u16";
     NlAppend => nlm_f_append
 );
 
+/// Values for `cmd` in `GenlHdr`
 impl_var!(GenlCmds, u8, "u8";
     CmdUnspec => ctrl_cmd_unspec,
     CmdNewfamily => ctrl_cmd_newfamily,
@@ -157,6 +178,7 @@ impl_var!(GenlCmds, u8, "u8";
     CmdGetmcastGrp => ctrl_cmd_getmcast_grp
 );
 
+/// Values for `nla_type` in `NlaAttrHdr`
 impl_var!(NlaTypes, u16, "u16";
     AttrUnspec => ctrl_attr_unspec,
     AttrFamilyId => ctrl_attr_family_id,

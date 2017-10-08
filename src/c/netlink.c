@@ -3,6 +3,8 @@
 #include <linux/netlink.h>
 #include <linux/genetlink.h>
 
+const uint8_t nla_alignto = NLA_ALIGNTO;
+
 const uint32_t netlink_route = NETLINK_ROUTE;
 const uint32_t netlink_unused = NETLINK_UNUSED;
 const uint32_t netlink_usersock = NETLINK_USERSOCK;

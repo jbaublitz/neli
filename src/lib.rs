@@ -47,3 +47,12 @@ pub mod ser;
 pub mod de;
 /// Errors and conversions
 pub mod err;
+
+use ffi::alignto;
+
+pub trait Nl {
+    fn size(&self) -> usize;
+    fn asize(&self) -> usize {
+        alignto(self.size())
+    }
+}

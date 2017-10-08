@@ -116,13 +116,14 @@ impl<'a> Serializer for &'a mut NlSerializer {
 	}
 
 	fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str, _variant_index: u32, 
-											_variant: &'static str, _value: &T)
-											-> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+											_variant: &'static str, value: &T)
+											-> Result<Self::Ok, Self::Error>
+                                            where T: Serialize {
+        value.serialize(self)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        unimplemented!()
+        Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -161,12 +162,13 @@ impl<'a> SerializeSeq for &'a mut NlSerializer {
     type Ok = ();
     type Error = NlError;
 
-    fn serialize_element<T: ?Sized>(&mut self, _elem: &T) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
+    fn serialize_element<T: ?Sized>(&mut self, elem: &T) -> Result<Self::Ok, Self::Error>
+            where T: Serialize {
+        elem.serialize(&mut **self)
     }
 
     fn end(self) -> Result<(), Self::Error> {
-        unimplemented!()
+        Ok(())
     }
 }
 

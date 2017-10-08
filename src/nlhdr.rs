@@ -4,6 +4,7 @@ use std::fmt;
 use serde::{Serialize,Serializer,Deserialize,Deserializer};
 use serde::de::{Visitor,Error};
 
+use Nl;
 use ffi::{NlType,NlFlags};
 
 fn flags_ser<S>(flags: &Vec<NlFlags>, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
@@ -51,22 +52,39 @@ pub struct NlHdr<T> {
     nl_pl: T,
 }
 
-impl<'a, T: Serialize + Deserialize<'a>> NlHdr<T> {
+impl<'a, T: Serialize + Deserialize<'a> + Nl> NlHdr<T> {
     pub fn new(nl_len: Option<u32>, nl_type: NlType, nl_flags: Vec<NlFlags>,
                nl_seq: Option<u32>, nl_pid: Option<u32>, nl_pl: T) -> Self {
-        NlHdr {
+        let mut nl = NlHdr {
             nl_len: nl_len.unwrap_or(0),
             nl_type,
             nl_flags,
             nl_seq: nl_seq.unwrap_or(0),
             nl_pid: nl_pid.unwrap_or(0),
             nl_pl
+        };
+        if let None = nl_len {
+            nl.nl_len = nl.asize() as u32;
         }
+        nl
+    }
+}
+
+impl<T: Nl> Nl for NlHdr<T> {
+    fn size(&self) -> usize {
+        mem::size_of::<u32>() * 3 + self.nl_type.size()
+            + self.nl_flags.iter().nth(0).unwrap_or(&NlFlags::NlRequest).size() + self.nl_pl.size()
     }
 }
 
 #[derive(Serialize,Deserialize,Debug,PartialEq)]
 pub struct NlEmpty;
+
+impl Nl for NlEmpty {
+    fn size(&self) -> usize {
+        0
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -83,12 +101,12 @@ mod test {
             Ok(_) => (),
             Err(_) => panic!(),
         };
-        assert_eq!(ser.into_inner(), &[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        assert_eq!(ser.into_inner(), &[16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     }
 
     #[test]
     fn test_nlhdr_deserialize() {
-        let hdr_bytes = &[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let hdr_bytes = &[16, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let mut de = NlDeserializer::new(hdr_bytes);
         let nlhdr = match NlHdr::<NlEmpty>::deserialize(&mut de) {
             Ok(n) => n,
