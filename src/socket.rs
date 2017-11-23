@@ -10,13 +10,10 @@ use std::io;
 use std::mem::{zeroed,size_of};
 
 use libc::{self,c_int,c_void};
-use serde::{Serialize,Deserialize};
-use serde::de::DeserializeOwned;
 
+use Nl;
 use ffi::NlFamily;
 use nlhdr::NlHdr;
-use ser::NlSerializer;
-use de::NlDeserializer;
 use err::NlError;
 
 /// Handle for the socket file descriptor
@@ -87,19 +84,17 @@ impl NlSocket {
     }
 
     /// Serialize and send Rust `NlMsg` type
-    pub fn sendmsg<T: Serialize>(&mut self, msg: NlHdr<T>, flags: i32) -> Result<isize, NlError> {
-        let mut ser = NlSerializer::new();
-        try!(msg.serialize(&mut ser));
-        let len = try!(self.send(&ser.into_inner(), flags));
+    pub fn sendmsg<T: Nl>(&mut self, msg: NlHdr<T>, flags: i32) -> Result<isize, NlError> {
+        let v = try!(msg.serialize());
+        let len = try!(self.send(v, flags));
         Ok(len)
     }
 
     /// Receive and deserialize Rust `NlMsg` type
-    pub fn recvmsg<T: DeserializeOwned>(&mut self, len: Option<usize>, flags: i32)
+    pub fn recvmsg<T: Nl>(&mut self, len: Option<usize>, flags: i32)
                                        -> Result<NlHdr<T>, NlError> {
         let buf = try!(self.recv(len, flags));
-        let mut de = NlDeserializer::new(&buf);
-        let msg = try!(NlHdr::<T>::deserialize(&mut de));
+        let msg = try!(NlHdr::<T>::deserialize(buf));
         Ok(msg)
     }
 }

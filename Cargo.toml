@@ -7,7 +7,5 @@ authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 cc = "*"
 
 [dependencies]
-serde = "*"
-serde_derive = "*"
 byteorder = "1"
 libc = "*"

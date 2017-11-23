@@ -1,44 +1,62 @@
-use std::fmt;
-use std::io;
 use std::error::Error;
+use std::fmt::{self,Display};
+use std::io;
 
-use serde::{ser,de};
+macro_rules! try_err_compat {
+    ($err_name:ident, $from_err_name:path) => {
+        impl From<$from_err_name> for $err_name {
+            fn from(v: $from_err_name) -> Self {
+                $err_name(v.description().to_string())
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct NlError(String);
 
-impl NlError {
-    pub fn new(s: String) -> Self {
-        NlError(s)
-    }
-}
-
-impl fmt::Display for NlError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+impl Display for NlError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 impl Error for NlError {
     fn description(&self) -> &str {
-        &self.0.as_ref()
+        self.0.as_str()
     }
 }
 
-impl ser::Error for NlError {
-    fn custom<T>(msg: T) -> Self where T: fmt::Display {
-        NlError(msg.to_string())
+#[derive(Debug)]
+pub struct SerError(String);
+
+try_err_compat!(SerError, io::Error);
+
+impl Display for SerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
-impl de::Error for NlError {
-    fn custom<T>(msg: T) -> Self where T: fmt::Display {
-        NlError(msg.to_string())
+impl Error for SerError {
+    fn description(&self) -> &str {
+        self.0.as_str()
     }
 }
 
-impl From<io::Error> for NlError {
-    fn from(v: io::Error) -> Self {
-        NlError(v.description().to_string())
+#[derive(Debug)]
+pub struct DeError(String);
+
+try_err_compat!(DeError, io::Error);
+
+impl Display for DeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Error for DeError {
+    fn description(&self) -> &str {
+        self.0.as_str()
     }
 }

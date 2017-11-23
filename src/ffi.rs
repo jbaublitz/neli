@@ -1,39 +1,59 @@
 use std::mem;
+use std::io::Cursor;
+use std::marker::PhantomData;
 
-use Nl;
+use byteorder::{ByteOrder,NativeEndian};
+
+use {Nl,NlSerState,NlDeState};
+use err::{SerError,DeError};
 
 macro_rules! impl_var {
-    ( $name:ident, $ty:ty, $from_str:tt; $( $var:ident => $val:ident ),* ) => (
-        #[derive(Clone,Debug,Eq,PartialEq,Serialize,Deserialize)]
-        #[serde(from=$from_str, into=$from_str)]
+    ( $name:ident, $ty:ty, $( $var:ident => $val:ident ),* ) => (
+        #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
             $( $var, )*
         }
 
-        impl From<$name> for $ty {
-            fn from(v: $name) -> Self {
-                match v {
-                    $( $name::$var => unsafe { $val }, )*
-                }
+        impl Default for $name {
+            fn default() -> Self {
+                From::from(0)
             }
         }
 
         impl From<$ty> for $name {
             fn from(v: $ty) -> Self {
                 match v {
-                    $( i if i == unsafe { $val } => $name::$var, )*
-                    _ => unimplemented!(),
+                    $( i if i == unsafe { $val } => $name::$var,)*
+                    _ => panic!(),
+                }
+            }
+        }
+
+        impl From<$name> for $ty {
+            fn from(v: $name) -> Self {
+                match v {
+                    $( $name::$var => unsafe { $val },)*
                 }
             }
         }
 
         impl Nl for $name {
-            fn size(&self) -> usize {
-                mem::size_of::<$ty>()
+            type Input = ();
+
+            fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+                let mut v: $ty = self.clone().into();
+                try!(Nl::serialize(&mut v, state));
+                Ok(())
             }
 
-            fn asize(&self) -> usize {
-                alignto(mem::size_of::<$ty>())
+            fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
+                                -> Result<Self, DeError> {
+                let v: $ty = try!(<$ty as Nl>::deserialize(state));
+                Ok(v.into())
+            }
+
+            fn size(&self) -> usize {
+                mem::size_of::<$ty>()
             }
         }
     );
@@ -114,7 +134,7 @@ pub fn alignto(len: usize) -> usize {
 }
 
 /// Values for `nl_family` in `NlSocket`
-impl_var!(NlFamily, u32, "u32";
+impl_var!(NlFamily, u32,
     NlRoute => netlink_route,
     NlUnused => netlink_unused,
     NlUsersock => netlink_usersock,
@@ -139,7 +159,7 @@ impl_var!(NlFamily, u32, "u32";
 );
 
 /// Values for `nl_type` in `NlHdr`
-impl_var!(NlType, u16, "u16";
+impl_var!(NlType, u16,
     NlNoop => nlmsg_noop,
     NlError => nlmsg_error,
     NlDone => nlmsg_done,
@@ -147,7 +167,7 @@ impl_var!(NlType, u16, "u16";
 );
 
 /// Values for `nl_flags` in `NlHdr`
-impl_var!(NlFlags, u16, "u16";
+impl_var!(NlFlags, u16,
     NlRequest => nlm_f_request,
     NlMulti => nlm_f_multi,
     NlAck => nlm_f_ack,
@@ -165,7 +185,7 @@ impl_var!(NlFlags, u16, "u16";
 );
 
 /// Values for `cmd` in `GenlHdr`
-impl_var!(GenlCmds, u8, "u8";
+impl_var!(GenlCmds, u8,
     CmdUnspec => ctrl_cmd_unspec,
     CmdNewfamily => ctrl_cmd_newfamily,
     CmdDelfamily => ctrl_cmd_delfamily,
@@ -179,7 +199,7 @@ impl_var!(GenlCmds, u8, "u8";
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(NlaTypes, u16, "u16";
+impl_var!(NlaTypes, u16,
     AttrUnspec => ctrl_attr_unspec,
     AttrFamilyId => ctrl_attr_family_id,
     AttrFamilyName => ctrl_attr_family_name,
@@ -193,23 +213,12 @@ impl_var!(NlaTypes, u16, "u16";
 #[cfg(test)]
 mod test {
     use super::*;
-    use serde::Deserialize;
-    use de::NlDeserializer;
 
     #[test]
     fn test_flags() {
-        assert_eq!(unsafe { nlm_f_request }, 1);
-        assert_eq!(unsafe { nlm_f_multi }, 2);
-        assert_eq!(unsafe { nlm_f_ack }, 4);
     }
 
     #[test]
     fn test_enum_serde() {
-        let mut de = NlDeserializer::new(&[1, 0, 0, 0]);
-        let v = match NlFamily::deserialize(&mut de) {
-            Ok(val) => val,
-            _ => panic!(),
-        };
-        assert_eq!(v, NlFamily::NlUnused);
     }
 }
