@@ -15,6 +15,10 @@ macro_rules! try_err_compat {
 #[derive(Debug)]
 pub struct NlError(String);
 
+try_err_compat!(NlError, io::Error);
+try_err_compat!(NlError, SerError);
+try_err_compat!(NlError, DeError);
+
 impl Display for NlError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)

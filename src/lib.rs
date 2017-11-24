@@ -25,7 +25,7 @@ extern crate byteorder;
 /// C constants defined as types
 pub mod ffi;
 /// Wrapper for `libc` sockets
-//pub mod socket;
+pub mod socket;
 /// Top-level netlink header
 pub mod nlhdr;
 /// Genetlink (generic netlink) header and attribute helpers

@@ -11,7 +11,7 @@ use std::mem::{zeroed,size_of};
 
 use libc::{self,c_int,c_void};
 
-use Nl;
+use {Nl,NlSerState,NlDeState};
 use ffi::NlFamily;
 use nlhdr::NlHdr;
 use err::NlError;
@@ -84,17 +84,18 @@ impl NlSocket {
     }
 
     /// Serialize and send Rust `NlMsg` type
-    pub fn sendmsg<T: Nl>(&mut self, msg: NlHdr<T>, flags: i32) -> Result<isize, NlError> {
-        let v = try!(msg.serialize());
-        let len = try!(self.send(v, flags));
+    pub fn sendmsg<T: Nl>(&mut self, mut msg: NlHdr<T>, flags: i32) -> Result<isize, NlError> {
+        let mut state = NlSerState::new();
+        try!(msg.serialize(&mut state));
+        let len = try!(self.send(state.into_inner().as_slice(), flags));
         Ok(len)
     }
 
     /// Receive and deserialize Rust `NlMsg` type
     pub fn recvmsg<T: Nl>(&mut self, len: Option<usize>, flags: i32)
                                        -> Result<NlHdr<T>, NlError> {
-        let buf = try!(self.recv(len, flags));
-        let msg = try!(NlHdr::<T>::deserialize(buf));
+        let mut buf = try!(self.recv(len, flags));
+        let msg = try!(<NlHdr<T> as Nl>::deserialize(&mut NlDeState::new(buf.as_mut_slice())));
         Ok(msg)
     }
 }
