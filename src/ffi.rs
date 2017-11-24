@@ -1,14 +1,10 @@
 use std::mem;
-use std::io::Cursor;
-use std::marker::PhantomData;
-
-use byteorder::{ByteOrder,NativeEndian};
 
 use {Nl,NlSerState,NlDeState};
 use err::{SerError,DeError};
 
 macro_rules! impl_var {
-    ( $name:ident, $ty:ty, $( $var:ident => $val:ident ),* ) => (
+    ( $name:ident, $ty:ty, $init:ident, $( $var:ident => $val:ident ),* ) => (
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
             $( $var, )*
@@ -16,7 +12,7 @@ macro_rules! impl_var {
 
         impl Default for $name {
             fn default() -> Self {
-                From::from(0)
+                $name::$init
             }
         }
 
@@ -134,7 +130,7 @@ pub fn alignto(len: usize) -> usize {
 }
 
 /// Values for `nl_family` in `NlSocket`
-impl_var!(NlFamily, u32,
+impl_var!(NlFamily, u32, NlGeneric,
     NlRoute => netlink_route,
     NlUnused => netlink_unused,
     NlUsersock => netlink_usersock,
@@ -159,7 +155,7 @@ impl_var!(NlFamily, u32,
 );
 
 /// Values for `nl_type` in `NlHdr`
-impl_var!(NlType, u16,
+impl_var!(NlType, u16, NlNoop,
     NlNoop => nlmsg_noop,
     NlError => nlmsg_error,
     NlDone => nlmsg_done,
@@ -167,7 +163,7 @@ impl_var!(NlType, u16,
 );
 
 /// Values for `nl_flags` in `NlHdr`
-impl_var!(NlFlags, u16,
+impl_var!(NlFlags, u16, NlRequest,
     NlRequest => nlm_f_request,
     NlMulti => nlm_f_multi,
     NlAck => nlm_f_ack,
@@ -185,7 +181,7 @@ impl_var!(NlFlags, u16,
 );
 
 /// Values for `cmd` in `GenlHdr`
-impl_var!(GenlCmds, u8,
+impl_var!(GenlCmds, u8, CmdUnspec,
     CmdUnspec => ctrl_cmd_unspec,
     CmdNewfamily => ctrl_cmd_newfamily,
     CmdDelfamily => ctrl_cmd_delfamily,
@@ -199,7 +195,7 @@ impl_var!(GenlCmds, u8,
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(NlaTypes, u16,
+impl_var!(NlaTypes, u16, AttrUnspec,
     AttrUnspec => ctrl_attr_unspec,
     AttrFamilyId => ctrl_attr_family_id,
     AttrFamilyName => ctrl_attr_family_name,
@@ -212,8 +208,6 @@ impl_var!(NlaTypes, u16,
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     #[test]
     fn test_flags() {
     }

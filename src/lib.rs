@@ -35,7 +35,6 @@ pub mod err;
 
 use std::io::{Cursor,Read,Write};
 use std::mem;
-use std::marker::PhantomData;
 
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
@@ -126,7 +125,7 @@ impl Nl for u32 {
     }
 
     fn size(&self) -> usize {
-        mem::size_of::<u16>()
+        mem::size_of::<u32>()
     }
 }
 
