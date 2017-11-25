@@ -140,11 +140,87 @@ impl Nl for Vec<u8> {
     fn deserialize_with(state: &mut NlDeState, input: Self::Input)
                         -> Result<Self, DeError> {
         let mut v = Vec::with_capacity(input);
-        try!(state.0.read(v.as_mut_slice()));
+        try!(state.0.by_ref().take(input as u64).read_to_end(&mut v));
         Ok(v)
     }
 
     fn size(&self) -> usize {
         self.len()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_nl_u8() {
+        let mut v: u8 = 5;
+        let s: &[u8; 1] = &[5];
+        let mut state = NlSerState::new();
+        <u8 as Nl>::serialize(&mut v, &mut state).unwrap();
+        assert_eq!(s, state.into_inner().as_slice());
+
+        let s: &[u8; 1] = &[5];
+        let mut state = NlDeState::new(s);
+        let v = <u8 as Nl>::deserialize(&mut state).unwrap();
+        assert_eq!(v, 5)
+    }
+
+    #[test]
+    fn test_nl_u16() {
+        let mut v: u16 = 6000;
+        let s: &mut [u8] = &mut [0; 2];
+        {
+            let mut c = Cursor::new(&mut *s);
+            c.write_u16::<NativeEndian>(6000).unwrap();
+        }
+        let mut state = NlSerState::new();
+        <u16 as Nl>::serialize(&mut v, &mut state).unwrap();
+        assert_eq!(s, state.into_inner().as_slice());
+
+        let s: &mut [u8] = &mut [0; 2];
+        {
+            let mut c = Cursor::new(&mut *s);
+            c.write_u16::<NativeEndian>(6000).unwrap();
+        }
+        let mut state = NlDeState::new(&*s);
+        let v = <u16 as Nl>::deserialize(&mut state).unwrap();
+        assert_eq!(v, 6000)
+    }
+
+    #[test]
+    fn test_nl_u32() {
+        let mut v: u32 = 600000;
+        let s: &mut [u8] = &mut [0; 4];
+        {
+            let mut c = Cursor::new(&mut *s);
+            c.write_u32::<NativeEndian>(600000).unwrap();
+        }
+        let mut state = NlSerState::new();
+        <u32 as Nl>::serialize(&mut v, &mut state).unwrap();
+        assert_eq!(s, state.into_inner().as_slice());
+
+        let s: &mut [u8] = &mut [0; 4];
+        {
+            let mut c = Cursor::new(&mut *s);
+            c.write_u32::<NativeEndian>(600000).unwrap();
+        }
+        let mut state = NlDeState::new(&*s);
+        let v = <u32 as Nl>::deserialize(&mut state).unwrap();
+        assert_eq!(v, 600000)
+    }
+
+    #[test]
+    fn test_nl_vec() {
+        let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut state = NlSerState::new();
+        <Vec<u8> as Nl>::serialize(&mut v, &mut state).unwrap();
+        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
+
+        let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut state = NlDeState::new(s);
+        let v = <Vec<u8> as Nl>::deserialize_with(&mut state, s.len()).unwrap();
+        assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
     }
 }
