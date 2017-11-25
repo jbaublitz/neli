@@ -171,7 +171,7 @@ mod test {
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
             c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
-            c.write_all(&vec![0, 1, 2, 3, 4, 5]).unwrap();
+            c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
         assert_eq!(&state.into_inner(), &v_final)
@@ -182,7 +182,7 @@ mod test {
         let genl_mock = GenlHdr::new(GenlCmds::CmdGetops, 2,
                                     vec![NlAttrHdr::new(None, NlaTypes::AttrFamilyId,
                                                         NlAttrPayload::Bin(
-                                                            vec![0, 1, 2, 3, 4, 5]
+                                                            vec![0, 1, 2, 3, 4, 5, 0, 0]
                                                         ))]);
         let v = Vec::with_capacity(genl_mock.asize());
         let v_final = {
@@ -192,7 +192,7 @@ mod test {
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
             c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
-            c.write_all(&vec![0, 1, 2, 3, 4, 5]).unwrap();
+            c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
         let mut state = NlDeState::new(&v_final);

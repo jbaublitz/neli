@@ -133,7 +133,10 @@ impl Nl for Vec<u8> {
     type Input = usize;
 
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(state.0.write(self.as_slice()));
+        let len = self.asize();
+        let num_bytes = try!(state.0.write(&self));
+        let padding = vec![0; len - num_bytes];
+        try!(state.0.write(&padding));
         Ok(())
     }
 
@@ -216,11 +219,11 @@ mod test {
         let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut state = NlSerState::new();
         v.serialize(&mut state).unwrap();
-        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
+        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0], state.into_inner().as_slice());
 
-        let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
         let mut state = NlDeState::new(s);
         let v = Vec::<u8>::deserialize_with(&mut state, s.len()).unwrap();
-        assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
+        assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0])
     }
 }
