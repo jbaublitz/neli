@@ -205,14 +205,3 @@ impl_var!(NlaTypes, u16, AttrUnspec,
     AttrOps => ctrl_attr_ops,
     AttrMcastGroups => ctrl_attr_mcast_groups
 );
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_flags() {
-    }
-
-    #[test]
-    fn test_enum_serde() {
-    }
-}

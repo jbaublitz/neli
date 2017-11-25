@@ -158,12 +158,12 @@ mod test {
         let mut v: u8 = 5;
         let s: &[u8; 1] = &[5];
         let mut state = NlSerState::new();
-        <u8 as Nl>::serialize(&mut v, &mut state).unwrap();
+        v.serialize(&mut state).unwrap();
         assert_eq!(s, state.into_inner().as_slice());
 
         let s: &[u8; 1] = &[5];
         let mut state = NlDeState::new(s);
-        let v = <u8 as Nl>::deserialize(&mut state).unwrap();
+        let v = u8::deserialize(&mut state).unwrap();
         assert_eq!(v, 5)
     }
 
@@ -176,7 +176,7 @@ mod test {
             c.write_u16::<NativeEndian>(6000).unwrap();
         }
         let mut state = NlSerState::new();
-        <u16 as Nl>::serialize(&mut v, &mut state).unwrap();
+        v.serialize(&mut state).unwrap();
         assert_eq!(s, state.into_inner().as_slice());
 
         let s: &mut [u8] = &mut [0; 2];
@@ -185,7 +185,7 @@ mod test {
             c.write_u16::<NativeEndian>(6000).unwrap();
         }
         let mut state = NlDeState::new(&*s);
-        let v = <u16 as Nl>::deserialize(&mut state).unwrap();
+        let v = u16::deserialize(&mut state).unwrap();
         assert_eq!(v, 6000)
     }
 
@@ -198,7 +198,7 @@ mod test {
             c.write_u32::<NativeEndian>(600000).unwrap();
         }
         let mut state = NlSerState::new();
-        <u32 as Nl>::serialize(&mut v, &mut state).unwrap();
+        v.serialize(&mut state).unwrap();
         assert_eq!(s, state.into_inner().as_slice());
 
         let s: &mut [u8] = &mut [0; 4];
@@ -207,7 +207,7 @@ mod test {
             c.write_u32::<NativeEndian>(600000).unwrap();
         }
         let mut state = NlDeState::new(&*s);
-        let v = <u32 as Nl>::deserialize(&mut state).unwrap();
+        let v = u32::deserialize(&mut state).unwrap();
         assert_eq!(v, 600000)
     }
 
@@ -215,12 +215,12 @@ mod test {
     fn test_nl_vec() {
         let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut state = NlSerState::new();
-        <Vec<u8> as Nl>::serialize(&mut v, &mut state).unwrap();
+        v.serialize(&mut state).unwrap();
         assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
 
         let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut state = NlDeState::new(s);
-        let v = <Vec<u8> as Nl>::deserialize_with(&mut state, s.len()).unwrap();
+        let v = Vec::<u8>::deserialize_with(&mut state, s.len()).unwrap();
         assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
     }
 }

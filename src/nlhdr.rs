@@ -45,34 +45,34 @@ impl<T: Nl> Nl for NlHdr<T> {
     type Input = ();
 
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(<u32 as Nl>::serialize(&mut self.nl_len, state));
-        try!(<NlType as Nl>::serialize(&mut self.nl_type, state));
+        try!(self.nl_len.serialize(state));
+        try!(self.nl_type.serialize(state));
         let mut val = self.nl_flags.iter().fold(0, |acc: u16, val| {
             let v: u16 = val.clone().into();
             acc | v
         });
-        try!(<u16 as Nl>::serialize(&mut val, state));
-        try!(<u32 as Nl>::serialize(&mut self.nl_seq, state));
-        try!(<u32 as Nl>::serialize(&mut self.nl_pid, state));
-        try!(<T as Nl>::serialize(&mut self.nl_pl, state));
+        try!(val.serialize(state));
+        try!(self.nl_seq.serialize(state));
+        try!(self.nl_pid.serialize(state));
+        try!(self.nl_pl.serialize(state));
         Ok(())
     }
 
     fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
                         -> Result<Self, DeError> {
         let mut nl = NlHdr::<T>::default();
-        nl.nl_len = try!(<u32 as Nl>::deserialize(state));
-        nl.nl_type = try!(<NlType as Nl>::deserialize(state));
-        let flags = try!(<u16 as Nl>::deserialize(state));
+        nl.nl_len = try!(u32::deserialize(state));
+        nl.nl_type = try!(NlType::deserialize(state));
+        let flags = try!(u16::deserialize(state));
         for i in 0..mem::size_of::<u16>() * 8 {
             let bit = 1 << i;
             if bit & flags == bit {
                 nl.nl_flags.push(bit.into());
             }
         }
-        nl.nl_seq = try!(<u32 as Nl>::deserialize(state));
-        nl.nl_pid = try!(<u32 as Nl>::deserialize(state));
-        nl.nl_pl = try!(<T as Nl>::deserialize(state));
+        nl.nl_seq = try!(u32::deserialize(state));
+        nl.nl_pid = try!(u32::deserialize(state));
+        nl.nl_pl = try!(T::deserialize(state));
         Ok(nl)
     }
 

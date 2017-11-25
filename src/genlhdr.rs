@@ -35,22 +35,22 @@ impl Nl for GenlHdr {
     type Input = ();
 
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(<GenlCmds as Nl>::serialize(&mut self.cmd, state));
-        try!(<u8 as Nl>::serialize(&mut self.version, state));
-        try!(<u16 as Nl>::serialize(&mut self.reserved, state));
+        try!(self.cmd.serialize(state));
+        try!(self.version.serialize(state));
+        try!(self.reserved.serialize(state));
         for mut attr in self.attrs.iter_mut() {
-            try!(<NlAttrHdr as Nl>::serialize(&mut attr, state));
+            try!(attr.serialize(state));
         }
         Ok(())
     }
 
     fn deserialize_with(state: &mut NlDeState, _input: Self::Input) -> Result<Self, DeError> {
         let mut genl = GenlHdr::default();
-        genl.cmd = try!(<GenlCmds as Nl>::deserialize(state));
-        genl.version = try!(<u8 as Nl>::deserialize(state));
-        genl.reserved = try!(<u16 as Nl>::deserialize(state));
+        genl.cmd = try!(GenlCmds::deserialize(state));
+        genl.version = try!(u8::deserialize(state));
+        genl.reserved = try!(u16::deserialize(state));
         while state.0.position() < state.0.get_ref().len() as u64 {
-            genl.attrs.push(try!(<NlAttrHdr as Nl>::deserialize(state)));
+            genl.attrs.push(try!(NlAttrHdr::deserialize(state)));
         }
         Ok(genl)
     }
@@ -75,7 +75,7 @@ impl NlAttrHdr {
         let mut nla = NlAttrHdr::default();
         nla.nla_type = nla_type;
         nla.payload = payload;
-        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
+        nla.nla_len = nla_len.unwrap_or(nla.asize() as u16);
         nla
     }
 }
@@ -94,17 +94,17 @@ impl Nl for NlAttrHdr {
     type Input = ();
 
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(<u16 as Nl>::serialize(&mut self.nla_len, state));
-        try!(<NlaTypes as Nl>::serialize(&mut self.nla_type, state));
-        try!(<NlAttrPayload as Nl>::serialize(&mut self.payload, state));
+        try!(self.nla_len.serialize(state));
+        try!(self.nla_type.serialize(state));
+        try!(self.payload.serialize(state));
         Ok(())
     }
 
     fn deserialize_with(state: &mut NlDeState, _input: Self::Input) -> Result<Self, DeError> {
         let mut nla = NlAttrHdr::default();
-        nla.nla_len = try!(<u16 as Nl>::deserialize(state));
-        nla.nla_type = try!(<NlaTypes as Nl>::deserialize(state));
-        nla.payload = try!(<NlAttrPayload as Nl>::deserialize_with(state, nla.nla_len as usize));
+        nla.nla_len = try!(u16::deserialize(state));
+        nla.nla_type = try!(NlaTypes::deserialize(state));
+        nla.payload = try!(NlAttrPayload::deserialize_with(state, nla.nla_len as usize));
         Ok(nla)
     }
 
@@ -137,7 +137,7 @@ impl Nl for NlAttrPayload {
     }
 
     fn deserialize_with(state: &mut NlDeState, size: Self::Input) -> Result<Self, DeError> {
-        Ok(NlAttrPayload::Bin(try!(<Vec<u8> as Nl>::deserialize_with(state, size))))
+        Ok(NlAttrPayload::Bin(try!(Vec::<u8>::deserialize_with(state, size))))
     }
 
     fn size(&self) -> usize {
@@ -150,11 +150,53 @@ impl Nl for NlAttrPayload {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use byteorder::{NativeEndian,WriteBytesExt};
+    use std::io::{Cursor,Write};
+
     #[test]
     pub fn test_serialize() {
+        let mut genl = GenlHdr::new(GenlCmds::CmdGetops, 2,
+                                    vec![NlAttrHdr::new(None, NlaTypes::AttrFamilyId,
+                                                        NlAttrPayload::Bin(
+                                                            vec![0, 1, 2, 3, 4, 5]
+                                                        ))]);
+        let mut state = NlSerState::new();
+        genl.serialize(&mut state).unwrap();
+        let v = Vec::with_capacity(genl.asize());
+        let v_final = {
+            let mut c = Cursor::new(v);
+            c.write_u8(GenlCmds::CmdGetops.into()).unwrap();
+            c.write_u8(2).unwrap();
+            c.write_u16::<NativeEndian>(0).unwrap();
+            c.write_u16::<NativeEndian>(12).unwrap();
+            c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
+            c.write_all(&vec![0, 1, 2, 3, 4, 5]).unwrap();
+            c.into_inner()
+        };
+        assert_eq!(&state.into_inner(), &v_final)
     }
 
     #[test]
     pub fn test_deserialize() {
+        let genl_mock = GenlHdr::new(GenlCmds::CmdGetops, 2,
+                                    vec![NlAttrHdr::new(None, NlaTypes::AttrFamilyId,
+                                                        NlAttrPayload::Bin(
+                                                            vec![0, 1, 2, 3, 4, 5]
+                                                        ))]);
+        let v = Vec::with_capacity(genl_mock.asize());
+        let v_final = {
+            let mut c = Cursor::new(v);
+            c.write_u8(GenlCmds::CmdGetops.into()).unwrap();
+            c.write_u8(2).unwrap();
+            c.write_u16::<NativeEndian>(0).unwrap();
+            c.write_u16::<NativeEndian>(12).unwrap();
+            c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
+            c.write_all(&vec![0, 1, 2, 3, 4, 5]).unwrap();
+            c.into_inner()
+        };
+        let mut state = NlDeState::new(&v_final);
+        let genl = GenlHdr::deserialize(&mut state).unwrap();
+        assert_eq!(genl, genl_mock)
     }
 }
