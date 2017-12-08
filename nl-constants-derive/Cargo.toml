@@ -1,0 +1,17 @@
+[package]
+name = "nl-constants-derive"
+version = "0.1.0"
+authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc = "*"
+syn = "*"
+quote = "*"
+regex = "*"
+
+[dependencies.nom]
+version = "*"
+features = ["regexp"]
