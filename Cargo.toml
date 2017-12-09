@@ -5,7 +5,6 @@ authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 
 [build-dependencies]
 cc = "*"
-nl-constants-derive = { path = "nl-constants-derive" }
 
 [dependencies]
 byteorder = "1"
