@@ -3,4 +3,4 @@
 # nl
 Type safe netlink library for Rust
 
-More documentation can be found at https://jbaublitz.github.io/nl/nl/index.html.
+Reference documentation can be found [here](https://jbaublitz.github.io/nl/nl/index.html).
