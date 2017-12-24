@@ -1,6 +1,7 @@
 use {Nl,NlSerState,NlDeState,SerError,DeError};
 use ffi::{GenlCmds,NlaTypes};
 
+/// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
 pub struct GenlHdr {
     cmd: GenlCmds,
@@ -10,6 +11,7 @@ pub struct GenlHdr {
 }
 
 impl GenlHdr {
+    /// Create new generic netlink packet
     pub fn new(cmd: GenlCmds, version: u8, attrs: Vec<NlAttrHdr>) -> Self {
         GenlHdr {
             cmd,
@@ -63,6 +65,7 @@ impl Nl for GenlHdr {
     }
 }
 
+/// Struct representing netlink attributes and payloads
 #[derive(Debug,PartialEq)]
 pub struct NlAttrHdr {
     nla_len: u16,
@@ -71,6 +74,7 @@ pub struct NlAttrHdr {
 }
 
 impl NlAttrHdr {
+    /// Create new netlink attribute with a payload
     pub fn new(nla_len: Option<u16>, nla_type: NlaTypes, payload: NlAttrPayload) -> Self {
         let mut nla = NlAttrHdr::default();
         nla.nla_type = nla_type;
@@ -113,9 +117,13 @@ impl Nl for NlAttrHdr {
     }
 }
 
+/// Struct representing a netlink attribute payload
+/// that is either a binary blob or nested attribute
 #[derive(Debug,PartialEq)]
 pub enum NlAttrPayload {
+    /// Binary payload
     Bin(Vec<u8>),
+    /// Nested attribute payload
     Parsed(Box<NlAttrHdr>),
 }
 

@@ -4,6 +4,7 @@ use {Nl,NlSerState,NlDeState};
 use err::{SerError,DeError};
 use ffi::{NlType,NlFlags};
 
+/// Top level netlink header and payload
 #[derive(Debug,PartialEq)]
 pub struct NlHdr<T> {
     nl_len: u32,
@@ -15,6 +16,7 @@ pub struct NlHdr<T> {
 }
 
 impl<T: Nl> NlHdr<T> {
+    /// Create a new top level netlink packet with a payload
     pub fn new(nl_len: Option<u32>, nl_type: NlType, nl_flags: Vec<NlFlags>,
            nl_seq: Option<u32>, nl_pid: Option<u32>, nl_pl: T) -> Self {
         let mut nl = NlHdr::default();
@@ -82,6 +84,7 @@ impl<T: Nl> Nl for NlHdr<T> {
     }
 }
 
+/// Struct indicating an empty payload
 #[derive(Debug,PartialEq)]
 pub struct NlEmpty;
 

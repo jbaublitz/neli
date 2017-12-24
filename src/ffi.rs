@@ -6,10 +6,15 @@ use err::{SerError,DeError};
 macro_rules! impl_var {
     ( $name:ident, $ty:ty, $var_def:ident => $val_def:ident,
       $( $var:ident => $val:ident ),* ) => (
+        /// Enum representing C constants for netlink packets
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
+            #[allow(missing_docs)]
             $var_def,
-            $( $var, )*
+            $(
+                #[allow(missing_docs)]
+                $var,
+            )*
         }
 
         impl Default for $name {

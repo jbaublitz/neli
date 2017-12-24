@@ -19,6 +19,8 @@
 //! approach as possible regarding `#define`s in C. It is used to compile a C file that includes
 //! the appropriate headers and exports them to the corresponding `stdint.h` types in C.
 
+#![deny(missing_docs)]
+
 extern crate libc;
 extern crate byteorder;
 
@@ -41,35 +43,49 @@ use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 use ffi::alignto;
 use err::{SerError,DeError};
 
+/// Struct representing the necessary state to serialize an object
 pub struct NlSerState(Cursor<Vec<u8>>);
 
 impl NlSerState {
+    /// Create new serialization state object
     pub fn new() -> Self {
         NlSerState(Cursor::new(Vec::new()))
     }
 
+    /// Get buffer with serialized representation of consumed struct
     pub fn into_inner(self) -> Vec<u8> {
         self.0.into_inner()
     }
 }
 
+/// Struct representing the necessary state to deserialize an object
 pub struct NlDeState<'a>(Cursor<&'a [u8]>);
 
 impl<'a> NlDeState<'a> {
+    /// Create new deserialization state object
     pub fn new(s: &'a [u8]) -> Self {
         NlDeState(Cursor::new(s))
     }
 }
 
+/// Trait defining basic actions required for netlink communication
 pub trait Nl: Sized + Default {
+    /// Type of `deserialize_with` input - should be `()` unless state is required
     type Input: Default;
 
+    /// Serialization method
     fn serialize(&mut self, &mut NlSerState) -> Result<(), SerError>;
+    /// Deserialization method that takes an additional input 
+    /// to determine how deserialization is performed 
     fn deserialize_with(&mut NlDeState, Self::Input) -> Result<Self, DeError>;
+    /// Deserialization method
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         Self::deserialize_with(state, Self::Input::default())
     }
+
+    /// The size of the binary representation of a struct - not aligned to word size
     fn size(&self) -> usize;
+    /// The size of the binary representation of a struct - aligned to word size
     fn asize(&self) -> usize {
         alignto(self.size())
     }
