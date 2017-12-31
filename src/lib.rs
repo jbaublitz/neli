@@ -59,30 +59,31 @@ impl NlSerState {
 }
 
 /// Struct representing the necessary state to deserialize an object
-pub struct NlDeState<'a>(Cursor<&'a [u8]>);
+pub struct NlDeState<'a>(Cursor<&'a [u8]>, Option<usize>);
 
 impl<'a> NlDeState<'a> {
     /// Create new deserialization state object
     pub fn new(s: &'a [u8]) -> Self {
-        NlDeState(Cursor::new(s))
+        NlDeState(Cursor::new(s), None)
+    }
+
+    /// Store length of payload for later use
+    pub fn set_usize(&mut self, sz: usize) {
+        self.1 = Some(sz);
+    }
+
+    /// Get length of payload
+    pub fn get_usize(&mut self) -> Option<usize> {
+        self.1.take()
     }
 }
 
 /// Trait defining basic actions required for netlink communication
 pub trait Nl: Sized + Default {
-    /// Type of `deserialize_with` input - should be `()` unless state is required
-    type Input: Default;
-
     /// Serialization method
     fn serialize(&mut self, &mut NlSerState) -> Result<(), SerError>;
-    /// Deserialization method that takes an additional input 
-    /// to determine how deserialization is performed 
-    fn deserialize_with(&mut NlDeState, Self::Input) -> Result<Self, DeError>;
     /// Deserialization method
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        Self::deserialize_with(state, Self::Input::default())
-    }
-
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError>;
     /// The size of the binary representation of a struct - not aligned to word size
     fn size(&self) -> usize;
     /// The size of the binary representation of a struct - aligned to word size
@@ -92,15 +93,12 @@ pub trait Nl: Sized + Default {
 }
 
 impl Nl for u8 {
-    type Input = ();
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u8(*self));
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
-                        -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         Ok(try!(state.0.read_u8()))
     }
 
@@ -110,15 +108,12 @@ impl Nl for u8 {
 }
 
 impl Nl for u16 {
-    type Input = ();
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u16::<NativeEndian>(*self));
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
-                        -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         Ok(try!(state.0.read_u16::<NativeEndian>()))
     }
 
@@ -128,15 +123,12 @@ impl Nl for u16 {
 }
 
 impl Nl for u32 {
-    type Input = ();
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u32::<NativeEndian>(*self));
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
-                        -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         Ok(try!(state.0.read_u32::<NativeEndian>()))
     }
 
@@ -146,8 +138,6 @@ impl Nl for u32 {
 }
 
 impl Nl for Vec<u8> {
-    type Input = usize;
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         let len = self.asize();
         let num_bytes = try!(state.0.write(&self));
@@ -156,8 +146,8 @@ impl Nl for Vec<u8> {
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, input: Self::Input)
-                        -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        let input = state.get_usize().ok_or(DeError::new("Size of buffer unknown"))?;
         let mut v = Vec::with_capacity(input);
         try!(state.0.by_ref().take(input as u64).read_to_end(&mut v));
         Ok(v)
@@ -239,7 +229,8 @@ mod test {
 
         let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
         let mut state = NlDeState::new(s);
-        let v = Vec::<u8>::deserialize_with(&mut state, s.len()).unwrap();
+        state.set_usize(s.len() as usize);
+        let v = Vec::<u8>::deserialize(&mut state).unwrap();
         assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0])
     }
 }

@@ -2,22 +2,23 @@ use std::mem;
 
 use {Nl,NlSerState,NlDeState};
 use err::{SerError,DeError};
-use ffi::{NlType,NlFlags};
+use ffi::{NlFlags};
 
 /// Top level netlink header and payload
 #[derive(Debug,PartialEq)]
-pub struct NlHdr<T> {
+pub struct NlHdr<I, T> {
     nl_len: u32,
-    nl_type: NlType,
+    nl_type: I,
     nl_flags: Vec<NlFlags>,
     nl_seq: u32,
     nl_pid: u32,
-    nl_pl: T,
+    /// FUCK
+    pub nl_pl: T,
 }
 
-impl<T: Nl> NlHdr<T> {
+impl<I: Nl, T: Nl> NlHdr<I, T> {
     /// Create a new top level netlink packet with a payload
-    pub fn new(nl_len: Option<u32>, nl_type: NlType, nl_flags: Vec<NlFlags>,
+    pub fn new(nl_len: Option<u32>, nl_type: I, nl_flags: Vec<NlFlags>,
            nl_seq: Option<u32>, nl_pid: Option<u32>, nl_pl: T) -> Self {
         let mut nl = NlHdr::default();
         nl.nl_type = nl_type;
@@ -30,11 +31,11 @@ impl<T: Nl> NlHdr<T> {
     }
 }
 
-impl<T: Default> Default for NlHdr<T> {
+impl<I: Default, T: Default> Default for NlHdr<I, T> {
     fn default() -> Self {
         NlHdr {
             nl_len: 0,
-            nl_type: NlType::default(),
+            nl_type: I::default(),
             nl_flags: Vec::new(),
             nl_seq: 0,
             nl_pid: 0,
@@ -43,9 +44,7 @@ impl<T: Default> Default for NlHdr<T> {
     }
 }
 
-impl<T: Nl> Nl for NlHdr<T> {
-    type Input = ();
-
+impl<I: Default + Nl, T: Nl> Nl for NlHdr<I, T> {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(self.nl_len.serialize(state));
         try!(self.nl_type.serialize(state));
@@ -60,11 +59,10 @@ impl<T: Nl> Nl for NlHdr<T> {
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
-                        -> Result<Self, DeError> {
-        let mut nl = NlHdr::<T>::default();
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        let mut nl = NlHdr::<I, T>::default();
         nl.nl_len = try!(u32::deserialize(state));
-        nl.nl_type = try!(NlType::deserialize(state));
+        nl.nl_type = try!(I::deserialize(state));
         let flags = try!(u16::deserialize(state));
         for i in 0..mem::size_of::<u16>() * 8 {
             let bit = 1 << i;
@@ -95,13 +93,11 @@ impl Default for NlEmpty {
 }
 
 impl Nl for NlEmpty {
-    type Input = ();
-
     fn serialize(&mut self, _state: &mut NlSerState) -> Result<(), SerError> {
         Ok(())
     }
 
-    fn deserialize_with(_state: &mut NlDeState, _input: Self::Input) -> Result<Self, DeError> {
+    fn deserialize(_state: &mut NlDeState) -> Result<Self, DeError> {
         Ok(NlEmpty)
     }
 
@@ -113,13 +109,15 @@ impl Nl for NlEmpty {
 #[cfg(test)]
 mod test {
     use super::*;
+    use ffi::NlType;
     use std::io::Cursor;
     use byteorder::{NativeEndian,WriteBytesExt};
 
     #[test]
     fn test_nlhdr_serialize() {
         let mut state = NlSerState::new();
-        let mut nl = NlHdr::<NlEmpty>::new(None, NlType::NlNoop, Vec::new(), None, None, NlEmpty);
+        let mut nl = NlHdr::<NlType, NlEmpty>::new(None, NlType::NlNoop,
+                                                   Vec::new(), None, None, NlEmpty);
         nl.serialize(&mut state).unwrap();
         let s: &mut [u8] = &mut [0; 16];
         {
@@ -140,8 +138,8 @@ mod test {
             c.write_u16::<NativeEndian>(NlFlags::NlAck.into()).unwrap();
         }
         let mut state = NlDeState::new(&mut *s);
-        let nl = NlHdr::<NlEmpty>::deserialize(&mut state).unwrap();
-        assert_eq!(NlHdr::<NlEmpty>::new(None, NlType::NlNoop,
-                                         vec![NlFlags::NlAck], None, None, NlEmpty), nl);
+        let nl = NlHdr::<NlType, NlEmpty>::deserialize(&mut state).unwrap();
+        assert_eq!(NlHdr::<NlType, NlEmpty>::new(None, NlType::NlNoop,
+                                                 vec![NlFlags::NlAck], None, None, NlEmpty), nl);
     }
 }

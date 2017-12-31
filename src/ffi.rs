@@ -43,16 +43,13 @@ macro_rules! impl_var {
         }
 
         impl Nl for $name {
-            type Input = ();
-
             fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
                 let mut v: $ty = self.clone().into();
                 try!(Nl::serialize(&mut v, state));
                 Ok(())
             }
 
-            fn deserialize_with(state: &mut NlDeState, _input: Self::Input)
-                                -> Result<Self, DeError> {
+            fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
                 let v: $ty = try!(<$ty as Nl>::deserialize(state));
                 Ok(v.into())
             }
@@ -131,6 +128,11 @@ extern {
     pub static ctrl_attr_maxattr: u16;
     pub static ctrl_attr_ops: u16;
     pub static ctrl_attr_mcast_groups: u16;
+
+    pub static genl_id_generate: u16;
+    pub static genl_id_ctrl: u16;
+    pub static genl_id_vfs_dquot: u16;
+    pub static genl_id_pmcraid: u16;
 }
 
 /// Reimplementation of alignto macro in C
@@ -189,6 +191,13 @@ impl_var!(NlFlags, u16,
     NlAppend => nlm_f_append
 );
 
+impl_var!(GenlType, u16,
+    IdGenerate => genl_id_generate,
+    IdCtrl => genl_id_ctrl,
+    IdVfsDquot => genl_id_vfs_dquot,
+    IdPmcraid => genl_id_pmcraid
+);
+
 /// Values for `cmd` in `GenlHdr`
 impl_var!(GenlCmds, u8,
     CmdUnspec => ctrl_cmd_unspec,
@@ -204,7 +213,7 @@ impl_var!(GenlCmds, u8,
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(NlaTypes, u16,
+impl_var!(NlaType, u16,
     AttrUnspec => ctrl_attr_unspec,
     AttrFamilyId => ctrl_attr_family_id,
     AttrFamilyName => ctrl_attr_family_name,

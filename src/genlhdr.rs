@@ -1,5 +1,5 @@
 use {Nl,NlSerState,NlDeState,SerError,DeError};
-use ffi::{GenlCmds,NlaTypes};
+use ffi::{GenlCmds,NlaType};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
@@ -34,8 +34,6 @@ impl Default for GenlHdr {
 }
 
 impl Nl for GenlHdr {
-    type Input = ();
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(self.cmd.serialize(state));
         try!(self.version.serialize(state));
@@ -46,7 +44,7 @@ impl Nl for GenlHdr {
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input) -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         let mut genl = GenlHdr::default();
         genl.cmd = try!(GenlCmds::deserialize(state));
         genl.version = try!(u8::deserialize(state));
@@ -69,13 +67,13 @@ impl Nl for GenlHdr {
 #[derive(Debug,PartialEq)]
 pub struct NlAttrHdr {
     nla_len: u16,
-    nla_type: NlaTypes,
+    nla_type: NlaType,
     payload: NlAttrPayload,
 }
 
 impl NlAttrHdr {
     /// Create new netlink attribute with a payload
-    pub fn new(nla_len: Option<u16>, nla_type: NlaTypes, payload: NlAttrPayload) -> Self {
+    pub fn new(nla_len: Option<u16>, nla_type: NlaType, payload: NlAttrPayload) -> Self {
         let mut nla = NlAttrHdr::default();
         nla.nla_type = nla_type;
         nla.payload = payload;
@@ -88,15 +86,13 @@ impl Default for NlAttrHdr {
     fn default() -> Self {
         NlAttrHdr {
             nla_len: 0,
-            nla_type: NlaTypes::AttrUnspec,
+            nla_type: NlaType::AttrUnspec,
             payload: NlAttrPayload::Bin(Vec::new()),
         }
     }
 }
 
 impl Nl for NlAttrHdr {
-    type Input = ();
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(self.nla_len.serialize(state));
         try!(self.nla_type.serialize(state));
@@ -104,11 +100,12 @@ impl Nl for NlAttrHdr {
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, _input: Self::Input) -> Result<Self, DeError> {
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         let mut nla = NlAttrHdr::default();
         nla.nla_len = try!(u16::deserialize(state));
-        nla.nla_type = try!(NlaTypes::deserialize(state));
-        nla.payload = try!(NlAttrPayload::deserialize_with(state, nla.nla_len as usize));
+        nla.nla_type = try!(NlaType::deserialize(state));
+        state.set_usize(nla.nla_len as usize);
+        nla.payload = try!(NlAttrPayload::deserialize(state));
         Ok(nla)
     }
 
@@ -124,7 +121,7 @@ pub enum NlAttrPayload {
     /// Binary payload
     Bin(Vec<u8>),
     /// Nested attribute payload
-    Parsed(Box<NlAttrHdr>),
+    Parsed(Box<Vec<NlAttrHdr>>),
 }
 
 impl Default for NlAttrPayload {
@@ -134,24 +131,26 @@ impl Default for NlAttrPayload {
 }
 
 impl Nl for NlAttrPayload {
-    type Input = usize;
-
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         match *self {
-            NlAttrPayload::Bin(ref mut v) => try!(v.serialize(state)),
-            NlAttrPayload::Parsed(ref mut p) => try!(p.serialize(state)),
+            NlAttrPayload::Bin(ref mut v) => v.serialize(state)?,
+            NlAttrPayload::Parsed(ref mut p) => {
+                for elem in p.iter_mut() {
+                    elem.serialize(state)?
+                }
+            },
         };
         Ok(())
     }
 
-    fn deserialize_with(state: &mut NlDeState, size: Self::Input) -> Result<Self, DeError> {
-        Ok(NlAttrPayload::Bin(try!(Vec::<u8>::deserialize_with(state, size))))
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        Ok(NlAttrPayload::Bin(try!(Vec::<u8>::deserialize(state))))
     }
 
     fn size(&self) -> usize {
         match *self {
             NlAttrPayload::Bin(ref v) => v.len(),
-            NlAttrPayload::Parsed(ref p) => p.size(),
+            NlAttrPayload::Parsed(ref p) => p.iter().fold(0, |acc, x| acc + x.size()),
         }
     }
 }
@@ -165,7 +164,7 @@ mod test {
     #[test]
     pub fn test_serialize() {
         let mut genl = GenlHdr::new(GenlCmds::CmdGetops, 2,
-                                    vec![NlAttrHdr::new(None, NlaTypes::AttrFamilyId,
+                                    vec![NlAttrHdr::new(None, NlaType::AttrFamilyId,
                                                         NlAttrPayload::Bin(
                                                             vec![0, 1, 2, 3, 4, 5]
                                                         ))]);
@@ -178,7 +177,7 @@ mod test {
             c.write_u8(2).unwrap();
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
-            c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
+            c.write_u16::<NativeEndian>(NlaType::AttrFamilyId.into()).unwrap();
             c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
@@ -188,7 +187,7 @@ mod test {
     #[test]
     pub fn test_deserialize() {
         let genl_mock = GenlHdr::new(GenlCmds::CmdGetops, 2,
-                                    vec![NlAttrHdr::new(None, NlaTypes::AttrFamilyId,
+                                    vec![NlAttrHdr::new(None, NlaType::AttrFamilyId,
                                                         NlAttrPayload::Bin(
                                                             vec![0, 1, 2, 3, 4, 5, 0, 0]
                                                         ))]);
@@ -199,7 +198,7 @@ mod test {
             c.write_u8(2).unwrap();
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
-            c.write_u16::<NativeEndian>(NlaTypes::AttrFamilyId.into()).unwrap();
+            c.write_u16::<NativeEndian>(NlaType::AttrFamilyId.into()).unwrap();
             c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };

@@ -74,3 +74,8 @@ const uint16_t ctrl_attr_hdrsize = CTRL_ATTR_HDRSIZE;
 const uint16_t ctrl_attr_maxattr = CTRL_ATTR_MAXATTR;
 const uint16_t ctrl_attr_ops = CTRL_ATTR_OPS;
 const uint16_t ctrl_attr_mcast_groups = CTRL_ATTR_MCAST_GROUPS;
+
+const uint16_t genl_id_generate = GENL_ID_GENERATE;
+const uint16_t genl_id_ctrl = GENL_ID_CTRL;
+const uint16_t genl_id_vfs_dquot = GENL_ID_VFS_DQUOT;
+const uint16_t genl_id_pmcraid = GENL_ID_PMCRAID;

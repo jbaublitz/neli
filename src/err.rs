@@ -57,6 +57,13 @@ impl Error for SerError {
 #[derive(Debug)]
 pub struct DeError(String);
 
+impl DeError {
+    /// Create new error from `&str`
+    pub fn new(s: &str) -> Self {
+        DeError(s.to_string())
+    }
+}
+
 try_err_compat!(DeError, io::Error);
 
 impl Display for DeError {
