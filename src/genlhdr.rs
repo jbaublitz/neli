@@ -1,5 +1,6 @@
 use {Nl,NlSerState,NlDeState,SerError,DeError};
 use ffi::GenlCmds;
+use nlhdr::NlAttrHdr;
 
 use std::fmt::Debug;
 
@@ -156,75 +157,6 @@ impl Nl for GenlHdr {
     }
 }
 
-/// Struct representing netlink attributes and payloads
-#[derive(Debug,PartialEq)]
-pub struct NlAttrHdr<T> {
-    /// Length of the attribute header and payload together
-    pub nla_len: u16,
-    /// Enum representing the type of the attribute payload
-    pub nla_type: T,
-    /// Payload of the attribute - either parsed or a binary buffer
-    pub payload: Vec<u8>,
-}
-
-impl<T> NlAttrHdr<T> where T: Nl {
-    /// Create new netlink attribute with a payload
-    pub fn new_binary_payload(nla_len: Option<u16>, nla_type: T, payload: Vec<u8>)
-            -> Result<Self, SerError> {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_type = nla_type;
-        nla.payload = payload;
-        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
-        Ok(nla)
-    }
-
-    /// Create new netlink attribute with a nested payload
-    pub fn new_nested<P>(nla_len: Option<u16>, nla_type: T, mut payload: Vec<NlAttrHdr<P>>)
-            -> Result<Self, SerError> where P: Nl {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_type = nla_type;
-        let mut state = NlSerState::new();
-        for item in payload.iter_mut() {
-            item.serialize(&mut state)?
-        }
-        nla.payload = state.into_inner();
-        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
-        Ok(nla)
-    }
-}
-
-impl<T> Default for NlAttrHdr<T> where T: Default {
-    fn default() -> Self {
-        NlAttrHdr {
-            nla_len: 0,
-            nla_type: T::default(),
-            payload: Vec::new(),
-        }
-    }
-}
-
-impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        self.nla_len.serialize(state)?;
-        self.nla_type.serialize(state)?;
-        self.payload.serialize(state)?;
-        Ok(())
-    }
-
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_len = u16::deserialize(state)?;
-        nla.nla_type = T::deserialize(state)?;
-        state.set_usize(nla.nla_len as usize);
-        nla.payload = Vec::<u8>::deserialize(state)?;
-        Ok(nla)
-    }
-
-    fn size(&self) -> usize {
-        self.nla_len.size() + self.nla_type.size() + self.payload.size()
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -236,7 +168,7 @@ mod test {
     pub fn test_serialize() {
         let attr = vec![NlAttrHdr::new_binary_payload(None, NlaType::AttrFamilyId,
                                                         vec![0, 1, 2, 3, 4, 5, 0, 0]
-                                                      ).unwrap()];
+                                                      )];
         let mut genl = GenlHdr::new(GenlCmds::CmdGetops, 2,
                                     attr).unwrap();
         let mut state = NlSerState::new();
@@ -260,7 +192,7 @@ mod test {
         let genl_mock = GenlHdr::new(GenlCmds::CmdGetops, 2,
                                      vec![NlAttrHdr::new_binary_payload(None,
                                             NlaType::AttrFamilyId, vec![0, 1, 2, 3, 4, 5, 0, 0]
-                                        ).unwrap()]
+                                        )]
                                      ).unwrap();
         let v = Vec::new();
         let v_final = {
