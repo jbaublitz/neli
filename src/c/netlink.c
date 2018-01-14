@@ -75,7 +75,15 @@ const uint16_t ctrl_attr_maxattr = CTRL_ATTR_MAXATTR;
 const uint16_t ctrl_attr_ops = CTRL_ATTR_OPS;
 const uint16_t ctrl_attr_mcast_groups = CTRL_ATTR_MCAST_GROUPS;
 
+#ifdef GENL_ID_GENERATE
 const uint16_t genl_id_generate = GENL_ID_GENERATE;
+#else
+const uint16_t genl_id_generate = 0;
+#endif
 const uint16_t genl_id_ctrl = GENL_ID_CTRL;
 const uint16_t genl_id_vfs_dquot = GENL_ID_VFS_DQUOT;
 const uint16_t genl_id_pmcraid = GENL_ID_PMCRAID;
+
+const uint16_t ctrl_attr_mcast_grp_unspec = CTRL_ATTR_MCAST_GRP_UNSPEC;
+const uint16_t ctrl_attr_mcast_grp_name = CTRL_ATTR_MCAST_GRP_NAME;
+const uint16_t ctrl_attr_mcast_grp_id = CTRL_ATTR_MCAST_GRP_ID;

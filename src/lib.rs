@@ -69,7 +69,7 @@ impl<'a> NlDeState<'a> {
 
     /// Store length of payload for later use
     pub fn set_usize(&mut self, sz: usize) {
-        self.1 = Some(sz);
+        self.1 = Some(alignto(sz));
     }
 
     /// Get length of payload
@@ -140,16 +140,19 @@ impl Nl for u32 {
 impl Nl for Vec<u8> {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         let len = self.asize();
-        let num_bytes = try!(state.0.write(&self));
-        let padding = vec![0; len - num_bytes];
-        try!(state.0.write(&padding));
+        let num_bytes = state.0.write(&self)?;
+        if len - num_bytes > 0 {
+            let padding = vec![0; len - num_bytes];
+            state.0.write(&padding)?;
+        }
         Ok(())
     }
 
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let input = state.get_usize().ok_or(DeError::new("Size of buffer unknown"))?;
-        let mut v = Vec::with_capacity(input);
-        try!(state.0.by_ref().take(input as u64).read_to_end(&mut v));
+        let input = state.get_usize().unwrap_or(state.0.get_ref().len());
+        let mut v = vec![0; input];
+        let num_bytes = state.0.by_ref().take(input as u64).read(&mut v)?;
+        v.truncate(num_bytes);
         Ok(v)
     }
 

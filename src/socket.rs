@@ -70,7 +70,10 @@ impl NlSocket {
         match unsafe {
             libc::recv(self.fd, v.as_mut_slice() as *mut _ as *mut c_void, v.len(), flags)
         } {
-            i if i >= 0 => Ok(v),
+            i if i >= 0 => {
+                v.truncate(i as usize);
+                Ok(v)
+            },
             _ => Err(io::Error::last_os_error()),
         }
     }

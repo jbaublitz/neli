@@ -15,6 +15,8 @@ macro_rules! impl_var {
                 #[allow(missing_docs)]
                 $var,
             )*
+            /// Variant that signifies an invalid value while deserializing
+            InvalidData,
         }
 
         impl Default for $name {
@@ -28,7 +30,7 @@ macro_rules! impl_var {
                 match v {
                     i if i == unsafe { $val_def } => $name::$var_def,
                     $( i if i == unsafe { $val } => $name::$var,)*
-                    _ => panic!(),
+                    _ => $name::InvalidData
                 }
             }
         }
@@ -37,7 +39,10 @@ macro_rules! impl_var {
             fn from(v: $name) -> Self {
                 match v {
                     $name::$var_def => unsafe { $val_def },
-                    $( $name::$var => unsafe { $val },)*
+                    $( $name::$var => unsafe { $val }, )*
+                    $name::InvalidData => unimplemented!("InvalidData is not a valid netlink \
+                                                          constant and should never be \
+                                                          serialized"),
                 }
             }
         }
@@ -133,6 +138,10 @@ extern {
     pub static genl_id_ctrl: u16;
     pub static genl_id_vfs_dquot: u16;
     pub static genl_id_pmcraid: u16;
+
+    pub static ctrl_attr_mcast_grp_unspec: u16;
+    pub static ctrl_attr_mcast_grp_name: u16;
+    pub static ctrl_attr_mcast_grp_id: u16;
 }
 
 /// Reimplementation of alignto macro in C
@@ -222,4 +231,11 @@ impl_var!(NlaType, u16,
     AttrMaxattr => ctrl_attr_maxattr,
     AttrOps => ctrl_attr_ops,
     AttrMcastGroups => ctrl_attr_mcast_groups
+);
+
+/// Values for `nla_type` in `NlaAttrHdr`
+impl_var!(AttrTypeMcast, u16,
+    GrpUnspec => ctrl_attr_mcast_grp_unspec,
+    GrpName => ctrl_attr_mcast_grp_name,
+    GrpId => ctrl_attr_mcast_grp_id
 );
