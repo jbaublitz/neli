@@ -2,30 +2,35 @@ use std::mem;
 
 use {Nl,NlSerState,NlDeState};
 use err::{SerError,DeError};
-use ffi::{NlFlags};
+use ffi::{alignto,NlFlags};
 
 /// Top level netlink header and payload
 #[derive(Debug,PartialEq)]
 pub struct NlHdr<I, T> {
-    nl_len: u32,
-    nl_type: I,
-    nl_flags: Vec<NlFlags>,
-    nl_seq: u32,
-    nl_pid: u32,
-    /// FUCK
-    pub nl_pl: T,
+    /// Length of the netlink message
+    pub nl_len: u32,
+    /// Type of the netlink message
+    pub nl_type: I,
+    /// Flags indicating properties of the request or response
+    pub nl_flags: Vec<NlFlags>,
+    /// Sequence number for netlink protocol
+    pub nl_seq: u32,
+    /// ID of the netlink destination for requests and source for responses
+    pub nl_pid: u32,
+    /// Payload of netlink message
+    pub nl_payload: T,
 }
 
 impl<I: Nl, T: Nl> NlHdr<I, T> {
     /// Create a new top level netlink packet with a payload
     pub fn new(nl_len: Option<u32>, nl_type: I, nl_flags: Vec<NlFlags>,
-           nl_seq: Option<u32>, nl_pid: Option<u32>, nl_pl: T) -> Self {
+           nl_seq: Option<u32>, nl_pid: Option<u32>, nl_payload: T) -> Self {
         let mut nl = NlHdr::default();
         nl.nl_type = nl_type;
         nl.nl_flags = nl_flags;
         nl.nl_seq = nl_seq.unwrap_or(0);
         nl.nl_pid = nl_pid.unwrap_or(0);
-        nl.nl_pl = nl_pl;
+        nl.nl_payload = nl_payload;
         nl.nl_len = nl_len.unwrap_or(nl.size() as u32);
         nl
     }
@@ -39,7 +44,7 @@ impl<I: Default, T: Default> Default for NlHdr<I, T> {
             nl_flags: Vec::new(),
             nl_seq: 0,
             nl_pid: 0,
-            nl_pl: T::default(),
+            nl_payload: T::default(),
         }
     }
 }
@@ -55,7 +60,7 @@ impl<I: Default + Nl, T: Nl> Nl for NlHdr<I, T> {
         try!(val.serialize(state));
         try!(self.nl_seq.serialize(state));
         try!(self.nl_pid.serialize(state));
-        try!(self.nl_pl.serialize(state));
+        try!(self.nl_payload.serialize(state));
         Ok(())
     }
 
@@ -72,13 +77,13 @@ impl<I: Default + Nl, T: Nl> Nl for NlHdr<I, T> {
         }
         nl.nl_seq = try!(u32::deserialize(state));
         nl.nl_pid = try!(u32::deserialize(state));
-        nl.nl_pl = try!(T::deserialize(state));
+        nl.nl_payload = try!(T::deserialize(state));
         Ok(nl)
     }
 
     fn size(&self) -> usize {
         self.nl_len.size() + self.nl_type.size() + mem::size_of::<u16>()
-            + self.nl_seq.size() + self.nl_pid.size() + self.nl_pl.size()
+            + self.nl_seq.size() + self.nl_pid.size() + self.nl_payload.size()
     }
 }
 
@@ -145,6 +150,7 @@ impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         self.nla_len.serialize(state)?;
         self.nla_type.serialize(state)?;
+        state.set_usize(self.payload.asize());
         self.payload.serialize(state)?;
         Ok(())
     }
@@ -153,7 +159,7 @@ impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
         let mut nla = NlAttrHdr::default();
         nla.nla_len = u16::deserialize(state)?;
         nla.nla_type = T::deserialize(state)?;
-        state.set_usize(nla.nla_len as usize);
+        state.set_usize(alignto(nla.nla_len as usize));
         nla.payload = Vec::<u8>::deserialize(state)?;
         Ok(nla)
     }

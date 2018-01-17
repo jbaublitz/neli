@@ -44,12 +44,22 @@ use ffi::alignto;
 use err::{SerError,DeError};
 
 /// Struct representing the necessary state to serialize an object
-pub struct NlSerState(Cursor<Vec<u8>>);
+pub struct NlSerState(Cursor<Vec<u8>>, Option<usize>);
 
 impl NlSerState {
     /// Create new serialization state object
     pub fn new() -> Self {
-        NlSerState(Cursor::new(Vec::new()))
+        NlSerState(Cursor::new(Vec::new()), None)
+    }
+
+    /// Store length of payload for later use
+    pub fn set_usize(&mut self, sz: usize) {
+        self.1 = Some(sz);
+    }
+
+    /// Get length of payload
+    pub fn get_usize(&mut self) -> Option<usize> {
+        self.1.take()
     }
 
     /// Get buffer with serialized representation of consumed struct
@@ -69,7 +79,7 @@ impl<'a> NlDeState<'a> {
 
     /// Store length of payload for later use
     pub fn set_usize(&mut self, sz: usize) {
-        self.1 = Some(alignto(sz));
+        self.1 = Some(sz);
     }
 
     /// Get length of payload
@@ -139,7 +149,7 @@ impl Nl for u32 {
 
 impl Nl for Vec<u8> {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        let len = self.asize();
+        let len = state.get_usize().unwrap_or(self.len());
         let num_bytes = state.0.write(&self)?;
         if len - num_bytes > 0 {
             let padding = vec![0; len - num_bytes];
@@ -228,7 +238,7 @@ mod test {
         let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut state = NlSerState::new();
         v.serialize(&mut state).unwrap();
-        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0], state.into_inner().as_slice());
+        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
 
         let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
         let mut state = NlDeState::new(s);
