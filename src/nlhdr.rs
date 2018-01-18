@@ -279,14 +279,14 @@ impl Nl for NlEmpty {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ffi::NlType;
+    use ffi::Nlmsg;
     use std::io::Cursor;
     use byteorder::{NativeEndian,WriteBytesExt};
 
     #[test]
     fn test_nlhdr_serialize() {
         let mut state = NlSerState::new();
-        let mut nl = NlHdr::<NlType, NlEmpty>::new(None, NlType::NlNoop,
+        let mut nl = NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
                                                    Vec::new(), None, None, NlEmpty);
         nl.serialize(&mut state).unwrap();
         let s: &mut [u8] = &mut [0; 16];
@@ -305,11 +305,11 @@ mod test {
             let mut c = Cursor::new(&mut *s);
             c.write_u32::<NativeEndian>(16).unwrap();
             c.write_u16::<NativeEndian>(1).unwrap();
-            c.write_u16::<NativeEndian>(NlFlags::NlAck.into()).unwrap();
+            c.write_u16::<NativeEndian>(NlFlags::Ack.into()).unwrap();
         }
         let mut state = NlDeState::new(&mut *s);
-        let nl = NlHdr::<NlType, NlEmpty>::deserialize(&mut state).unwrap();
-        assert_eq!(NlHdr::<NlType, NlEmpty>::new(None, NlType::NlNoop,
-                                                 vec![NlFlags::NlAck], None, None, NlEmpty), nl);
+        let nl = NlHdr::<Nlmsg, NlEmpty>::deserialize(&mut state).unwrap();
+        assert_eq!(NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
+                                                 vec![NlFlags::Ack], None, None, NlEmpty), nl);
     }
 }

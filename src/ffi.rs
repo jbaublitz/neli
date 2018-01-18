@@ -16,7 +16,7 @@ macro_rules! impl_var {
                 $var,
             )*
             /// Variant that signifies an invalid value while deserializing
-            InvalidData,
+            UnrecognizedVariant,
         }
 
         impl Default for $name {
@@ -30,7 +30,7 @@ macro_rules! impl_var {
                 match v {
                     i if i == unsafe { $val_def } => $name::$var_def,
                     $( i if i == unsafe { $val } => $name::$var,)*
-                    _ => $name::InvalidData
+                    _ => $name::UnrecognizedVariant
                 }
             }
         }
@@ -40,9 +40,10 @@ macro_rules! impl_var {
                 match v {
                     $name::$var_def => unsafe { $val_def },
                     $( $name::$var => unsafe { $val }, )*
-                    $name::InvalidData => unimplemented!("InvalidData is not a valid netlink \
-                                                          constant and should never be \
-                                                          serialized"),
+                    $name::UnrecognizedVariant =>
+                        unimplemented!("InvalidData is not a valid netlink \
+                                        constant and should never be \
+                                        serialized"),
                 }
             }
         }
@@ -151,91 +152,91 @@ pub fn alignto(len: usize) -> usize {
 
 /// Values for `nl_family` in `NlSocket`
 impl_var!(NlFamily, u32,
-    NlRoute => netlink_route,
-    NlUnused => netlink_unused,
-    NlUsersock => netlink_usersock,
-    NlFirewall => netlink_firewall,
-    NlSockDiag => netlink_sock_diag,
-    NlNflog => netlink_nflog,
-    NlXfrm => netlink_xfrm,
-    NlSelinux => netlink_selinux,
-    NlIscsi => netlink_iscsi,
-    NlAudit => netlink_audit,
-    NlFibLookup => netlink_fib_lookup,
-    NlConnector => netlink_connector,
-    NlNetfilter => netlink_netfilter,
-    NlIp6Fw => netlink_ip6_fw,
-    NlDnrtmsg => netlink_dnrtmsg,
-    NlKobjectUevent => netlink_kobject_uevent,
-    NlGeneric => netlink_generic,
-    NlScsitransport => netlink_scsitransport,
-    NlEcryptfs => netlink_ecryptfs,
-    NlRdma => netlink_rdma,
-    NlCrypto => netlink_crypto
+    Route => netlink_route,
+    Unused => netlink_unused,
+    Usersock => netlink_usersock,
+    Firewall => netlink_firewall,
+    SockDiag => netlink_sock_diag,
+    Nflog => netlink_nflog,
+    Xfrm => netlink_xfrm,
+    Selinux => netlink_selinux,
+    Iscsi => netlink_iscsi,
+    Audit => netlink_audit,
+    FibLookup => netlink_fib_lookup,
+    Connector => netlink_connector,
+    Netfilter => netlink_netfilter,
+    Ip6Fw => netlink_ip6_fw,
+    Dnrtmsg => netlink_dnrtmsg,
+    KobjectUevent => netlink_kobject_uevent,
+    Generic => netlink_generic,
+    Scsitransport => netlink_scsitransport,
+    Ecryptfs => netlink_ecryptfs,
+    Rdma => netlink_rdma,
+    Crypto => netlink_crypto
 );
 
 /// Values for `nl_type` in `NlHdr`
-impl_var!(NlType, u16,
-    NlNoop => nlmsg_noop,
-    NlError => nlmsg_error,
-    NlDone => nlmsg_done,
-    NlOverrun => nlmsg_overrun
+impl_var!(Nlmsg, u16,
+    Noop => nlmsg_noop,
+    Error => nlmsg_error,
+    Done => nlmsg_done,
+    Overrun => nlmsg_overrun
 );
 
 /// Values for `nl_flags` in `NlHdr`
 impl_var!(NlFlags, u16,
-    NlRequest => nlm_f_request,
-    NlMulti => nlm_f_multi,
-    NlAck => nlm_f_ack,
-    NlEcho => nlm_f_echo,
-    NlDumpIntr => nlm_f_dump_intr,
-    NlDumpFiltered => nlm_f_dump_filtered,
-    NlRoot => nlm_f_root,
-    NlMatch => nlm_f_match,
-    NlAtomic => nlm_f_atomic,
-    NlDump => nlm_f_dump,
-    NlReplace => nlm_f_replace,
-    NlExcl => nlm_f_excl,
-    NlCreate => nlm_f_create,
-    NlAppend => nlm_f_append
+    Request => nlm_f_request,
+    Multi => nlm_f_multi,
+    Ack => nlm_f_ack,
+    Echo => nlm_f_echo,
+    DumpIntr => nlm_f_dump_intr,
+    DumpFiltered => nlm_f_dump_filtered,
+    Root => nlm_f_root,
+    Match => nlm_f_match,
+    Atomic => nlm_f_atomic,
+    Dump => nlm_f_dump,
+    Replace => nlm_f_replace,
+    Excl => nlm_f_excl,
+    Create => nlm_f_create,
+    Append => nlm_f_append
 );
 
-impl_var!(GenlType, u16,
-    IdGenerate => genl_id_generate,
-    IdCtrl => genl_id_ctrl,
-    IdVfsDquot => genl_id_vfs_dquot,
-    IdPmcraid => genl_id_pmcraid
+impl_var!(GenlId, u16,
+    Generate => genl_id_generate,
+    Ctrl => genl_id_ctrl,
+    VfsDquot => genl_id_vfs_dquot,
+    Pmcraid => genl_id_pmcraid
 );
 
 /// Values for `cmd` in `GenlHdr`
-impl_var!(GenlCmds, u8,
-    CmdUnspec => ctrl_cmd_unspec,
-    CmdNewfamily => ctrl_cmd_newfamily,
-    CmdDelfamily => ctrl_cmd_delfamily,
-    CmdGetfamily => ctrl_cmd_getfamily,
-    CmdNewops => ctrl_cmd_newops,
-    CmdDelops => ctrl_cmd_delops,
-    CmdGetops => ctrl_cmd_getops,
-    CmdNewmcastGrp => ctrl_cmd_newmcast_grp,
-    CmdDelmcastGrp => ctrl_cmd_delmcast_grp,
-    CmdGetmcastGrp => ctrl_cmd_getmcast_grp
+impl_var!(CtrlCmd, u8,
+    Unspec => ctrl_cmd_unspec,
+    Newfamily => ctrl_cmd_newfamily,
+    Delfamily => ctrl_cmd_delfamily,
+    Getfamily => ctrl_cmd_getfamily,
+    Newops => ctrl_cmd_newops,
+    Delops => ctrl_cmd_delops,
+    Getops => ctrl_cmd_getops,
+    NewmcastGrp => ctrl_cmd_newmcast_grp,
+    DelmcastGrp => ctrl_cmd_delmcast_grp,
+    GetmcastGrp => ctrl_cmd_getmcast_grp
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(NlaType, u16,
-    AttrUnspec => ctrl_attr_unspec,
-    AttrFamilyId => ctrl_attr_family_id,
-    AttrFamilyName => ctrl_attr_family_name,
-    AttrVersion => ctrl_attr_version,
-    AttrHdrsize => ctrl_attr_hdrsize,
-    AttrMaxattr => ctrl_attr_maxattr,
-    AttrOps => ctrl_attr_ops,
-    AttrMcastGroups => ctrl_attr_mcast_groups
+impl_var!(CtrlAttr, u16,
+    Unspec => ctrl_attr_unspec,
+    FamilyId => ctrl_attr_family_id,
+    FamilyName => ctrl_attr_family_name,
+    Version => ctrl_attr_version,
+    Hdrsize => ctrl_attr_hdrsize,
+    Maxattr => ctrl_attr_maxattr,
+    Ops => ctrl_attr_ops,
+    McastGroups => ctrl_attr_mcast_groups
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(AttrTypeMcast, u16,
-    GrpUnspec => ctrl_attr_mcast_grp_unspec,
-    GrpName => ctrl_attr_mcast_grp_name,
-    GrpId => ctrl_attr_mcast_grp_id
+impl_var!(CtrlAttrMcastGrp, u16,
+    Unspec => ctrl_attr_mcast_grp_unspec,
+    Name => ctrl_attr_mcast_grp_name,
+    Id => ctrl_attr_mcast_grp_id
 );

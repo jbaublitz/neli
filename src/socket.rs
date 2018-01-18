@@ -117,7 +117,7 @@ mod test {
 
     #[test]
     fn test_socket_creation() {
-        match NlSocket::connect(NlFamily::NlGeneric, None, None) {
+        match NlSocket::connect(NlFamily::Generic, None, None) {
             Err(_) => panic!(),
             _ => (),
         }

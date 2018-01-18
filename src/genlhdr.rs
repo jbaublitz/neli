@@ -1,12 +1,12 @@
 use {Nl,NlSerState,NlDeState,SerError,DeError};
-use ffi::GenlCmds;
+use ffi::CtrlCmd;
 use nlhdr::{NlAttrHdr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
 pub struct GenlHdr {
     /// Generic netlink message command
-    pub cmd: GenlCmds,
+    pub cmd: CtrlCmd,
     /// Version of generic netlink family protocol
     pub version: u8,
     reserved: u16,
@@ -16,7 +16,7 @@ pub struct GenlHdr {
 
 impl GenlHdr {
     /// Create new generic netlink packet
-    pub fn new<T>(cmd: GenlCmds, version: u8, mut attrs: Vec<NlAttrHdr<T>>) -> Result<Self, SerError>
+    pub fn new<T>(cmd: CtrlCmd, version: u8, mut attrs: Vec<NlAttrHdr<T>>) -> Result<Self, SerError>
                   where T: Nl {
         let mut state = NlSerState::new();
         for item in attrs.iter_mut() {
@@ -39,7 +39,7 @@ impl GenlHdr {
 impl Default for GenlHdr {
     fn default() -> Self {
         GenlHdr {
-            cmd: GenlCmds::CmdUnspec,
+            cmd: CtrlCmd::Unspec,
             version: 0,
             reserved: 0,
             attrs: Vec::new(),
@@ -58,7 +58,7 @@ impl Nl for GenlHdr {
 
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         let mut genl = GenlHdr::default();
-        genl.cmd = GenlCmds::deserialize(state)?;
+        genl.cmd = CtrlCmd::deserialize(state)?;
         genl.version = u8::deserialize(state)?;
         genl.reserved = u16::deserialize(state)?;
         genl.attrs = Vec::<u8>::deserialize(state)?;
@@ -76,25 +76,25 @@ mod test {
     use super::*;
     use byteorder::{NativeEndian,WriteBytesExt};
     use std::io::{Cursor,Write};
-    use ffi::NlaType;
+    use ffi::CtrlAttr;
 
     #[test]
     pub fn test_serialize() {
-        let attr = vec![NlAttrHdr::new_binary_payload(None, NlaType::AttrFamilyId,
+        let attr = vec![NlAttrHdr::new_binary_payload(None, CtrlAttr::FamilyId,
                                                         vec![0, 1, 2, 3, 4, 5, 0, 0]
                                                       )];
-        let mut genl = GenlHdr::new(GenlCmds::CmdGetops, 2,
+        let mut genl = GenlHdr::new(CtrlCmd::Getops, 2,
                                     attr).unwrap();
         let mut state = NlSerState::new();
         genl.serialize(&mut state).unwrap();
         let v = Vec::with_capacity(genl.asize());
         let v_final = {
             let mut c = Cursor::new(v);
-            c.write_u8(GenlCmds::CmdGetops.into()).unwrap();
+            c.write_u8(CtrlCmd::Getops.into()).unwrap();
             c.write_u8(2).unwrap();
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
-            c.write_u16::<NativeEndian>(NlaType::AttrFamilyId.into()).unwrap();
+            c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into()).unwrap();
             c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
@@ -103,19 +103,19 @@ mod test {
 
     #[test]
     pub fn test_deserialize() {
-        let genl_mock = GenlHdr::new(GenlCmds::CmdGetops, 2,
+        let genl_mock = GenlHdr::new(CtrlCmd::Getops, 2,
                                      vec![NlAttrHdr::new_binary_payload(None,
-                                            NlaType::AttrFamilyId, vec![0, 1, 2, 3, 4, 5, 0, 0]
+                                            CtrlAttr::FamilyId, vec![0, 1, 2, 3, 4, 5, 0, 0]
                                         )]
                                      ).unwrap();
         let v = Vec::new();
         let v_final = {
             let mut c = Cursor::new(v);
-            c.write_u8(GenlCmds::CmdGetops.into()).unwrap();
+            c.write_u8(CtrlCmd::Getops.into()).unwrap();
             c.write_u8(2).unwrap();
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
-            c.write_u16::<NativeEndian>(NlaType::AttrFamilyId.into()).unwrap();
+            c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into()).unwrap();
             c.write(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
