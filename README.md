@@ -1,6 +1,6 @@
-[![Build Status](https://travis-ci.org/jbaublitz/nl.svg?branch=master)](https://travis-ci.org/jbaublitz/nl)
+[![Build Status](https://travis-ci.org/jbaublitz/neli.svg?branch=master)](https://travis-ci.org/jbaublitz/neli)
 
-# nl
+# neli
 Type safe netlink library for Rust
 
-Reference documentation can be found [here](https://jbaublitz.github.io/nl/nl/index.html).
+Reference documentation can be found [here](https://jbaublitz.github.io/neli/neli/index.html).

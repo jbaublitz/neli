@@ -1,7 +1,17 @@
 [package]
-name = "nl"
+name = "neli"
 version = "0.1.0"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+description = "Type safe netlink library written in Rust"
+license = "BSD-3-Clause"
+repository = "https://github.com/jbaublitz/nl"
+keywords = ["netlink"]
+include = [
+    "**/*.rs",
+    "**/*.c",
+    "Cargo.toml",
+    "LICENSE",
+]
 
 [build-dependencies]
 cc = "*"
