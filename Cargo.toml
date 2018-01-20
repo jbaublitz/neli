@@ -14,8 +14,8 @@ include = [
 ]
 
 [build-dependencies]
-cc = "*"
+cc = "1.0"
 
 [dependencies]
 byteorder = "1"
-libc = "*"
+libc = "0.2"
