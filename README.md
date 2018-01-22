@@ -3,4 +3,4 @@
 # neli
 Type safe netlink library for Rust
 
-Reference documentation can be found [here](https://jbaublitz.github.io/neli/neli/index.html).
+Reference documentation can be found [here](https://docs.rs/neli/0.1.0/neli/)
