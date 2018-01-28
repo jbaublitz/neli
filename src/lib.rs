@@ -162,8 +162,39 @@ impl Nl for Vec<u8> {
         let input = state.get_usize().unwrap_or(state.0.get_ref().len());
         let mut v = vec![0; input];
         let num_bytes = state.0.by_ref().take(input as u64).read(&mut v)?;
-        v.truncate(num_bytes);
+        if input > num_bytes {
+            v.truncate(num_bytes);
+        }
         Ok(v)
+    }
+
+    fn size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl Nl for String {
+    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+        self.push('\0');
+        let len = state.get_usize().unwrap_or(self.len());
+        let num_bytes = state.0.write(self.as_bytes())?;
+        if len - num_bytes > 0 {
+            let padding = vec![0; len - num_bytes];
+            state.0.write(&padding)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        let input = state.get_usize().unwrap_or(state.0.get_ref().len());
+        let mut v = vec![0; input];
+        let num_bytes = state.0.by_ref().take(input as u64).read(&mut v)?;
+        if input > num_bytes {
+            v.truncate(num_bytes);
+        }
+        v = v.into_iter().filter(|b| *b != 0).collect();
+        let string = String::from_utf8(v)?;
+        Ok(string)
     }
 
     fn size(&self) -> usize {
@@ -245,5 +276,19 @@ mod test {
         state.set_usize(s.len() as usize);
         let v = Vec::<u8>::deserialize(&mut state).unwrap();
         assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0])
+    }
+
+    #[test]
+    fn test_nl_string() {
+        let mut s = "AAAAA".to_string();
+        let mut state = NlSerState::new();
+        s.serialize(&mut state).unwrap();
+        assert_eq!(vec![65, 65, 65, 65, 65, 0], state.into_inner().as_slice());
+
+        let s = &[65, 65, 65, 65, 65, 65, 65, 0, 0, 0, 0];
+        let mut state = NlDeState::new(s);
+        state.set_usize(s.len() as usize);
+        let string = String::deserialize(&mut state).unwrap();
+        assert_eq!(string, "AAAAAAA".to_string())
     }
 }

@@ -124,15 +124,22 @@ impl<T> NlAttrHdr<T> where T: Nl {
     }
 
     /// Create new netlink attribute payload from string, handling null byte termination
-    pub fn new_str_payload(nla_len: Option<u16>, nla_type: T, str_payload: &str) -> Self {
+    pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, mut string_payload: String)
+            -> Result<Self, SerError> {
         let mut nla = NlAttrHdr::default();
         nla.nla_type = nla_type;
-        let mut string_payload = str_payload.to_string();
-        string_payload.push('\0');
-        let bytes = string_payload.as_str().as_bytes().to_vec();
-        nla.payload = bytes;
+        let mut state = NlSerState::new();
+        string_payload.serialize(&mut state)?;
+        nla.payload = state.into_inner();
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
-        nla
+        Ok(nla)
+    }
+
+    /// Create new netlink attribute payload from string, handling null byte termination
+    pub fn new_str_payload(nla_len: Option<u16>, nla_type: T, str_payload: &str)
+            -> Result<Self, SerError> {
+        let string_payload = str_payload.to_string();
+        Self::new_string_payload(nla_len, nla_type, string_payload)
     }
 }
 

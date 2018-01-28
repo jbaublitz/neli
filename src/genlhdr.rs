@@ -104,9 +104,9 @@ mod test {
     #[test]
     pub fn test_deserialize() {
         let genl_mock = GenlHdr::new(CtrlCmd::Getops, 2,
-                                     vec![NlAttrHdr::new_binary_payload(None,
-                                            CtrlAttr::FamilyId, vec![0, 1, 2, 3, 4, 5, 0, 0]
-                                        )]
+                                     vec![NlAttrHdr::new_str_payload(None,
+                                            CtrlAttr::FamilyId, "AAAAAAA"
+                                        ).unwrap()]
                                      ).unwrap();
         let v = Vec::new();
         let v_final = {
@@ -116,7 +116,7 @@ mod test {
             c.write_u16::<NativeEndian>(0).unwrap();
             c.write_u16::<NativeEndian>(12).unwrap();
             c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into()).unwrap();
-            c.write(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
+            c.write(&vec![65, 65, 65, 65, 65, 65, 65, 0]).unwrap();
             c.into_inner()
         };
         let mut state = NlDeState::new(&v_final);
