@@ -192,7 +192,10 @@ impl Nl for String {
         if input > num_bytes {
             v.truncate(num_bytes);
         }
-        v = v.into_iter().filter(|b| *b != 0).collect();
+        let pos = v.iter().position(|b| *b == 0);
+        if let Some(p) = pos {
+            v.truncate(p);
+        }
         let string = String::from_utf8(v)?;
         Ok(string)
     }
