@@ -7,14 +7,15 @@
 //! of netlink code.
 
 use std::io;
+use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
 use std::mem::{zeroed,size_of};
 
 use libc::{self,c_int,c_void};
 
 use {Nl,NlSerState,NlDeState};
+use err::NlError;
 use ffi::NlFamily;
 use nlhdr::NlHdr;
-use err::NlError;
 
 /// Handle for the socket file descriptor
 pub struct NlSocket {
@@ -101,6 +102,18 @@ impl NlSocket {
         let mut buf = try!(self.recv(len, flags));
         let msg = try!(<NlHdr<I, T> as Nl>::deserialize(&mut NlDeState::new(buf.as_mut_slice())));
         Ok(msg)
+    }
+}
+
+impl AsRawFd for NlSocket {
+    fn as_raw_fd(&self) -> RawFd {
+        self.fd
+    }
+}
+
+impl IntoRawFd for NlSocket {
+    fn into_raw_fd(self) -> RawFd {
+        self.fd
     }
 }
 
