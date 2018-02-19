@@ -40,6 +40,13 @@ impl Error for NlError {
 #[derive(Debug)]
 pub struct SerError(String);
 
+impl SerError {
+    /// Create a new error with the given message as description
+    pub fn new<T: ToString>(msg: T) -> Self {
+        SerError(msg.to_string())
+    }
+}
+
 try_err_compat!(SerError, io::Error);
 
 impl Display for SerError {

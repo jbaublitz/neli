@@ -37,6 +37,7 @@ pub mod err;
 
 use std::io::{Cursor,Read,Write};
 use std::mem;
+use std::ffi::CString;
 
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
@@ -91,7 +92,7 @@ impl<'a> NlDeState<'a> {
 /// Trait defining basic actions required for netlink communication
 pub trait Nl: Sized + Default {
     /// Serialization method
-    fn serialize(&mut self, &mut NlSerState) -> Result<(), SerError>;
+    fn serialize(&self, &mut NlSerState) -> Result<(), SerError>;
     /// Deserialization method
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError>;
     /// The size of the binary representation of a struct - not aligned to word size
@@ -103,7 +104,7 @@ pub trait Nl: Sized + Default {
 }
 
 impl Nl for u8 {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u8(*self));
         Ok(())
     }
@@ -118,7 +119,7 @@ impl Nl for u8 {
 }
 
 impl Nl for u16 {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u16::<NativeEndian>(*self));
         Ok(())
     }
@@ -133,7 +134,7 @@ impl Nl for u16 {
 }
 
 impl Nl for u32 {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_u32::<NativeEndian>(*self));
         Ok(())
     }
@@ -148,7 +149,7 @@ impl Nl for u32 {
 }
 
 impl Nl for i32 {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(state.0.write_i32::<NativeEndian>(*self));
         Ok(())
     }
@@ -163,7 +164,7 @@ impl Nl for i32 {
 }
 
 impl Nl for Vec<u8> {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         let len = state.get_usize().unwrap_or(self.len());
         let num_bytes = state.0.write(&self)?;
         if len - num_bytes > 0 {
@@ -189,10 +190,13 @@ impl Nl for Vec<u8> {
 }
 
 impl Nl for String {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        self.push('\0');
-        let len = state.get_usize().unwrap_or(self.len());
-        let num_bytes = state.0.write(self.as_bytes())?;
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
+        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
+            SerError::new("Unable to serialize string containing null byte")
+        }));
+        let bytes = c_str.as_bytes_with_nul();
+        let len = state.get_usize().unwrap_or(bytes.len());
+        let num_bytes = state.0.write(bytes)?;
         if len - num_bytes > 0 {
             let padding = vec![0; len - num_bytes];
             state.0.write(&padding)?;
@@ -226,7 +230,7 @@ mod test {
 
     #[test]
     fn test_nl_u8() {
-        let mut v: u8 = 5;
+        let v: u8 = 5;
         let s: &[u8; 1] = &[5];
         let mut state = NlSerState::new();
         v.serialize(&mut state).unwrap();
@@ -240,7 +244,7 @@ mod test {
 
     #[test]
     fn test_nl_u16() {
-        let mut v: u16 = 6000;
+        let v: u16 = 6000;
         let s: &mut [u8] = &mut [0; 2];
         {
             let mut c = Cursor::new(&mut *s);
@@ -262,7 +266,7 @@ mod test {
 
     #[test]
     fn test_nl_u32() {
-        let mut v: u32 = 600000;
+        let v: u32 = 600000;
         let s: &mut [u8] = &mut [0; 4];
         {
             let mut c = Cursor::new(&mut *s);
@@ -284,7 +288,7 @@ mod test {
 
     #[test]
     fn test_nl_vec() {
-        let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut state = NlSerState::new();
         v.serialize(&mut state).unwrap();
         assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
@@ -298,7 +302,7 @@ mod test {
 
     #[test]
     fn test_nl_string() {
-        let mut s = "AAAAA".to_string();
+        let s = "AAAAA".to_string();
         let mut state = NlSerState::new();
         s.serialize(&mut state).unwrap();
         assert_eq!(vec![65, 65, 65, 65, 65, 0], state.into_inner().as_slice());

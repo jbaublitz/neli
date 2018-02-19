@@ -87,7 +87,7 @@ impl NlSocket {
     }
 
     /// Serialize and send Rust `NlMsg` type
-    pub fn sendmsg<I: Nl, T: Nl>(&mut self, mut msg: NlHdr<I, T>, flags: i32)
+    pub fn sendmsg<I: Nl, T: Nl>(&mut self, msg: NlHdr<I, T>, flags: i32)
                                         -> Result<isize, NlError> {
         let mut state = NlSerState::new();
         try!(msg.serialize(&mut state));

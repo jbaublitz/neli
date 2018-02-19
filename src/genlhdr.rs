@@ -48,7 +48,7 @@ impl Default for GenlHdr {
 }
 
 impl Nl for GenlHdr {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         self.cmd.serialize(state)?;
         self.version.serialize(state)?;
         self.reserved.serialize(state)?;
@@ -83,7 +83,7 @@ mod test {
         let attr = vec![NlAttrHdr::new_binary_payload(None, CtrlAttr::FamilyId,
                                                         vec![0, 1, 2, 3, 4, 5, 0, 0]
                                                       )];
-        let mut genl = GenlHdr::new(CtrlCmd::Getops, 2,
+        let genl = GenlHdr::new(CtrlCmd::Getops, 2,
                                     attr).unwrap();
         let mut state = NlSerState::new();
         genl.serialize(&mut state).unwrap();
