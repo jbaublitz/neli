@@ -52,28 +52,21 @@ impl NlSocket {
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
     /// (`nl::nlhdr::NlHdr`).
-    pub fn send(&mut self, buf: &[u8], flags: i32) -> Result<isize, io::Error> {
+    pub fn send(&mut self, buf: &[u8], flags: i32) -> Result<usize, io::Error> {
         match unsafe {
             libc::send(self.fd, buf as *const _ as *const c_void, buf.len(), flags)
         } {
-            i if i >= 0 => Ok(i),
+            i if i >= 0 => Ok(i as usize),
             _ => Err(io::Error::last_os_error()),
         }
     }
 
     /// Receive message encoded as byte slice from the netlink socket.
-    pub fn recv(&mut self, len: Option<usize>, flags: i32) -> Result<Vec<u8>, io::Error> {
-        let mut v = match len {
-            Some(l) => vec![0; l],
-            None => Vec::new(),
-        };
+    pub fn recv(&mut self, buf: &mut [u8], flags: i32) -> Result<usize, io::Error> {
         match unsafe {
-            libc::recv(self.fd, v.as_mut_slice() as *mut _ as *mut c_void, v.len(), flags)
+            libc::recv(self.fd, buf as *mut _ as *mut c_void, buf.len(), flags)
         } {
-            i if i >= 0 => {
-                v.truncate(i as usize);
-                Ok(v)
-            },
+            i if i >= 0 => Ok(i as usize),
             _ => Err(io::Error::last_os_error()),
         }
     }
@@ -88,7 +81,7 @@ impl NlSocket {
 
     /// Serialize and send Rust `NlMsg` type
     pub fn sendmsg<I: Nl, T: Nl>(&mut self, mut msg: NlHdr<I, T>, flags: i32)
-                                        -> Result<isize, NlError> {
+                                        -> Result<usize, NlError> {
         let mut state = NlSerState::new();
         try!(msg.serialize(&mut state));
         let len = try!(self.send(state.into_inner().as_slice(), flags));
@@ -96,10 +89,11 @@ impl NlSocket {
     }
 
     /// Receive and deserialize Rust `NlMsg` type
-    pub fn recvmsg<I: Nl, T: Nl>(&mut self, len: Option<usize>, flags: i32)
+    pub fn recvmsg<I: Nl, T: Nl>(&mut self, len: usize, flags: i32)
                                        -> Result<NlHdr<I, T>, NlError> {
-        let mut buf = try!(self.recv(len, flags));
-        let msg = try!(<NlHdr<I, T> as Nl>::deserialize(&mut NlDeState::new(buf.as_mut_slice())));
+        let mut buf = vec![0; len];
+        let bytes_read = try!(self.recv(&mut buf, flags));
+        let msg = try!(<NlHdr<I, T> as Nl>::deserialize(&mut NlDeState::new(&buf[..bytes_read])));
         Ok(msg)
     }
 }
