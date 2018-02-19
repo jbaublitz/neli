@@ -1,11 +1,23 @@
 use std::mem;
+use libc;
 
 use {Nl,NlSerState,NlDeState};
 use err::{SerError,DeError};
 
+macro_rules! eval_safety {
+    (unsafe $expr:expr) => { unsafe { $expr } };
+    (safe $expr:expr) => { $expr };
+}
+
 macro_rules! impl_var {
-    ( $name:ident, $ty:ty, $var_def:ident => $val_def:ident,
-      $( $var:ident => $val:ident ),* ) => (
+    ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
+      $( $var:ident => $val:expr ),* ) => (
+          impl_var!($name, $ty, safe, $var_def => $val_def,
+            $( $var => $val ),* );
+      );
+
+    ( $name:ident, $ty:ty, $safety:ident, $var_def:ident => $val_def:expr,
+      $( $var:ident => $val:expr ),* ) => (
         /// Enum representing C constants for netlink packets
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
@@ -28,8 +40,8 @@ macro_rules! impl_var {
         impl From<$ty> for $name {
             fn from(v: $ty) -> Self {
                 match v {
-                    i if i == unsafe { $val_def } => $name::$var_def,
-                    $( i if i == unsafe { $val } => $name::$var,)*
+                    i if i == eval_safety!{ $safety $val_def } => $name::$var_def,
+                    $( i if i == eval_safety!{ $safety $val } => $name::$var,)*
                     _ => $name::UnrecognizedVariant
                 }
             }
@@ -38,8 +50,8 @@ macro_rules! impl_var {
         impl From<$name> for $ty {
             fn from(v: $name) -> Self {
                 match v {
-                    $name::$var_def => unsafe { $val_def },
-                    $( $name::$var => unsafe { $val }, )*
+                    $name::$var_def => eval_safety!{ $safety $val_def },
+                    $( $name::$var => eval_safety!{ $safety $val }, )*
                     $name::UnrecognizedVariant =>
                         unimplemented!("InvalidData is not a valid netlink \
                                         constant and should never be \
@@ -70,50 +82,6 @@ macro_rules! impl_var {
 #[link(name = "netlink")]
 extern {
     pub static nla_alignto: usize;
-
-    pub static netlink_route: u32;
-    pub static netlink_unused: u32;
-    pub static netlink_usersock: u32;
-    pub static netlink_firewall: u32;
-    pub static netlink_sock_diag: u32;
-    pub static netlink_nflog: u32;
-    pub static netlink_xfrm: u32;
-    pub static netlink_selinux: u32;
-    pub static netlink_iscsi: u32;
-    pub static netlink_audit: u32;
-    pub static netlink_fib_lookup: u32;
-    pub static netlink_connector: u32;
-    pub static netlink_netfilter: u32;
-    pub static netlink_ip6_fw: u32;
-    pub static netlink_dnrtmsg: u32;
-    pub static netlink_kobject_uevent: u32;
-    pub static netlink_generic: u32;
-    pub static netlink_scsitransport: u32;
-    pub static netlink_ecryptfs: u32;
-    pub static netlink_rdma: u32;
-    pub static netlink_crypto: u32;
-
-    pub static nlmsg_noop: u16;
-    pub static nlmsg_error: u16;
-    pub static nlmsg_done: u16;
-    pub static nlmsg_overrun: u16;
-
-    pub static nlm_f_request: u16;
-    pub static nlm_f_multi: u16;
-    pub static nlm_f_ack: u16;
-    pub static nlm_f_echo: u16;
-    pub static nlm_f_dump_intr: u16;
-    pub static nlm_f_dump_filtered: u16;
-
-    pub static nlm_f_root: u16;
-    pub static nlm_f_match: u16;
-    pub static nlm_f_atomic: u16;
-    pub static nlm_f_dump: u16;
-
-    pub static nlm_f_replace: u16;
-    pub static nlm_f_excl: u16;
-    pub static nlm_f_create: u16;
-    pub static nlm_f_append: u16;
 
     pub static ctrl_cmd_unspec: u8;
     pub static ctrl_cmd_newfamily: u8;
@@ -151,57 +119,58 @@ pub fn alignto(len: usize) -> usize {
 }
 
 /// Values for `nl_family` in `NlSocket`
-impl_var!(NlFamily, u32,
-    Route => netlink_route,
-    Unused => netlink_unused,
-    Usersock => netlink_usersock,
-    Firewall => netlink_firewall,
-    SockDiag => netlink_sock_diag,
-    Nflog => netlink_nflog,
-    Xfrm => netlink_xfrm,
-    Selinux => netlink_selinux,
-    Iscsi => netlink_iscsi,
-    Audit => netlink_audit,
-    FibLookup => netlink_fib_lookup,
-    Connector => netlink_connector,
-    Netfilter => netlink_netfilter,
-    Ip6Fw => netlink_ip6_fw,
-    Dnrtmsg => netlink_dnrtmsg,
-    KobjectUevent => netlink_kobject_uevent,
-    Generic => netlink_generic,
-    Scsitransport => netlink_scsitransport,
-    Ecryptfs => netlink_ecryptfs,
-    Rdma => netlink_rdma,
-    Crypto => netlink_crypto
+impl_var!(NlFamily, libc::c_int,
+    Route => libc::NETLINK_ROUTE,
+    Unused => libc::NETLINK_UNUSED,
+    Usersock => libc::NETLINK_USERSOCK,
+    Firewall => libc::NETLINK_FIREWALL,
+    SockDiag => libc::NETLINK_SOCK_DIAG,
+    Nflog => libc::NETLINK_NFLOG,
+    Xfrm => libc::NETLINK_NFLOG,
+    Selinux => libc::NETLINK_SELINUX,
+    Iscsi => libc::NETLINK_ISCSI,
+    Audit => libc::NETLINK_AUDIT,
+    FibLookup => libc::NETLINK_FIB_LOOKUP,
+    Connector => libc::NETLINK_CONNECTOR,
+    Netfilter => libc::NETLINK_NETFILTER,
+    Ip6Fw => libc::NETLINK_IP6_FW,
+    Dnrtmsg => libc::NETLINK_DNRTMSG,
+    KobjectUevent => libc::NETLINK_KOBJECT_UEVENT,
+    Generic => libc::NETLINK_GENERIC,
+    Scsitransport => libc::NETLINK_SCSITRANSPORT,
+    Ecryptfs => libc::NETLINK_ECRYPTFS,
+    Rdma => libc::NETLINK_RDMA,
+    Crypto => libc::NETLINK_CRYPTO,
+    InetDiag => libc::NETLINK_SOCK_DIAG
 );
 
 /// Values for `nl_type` in `NlHdr`
 impl_var!(Nlmsg, u16,
-    Noop => nlmsg_noop,
-    Error => nlmsg_error,
-    Done => nlmsg_done,
-    Overrun => nlmsg_overrun
+    Noop => libc::NLMSG_NOOP as u16,
+    Error => libc::NLMSG_ERROR as u16,
+    Done => libc::NLMSG_DONE as u16,
+    Overrun => libc::NLMSG_OVERRUN as u16
 );
 
 /// Values for `nl_flags` in `NlHdr`
 impl_var!(NlFlags, u16,
-    Request => nlm_f_request,
-    Multi => nlm_f_multi,
-    Ack => nlm_f_ack,
-    Echo => nlm_f_echo,
-    DumpIntr => nlm_f_dump_intr,
-    DumpFiltered => nlm_f_dump_filtered,
-    Root => nlm_f_root,
-    Match => nlm_f_match,
-    Atomic => nlm_f_atomic,
-    Dump => nlm_f_dump,
-    Replace => nlm_f_replace,
-    Excl => nlm_f_excl,
-    Create => nlm_f_create,
-    Append => nlm_f_append
+    Request => libc::NLM_F_REQUEST as u16,
+    Multi => libc::NLM_F_MULTI as u16,
+    Ack => libc::NLM_F_ACK as u16,
+    Echo => libc::NLM_F_ECHO as u16,
+    DumpIntr => libc::NLM_F_DUMP_INTR as u16,
+    DumpFiltered => libc::NLM_F_DUMP_FILTERED as u16,
+    Root => libc::NLM_F_ROOT as u16,
+    Match => libc::NLM_F_MATCH as u16,
+    Atomic => libc::NLM_F_ATOMIC as u16,
+    Dump => libc::NLM_F_DUMP as u16,
+    Replace => libc::NLM_F_REPLACE as u16,
+    Excl => libc::NLM_F_EXCL as u16,
+    Create => libc::NLM_F_CREATE as u16,
+    Append => libc::NLM_F_APPEND as u16
 );
 
-impl_var!(GenlId, u16,
+impl_var!(GenlId, u16, unsafe,
     Generate => genl_id_generate,
     Ctrl => genl_id_ctrl,
     VfsDquot => genl_id_vfs_dquot,
@@ -209,7 +178,7 @@ impl_var!(GenlId, u16,
 );
 
 /// Values for `cmd` in `GenlHdr`
-impl_var!(CtrlCmd, u8,
+impl_var!(CtrlCmd, u8, unsafe,
     Unspec => ctrl_cmd_unspec,
     Newfamily => ctrl_cmd_newfamily,
     Delfamily => ctrl_cmd_delfamily,
@@ -223,7 +192,7 @@ impl_var!(CtrlCmd, u8,
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(CtrlAttr, u16,
+impl_var!(CtrlAttr, u16, unsafe,
     Unspec => ctrl_attr_unspec,
     FamilyId => ctrl_attr_family_id,
     FamilyName => ctrl_attr_family_name,
@@ -235,7 +204,7 @@ impl_var!(CtrlAttr, u16,
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(CtrlAttrMcastGrp, u16,
+impl_var!(CtrlAttrMcastGrp, u16, unsafe,
     Unspec => ctrl_attr_mcast_grp_unspec,
     Name => ctrl_attr_mcast_grp_name,
     Id => ctrl_attr_mcast_grp_id
