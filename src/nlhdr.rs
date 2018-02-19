@@ -50,10 +50,10 @@ impl<I: Default, T: Default> Default for NlHdr<I, T> {
 }
 
 impl<I: Default + Nl, T: Nl> Nl for NlHdr<I, T> {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         try!(self.nl_len.serialize(state));
         try!(self.nl_type.serialize(state));
-        let mut val = self.nl_flags.iter().fold(0, |acc: u16, val| {
+        let val = self.nl_flags.iter().fold(0, |acc: u16, val| {
             let v: u16 = val.clone().into();
             acc | v
         });
@@ -124,7 +124,7 @@ impl<T> NlAttrHdr<T> where T: Nl {
     }
 
     /// Create new netlink attribute payload from string, handling null byte termination
-    pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, mut string_payload: String)
+    pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, string_payload: String)
             -> Result<Self, SerError> {
         let mut nla = NlAttrHdr::default();
         nla.nla_type = nla_type;
@@ -154,7 +154,7 @@ impl<T> Default for NlAttrHdr<T> where T: Default {
 }
 
 impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         self.nla_len.serialize(state)?;
         self.nla_type.serialize(state)?;
         state.set_usize(self.payload.asize());
@@ -270,7 +270,7 @@ impl Default for NlEmpty {
 }
 
 impl Nl for NlEmpty {
-    fn serialize(&mut self, _state: &mut NlSerState) -> Result<(), SerError> {
+    fn serialize(&self, _state: &mut NlSerState) -> Result<(), SerError> {
         Ok(())
     }
 
@@ -293,7 +293,7 @@ mod test {
     #[test]
     fn test_nlhdr_serialize() {
         let mut state = NlSerState::new();
-        let mut nl = NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
+        let nl = NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
                                                    Vec::new(), None, None, NlEmpty);
         nl.serialize(&mut state).unwrap();
         let s: &mut [u8] = &mut [0; 16];

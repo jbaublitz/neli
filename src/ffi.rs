@@ -61,7 +61,7 @@ macro_rules! impl_var {
         }
 
         impl Nl for $name {
-            fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+            fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
                 let mut v: $ty = self.clone().into();
                 try!(Nl::serialize(&mut v, state));
                 Ok(())
