@@ -220,7 +220,7 @@ impl Nl for String {
     }
 
     fn size(&self) -> usize {
-        self.len()
+        self.len() + 1
     }
 }
 
@@ -305,7 +305,9 @@ mod test {
         let s = "AAAAA".to_string();
         let mut state = NlSerState::new();
         s.serialize(&mut state).unwrap();
-        assert_eq!(vec![65, 65, 65, 65, 65, 0], state.into_inner().as_slice());
+        let serialized = state.into_inner();
+        assert_eq!(vec![65, 65, 65, 65, 65, 0], serialized.as_slice());
+        assert_eq!(Nl::size(&s), serialized.len());
 
         let s = &[65, 65, 65, 65, 65, 65, 65, 0, 0, 0, 0];
         let mut state = NlDeState::new(s);
