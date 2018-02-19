@@ -25,59 +25,53 @@ impl<I: Nl, T: Nl> NlHdr<I, T> {
     /// Create a new top level netlink packet with a payload
     pub fn new(nl_len: Option<u32>, nl_type: I, nl_flags: Vec<NlFlags>,
            nl_seq: Option<u32>, nl_pid: Option<u32>, nl_payload: T) -> Self {
-        let mut nl = NlHdr::default();
-        nl.nl_type = nl_type;
-        nl.nl_flags = nl_flags;
-        nl.nl_seq = nl_seq.unwrap_or(0);
-        nl.nl_pid = nl_pid.unwrap_or(0);
-        nl.nl_payload = nl_payload;
+        let mut nl = NlHdr {
+            nl_type,
+            nl_flags,
+            nl_seq: nl_seq.unwrap_or(0),
+            nl_pid: nl_pid.unwrap_or(0),
+            nl_payload,
+            nl_len: 0,
+        };
         nl.nl_len = nl_len.unwrap_or(nl.size() as u32);
         nl
     }
 }
 
-impl<I: Default, T: Default> Default for NlHdr<I, T> {
-    fn default() -> Self {
-        NlHdr {
-            nl_len: 0,
-            nl_type: I::default(),
-            nl_flags: Vec::new(),
-            nl_seq: 0,
-            nl_pid: 0,
-            nl_payload: T::default(),
-        }
-    }
-}
-
-impl<I: Default + Nl, T: Nl> Nl for NlHdr<I, T> {
+impl<I: Nl, T: Nl> Nl for NlHdr<I, T> {
     fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(self.nl_len.serialize(state));
-        try!(self.nl_type.serialize(state));
+        self.nl_len.serialize(state)?;
+        self.nl_type.serialize(state)?;
         let val = self.nl_flags.iter().fold(0, |acc: u16, val| {
             let v: u16 = val.clone().into();
             acc | v
         });
-        try!(val.serialize(state));
-        try!(self.nl_seq.serialize(state));
-        try!(self.nl_pid.serialize(state));
-        try!(self.nl_payload.serialize(state));
+        val.serialize(state)?;
+        self.nl_seq.serialize(state)?;
+        self.nl_pid.serialize(state)?;
+        self.nl_payload.serialize(state)?;
         Ok(())
     }
 
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let mut nl = NlHdr::<I, T>::default();
-        nl.nl_len = try!(u32::deserialize(state));
-        nl.nl_type = try!(I::deserialize(state));
-        let flags = try!(u16::deserialize(state));
-        for i in 0..mem::size_of::<u16>() * 8 {
-            let bit = 1 << i;
-            if bit & flags == bit {
-                nl.nl_flags.push(bit.into());
-            }
-        }
-        nl.nl_seq = try!(u32::deserialize(state));
-        nl.nl_pid = try!(u32::deserialize(state));
-        nl.nl_payload = try!(T::deserialize(state));
+        let nl = NlHdr::<I, T> {
+            nl_len: u32::deserialize(state)?,
+            nl_type: I::deserialize(state)?,
+            nl_flags: {
+                let flags = u16::deserialize(state)?;
+                let mut nl_flags = Vec::new();
+                for i in 0..mem::size_of::<u16>() * 8 {
+                    let bit = 1 << i;
+                    if bit & flags == bit {
+                        nl_flags.push(bit.into());
+                    }
+                }
+                nl_flags
+            },
+            nl_seq: u32::deserialize(state)?,
+            nl_pid: u32::deserialize(state)?,
+            nl_payload: T::deserialize(state)?,
+        };
         Ok(nl)
     }
 
@@ -102,9 +96,11 @@ impl<T> NlAttrHdr<T> where T: Nl {
     /// Create new netlink attribute with a payload
     pub fn new_binary_payload(nla_len: Option<u16>, nla_type: T, payload: Vec<u8>)
             -> Self {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_type = nla_type;
-        nla.payload = payload;
+        let mut nla = NlAttrHdr {
+            nla_type,
+            payload,
+            nla_len: 0, 
+        };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         nla
     }
@@ -112,13 +108,17 @@ impl<T> NlAttrHdr<T> where T: Nl {
     /// Create new netlink attribute with a nested payload
     pub fn new_nested<P>(nla_len: Option<u16>, nla_type: T, mut payload: Vec<NlAttrHdr<P>>)
             -> Result<Self, SerError> where P: Nl {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_type = nla_type;
-        let mut state = NlSerState::new();
-        for item in payload.iter_mut() {
-            item.serialize(&mut state)?
-        }
-        nla.payload = state.into_inner();
+        let mut nla = NlAttrHdr {
+            nla_type,
+            payload: {
+                let mut state = NlSerState::new();
+                for item in payload.iter_mut() {
+                    item.serialize(&mut state)?
+                }
+                state.into_inner()
+            },
+            nla_len: 0,
+        };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         Ok(nla)
     }
@@ -126,11 +126,11 @@ impl<T> NlAttrHdr<T> where T: Nl {
     /// Create new netlink attribute payload from string, handling null byte termination
     pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, string_payload: String)
             -> Result<Self, SerError> {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_type = nla_type;
-        let mut state = NlSerState::new();
-        string_payload.serialize(&mut state)?;
-        nla.payload = state.into_inner();
+        let mut nla = NlAttrHdr { nla_type, payload: {
+            let mut state = NlSerState::new();
+            string_payload.serialize(&mut state)?;
+            state.into_inner()
+        }, nla_len: 0 };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         Ok(nla)
     }
@@ -143,17 +143,7 @@ impl<T> NlAttrHdr<T> where T: Nl {
     }
 }
 
-impl<T> Default for NlAttrHdr<T> where T: Default {
-    fn default() -> Self {
-        NlAttrHdr {
-            nla_len: 0,
-            nla_type: T::default(),
-            payload: Vec::new(),
-        }
-    }
-}
-
-impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
+impl<T> Nl for NlAttrHdr<T> where T: Nl {
     fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         self.nla_len.serialize(state)?;
         self.nla_type.serialize(state)?;
@@ -163,11 +153,15 @@ impl<T> Nl for NlAttrHdr<T> where T: Default + Nl {
     }
 
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let mut nla = NlAttrHdr::default();
-        nla.nla_len = u16::deserialize(state)?;
-        nla.nla_type = T::deserialize(state)?;
-        state.set_usize(alignto(nla.nla_len as usize));
-        nla.payload = Vec::<u8>::deserialize(state)?;
+        let nla_len = u16::deserialize(state)?;
+        let nla = NlAttrHdr {
+            nla_len,
+            nla_type: T::deserialize(state)?,
+            payload: {
+                state.set_usize(alignto(nla_len as usize));
+                Vec::<u8>::deserialize(state)?
+            }
+        };
         Ok(nla)
     }
 
@@ -262,12 +256,6 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
 /// Struct indicating an empty payload
 #[derive(Debug,PartialEq)]
 pub struct NlEmpty;
-
-impl Default for NlEmpty {
-    fn default() -> Self {
-        NlEmpty
-    }
-}
 
 impl Nl for NlEmpty {
     fn serialize(&self, _state: &mut NlSerState) -> Result<(), SerError> {

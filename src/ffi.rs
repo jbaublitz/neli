@@ -28,13 +28,7 @@ macro_rules! impl_var {
                 $var,
             )*
             /// Variant that signifies an invalid value while deserializing
-            UnrecognizedVariant,
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                $name::$var_def
-            }
+            UnrecognizedVariant($ty),
         }
 
         impl From<$ty> for $name {
@@ -42,7 +36,7 @@ macro_rules! impl_var {
                 match v {
                     i if i == eval_safety!{ $safety $val_def } => $name::$var_def,
                     $( i if i == eval_safety!{ $safety $val } => $name::$var,)*
-                    _ => $name::UnrecognizedVariant
+                    i => $name::UnrecognizedVariant(i)
                 }
             }
         }
@@ -52,10 +46,7 @@ macro_rules! impl_var {
                 match v {
                     $name::$var_def => eval_safety!{ $safety $val_def },
                     $( $name::$var => eval_safety!{ $safety $val }, )*
-                    $name::UnrecognizedVariant =>
-                        unimplemented!("InvalidData is not a valid netlink \
-                                        constant and should never be \
-                                        serialized"),
+                    $name::UnrecognizedVariant(i) => i,
                 }
             }
         }

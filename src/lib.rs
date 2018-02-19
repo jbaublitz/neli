@@ -90,7 +90,7 @@ impl<'a> NlDeState<'a> {
 }
 
 /// Trait defining basic actions required for netlink communication
-pub trait Nl: Sized + Default {
+pub trait Nl: Sized {
     /// Serialization method
     fn serialize(&self, &mut NlSerState) -> Result<(), SerError>;
     /// Deserialization method
