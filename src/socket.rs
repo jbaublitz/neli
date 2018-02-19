@@ -25,9 +25,8 @@ pub struct NlSocket {
 impl NlSocket {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
-        let proto_u32: u32 = proto.into();
         let fd = match unsafe {
-            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto_u32 as libc::c_int)
+            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),

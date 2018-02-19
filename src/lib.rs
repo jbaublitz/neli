@@ -147,6 +147,21 @@ impl Nl for u32 {
     }
 }
 
+impl Nl for i32 {
+    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+        try!(state.0.write_i32::<NativeEndian>(*self));
+        Ok(())
+    }
+
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        Ok(try!(state.0.read_i32::<NativeEndian>()))
+    }
+
+    fn size(&self) -> usize {
+        mem::size_of::<i32>()
+    }
+}
+
 impl Nl for Vec<u8> {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
         let len = state.get_usize().unwrap_or(self.len());
