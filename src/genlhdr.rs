@@ -36,17 +36,6 @@ impl GenlHdr {
     }
 }
 
-impl Default for GenlHdr {
-    fn default() -> Self {
-        GenlHdr {
-            cmd: CtrlCmd::Unspec,
-            version: 0,
-            reserved: 0,
-            attrs: Vec::new(),
-        }
-    }
-}
-
 impl Nl for GenlHdr {
     fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
         self.cmd.serialize(state)?;
@@ -57,12 +46,12 @@ impl Nl for GenlHdr {
     }
 
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let mut genl = GenlHdr::default();
-        genl.cmd = CtrlCmd::deserialize(state)?;
-        genl.version = u8::deserialize(state)?;
-        genl.reserved = u16::deserialize(state)?;
-        genl.attrs = Vec::<u8>::deserialize(state)?;
-        Ok(genl)
+        Ok(GenlHdr {
+            cmd: CtrlCmd::deserialize(state)?,
+            version: u8::deserialize(state)?,
+            reserved: u16::deserialize(state)?,
+            attrs: Vec::<u8>::deserialize(state)?,
+        })
     }
 
     fn size(&self) -> usize {
