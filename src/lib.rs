@@ -35,9 +35,9 @@ pub mod genlhdr;
 /// Error module
 pub mod err;
 
+use std::ffi::{CStr,CString};
 use std::io::{Cursor,Read,Write};
 use std::mem;
-use std::ffi::CString;
 
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
@@ -211,12 +211,8 @@ impl Nl for String {
         if input > num_bytes {
             v.truncate(num_bytes);
         }
-        let pos = v.iter().position(|b| *b == 0);
-        if let Some(p) = pos {
-            v.truncate(p);
-        }
-        let string = String::from_utf8(v)?;
-        Ok(string)
+        let string = CStr::from_bytes_with_nul(&v)?;
+        Ok(string.to_str()?.to_string())
     }
 
     fn size(&self) -> usize {
@@ -311,7 +307,8 @@ mod test {
 
         let s = &[65, 65, 65, 65, 65, 65, 65, 0, 0, 0, 0];
         let mut state = NlDeState::new(s);
-        state.set_usize(s.len() as usize);
+        // Should be nla_len in the context of netlink attribute deserialization
+        state.set_usize(8);
         let string = String::deserialize(&mut state).unwrap();
         assert_eq!(string, "AAAAAAA".to_string())
     }

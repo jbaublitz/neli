@@ -1,7 +1,9 @@
+use std;
 use std::error::Error;
 use std::fmt::{self,Display};
 use std::io;
-use std::string::FromUtf8Error;
+use std::str;
+use std::string;
 
 macro_rules! try_err_compat {
     ( $err_name:ident, $( $from_err_name:path ),* ) => {
@@ -19,9 +21,7 @@ macro_rules! try_err_compat {
 #[derive(Debug)]
 pub struct NlError(String);
 
-try_err_compat!(NlError, io::Error);
-try_err_compat!(NlError, SerError);
-try_err_compat!(NlError, DeError);
+try_err_compat!(NlError, io::Error, SerError, DeError);
 
 /// Netlink protocol error
 impl Display for NlError {
@@ -72,8 +72,8 @@ impl DeError {
     }
 }
 
-try_err_compat!(DeError, io::Error);
-try_err_compat!(DeError, FromUtf8Error);
+try_err_compat!(DeError, io::Error, str::Utf8Error, string::FromUtf8Error,
+                std::ffi::FromBytesWithNulError);
 
 impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
