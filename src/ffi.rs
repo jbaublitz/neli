@@ -115,7 +115,7 @@ impl_var!(NlFamily, libc::c_int,
     Unused => libc::NETLINK_UNUSED,
     Usersock => libc::NETLINK_USERSOCK,
     Firewall => libc::NETLINK_FIREWALL,
-    SockDiag => libc::NETLINK_SOCK_DIAG,
+    SockOrInetDiag => libc::NETLINK_SOCK_DIAG,
     Nflog => libc::NETLINK_NFLOG,
     Xfrm => libc::NETLINK_XFRM,
     Selinux => libc::NETLINK_SELINUX,
@@ -131,8 +131,7 @@ impl_var!(NlFamily, libc::c_int,
     Scsitransport => libc::NETLINK_SCSITRANSPORT,
     Ecryptfs => libc::NETLINK_ECRYPTFS,
     Rdma => libc::NETLINK_RDMA,
-    Crypto => libc::NETLINK_CRYPTO,
-    InetDiag => libc::NETLINK_SOCK_DIAG
+    Crypto => libc::NETLINK_CRYPTO
 );
 
 /// Values for `nl_type` in `NlHdr`
