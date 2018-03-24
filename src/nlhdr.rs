@@ -1,8 +1,8 @@
 use std::mem;
 
-use {Nl,NlSerState,NlDeState};
+use {Nl,MemRead,MemWrite};
 use err::{SerError,DeError};
-use ffi::{alignto,NlFlags};
+use ffi::NlFlags;
 
 /// Top level netlink header and payload
 #[derive(Debug,PartialEq)]
@@ -21,7 +21,7 @@ pub struct NlHdr<I, T> {
     pub nl_payload: T,
 }
 
-impl<I: Nl, T: Nl> NlHdr<I, T> {
+impl<I, T> NlHdr<I, T> where I: Nl, T: Nl {
     /// Create a new top level netlink packet with a payload
     pub fn new(nl_len: Option<u32>, nl_type: I, nl_flags: Vec<NlFlags>,
            nl_seq: Option<u32>, nl_pid: Option<u32>, nl_payload: T) -> Self {
@@ -38,27 +38,30 @@ impl<I: Nl, T: Nl> NlHdr<I, T> {
     }
 }
 
-impl<I: Nl, T: Nl> Nl for NlHdr<I, T> {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        self.nl_len.serialize(state)?;
-        self.nl_type.serialize(state)?;
+impl<I, P> Nl for NlHdr<I, P> where I: Nl, P: Nl {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        self.nl_len.serialize(mem)?;
+        self.nl_type.serialize(mem)?;
         let val = self.nl_flags.iter().fold(0, |acc: u16, val| {
             let v: u16 = val.clone().into();
             acc | v
         });
-        val.serialize(state)?;
-        self.nl_seq.serialize(state)?;
-        self.nl_pid.serialize(state)?;
-        self.nl_payload.serialize(state)?;
+        val.serialize(mem)?;
+        self.nl_seq.serialize(mem)?;
+        self.nl_pid.serialize(mem)?;
+        self.nl_payload.serialize(mem)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let nl = NlHdr::<I, T> {
-            nl_len: u32::deserialize(state)?,
-            nl_type: I::deserialize(state)?,
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        let nl = NlHdr::<I, P> {
+            nl_len: u32::deserialize(mem)?,
+            nl_type: I::deserialize(mem)?,
             nl_flags: {
-                let flags = u16::deserialize(state)?;
+                let flags = u16::deserialize(mem)?;
                 let mut nl_flags = Vec::new();
                 for i in 0..mem::size_of::<u16>() * 8 {
                     let bit = 1 << i;
@@ -68,9 +71,9 @@ impl<I: Nl, T: Nl> Nl for NlHdr<I, T> {
                 }
                 nl_flags
             },
-            nl_seq: u32::deserialize(state)?,
-            nl_pid: u32::deserialize(state)?,
-            nl_payload: T::deserialize(state)?,
+            nl_seq: u32::deserialize(mem)?,
+            nl_pid: u32::deserialize(mem)?,
+            nl_payload: P::deserialize(mem)?,
         };
         Ok(nl)
     }
@@ -111,11 +114,13 @@ impl<T> NlAttrHdr<T> where T: Nl {
         let mut nla = NlAttrHdr {
             nla_type,
             payload: {
-                let mut state = NlSerState::new();
+                let mut mem = MemWrite::new_vec(Some(payload.iter().fold(0, |acc, item| {
+                    acc + item.asize()
+                })));
                 for item in payload.iter_mut() {
-                    item.serialize(&mut state)?
+                    item.serialize(&mut mem)?
                 }
-                state.into_inner()
+                mem.as_slice().to_vec()
             },
             nla_len: 0,
         };
@@ -127,9 +132,9 @@ impl<T> NlAttrHdr<T> where T: Nl {
     pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, string_payload: String)
             -> Result<Self, SerError> {
         let mut nla = NlAttrHdr { nla_type, payload: {
-            let mut state = NlSerState::new();
-            string_payload.serialize(&mut state)?;
-            state.into_inner()
+            let mut mem = MemWrite::new_vec(Some(string_payload.asize()));
+            string_payload.serialize(&mut mem)?;
+            mem.as_slice().to_vec()
         }, nla_len: 0 };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         Ok(nla)
@@ -143,24 +148,23 @@ impl<T> NlAttrHdr<T> where T: Nl {
     }
 }
 
-impl<T> Nl for NlAttrHdr<T> where T: Nl {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        self.nla_len.serialize(state)?;
-        self.nla_type.serialize(state)?;
-        state.set_usize(self.payload.asize());
-        self.payload.serialize(state)?;
+impl<I> Nl for NlAttrHdr<I> where I: Nl {
+    type SerIn = usize;
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        self.nla_len.serialize(mem)?;
+        self.nla_type.serialize(mem)?;
+        self.payload.serialize(mem)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let nla_len = u16::deserialize(state)?;
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        let nla_len = u16::deserialize(mem)?;
         let nla = NlAttrHdr {
             nla_len,
-            nla_type: T::deserialize(state)?,
-            payload: {
-                state.set_usize(alignto(nla_len as usize));
-                Vec::<u8>::deserialize(state)?
-            }
+            nla_type: I::deserialize(mem)?,
+            payload: Vec::<u8>::deserialize_with(mem, nla_len as usize)?,
         };
         Ok(nla)
     }
@@ -185,9 +189,9 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
             AttrHandle::Bin(ref v) => {
                 let mut len = v.len();
                 let mut attrs = Vec::new();
-                let mut state = NlDeState::new(&v);
+                let mut mem = MemRead::new_slice(v.as_slice());
                 while len > 0 {
-                    let hdr = NlAttrHdr::<P>::deserialize(&mut state)?;
+                    let hdr = NlAttrHdr::<P>::deserialize(&mut mem)?;
                     len -= hdr.asize();
                     attrs.push(hdr);
                 }
@@ -242,11 +246,11 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
     }
 
     /// Parse binary payload as a type that implements `Nl`
-    pub fn get_payload_as<T>(&mut self, attr: P) -> Result<T, DeError> where T: Nl {
+    pub fn get_payload_as<R>(&mut self, attr: P) -> Result<R, DeError> where R: Nl {
         match self.parse_nested_attributes()?.get_attribute(attr) {
             Some(ref a) => {
-                let mut state = NlDeState::new(&a.payload);
-                T::deserialize(&mut state)
+                let mut state = MemRead::new_slice(&a.payload);
+                R::deserialize(&mut state)
             },
             _ => Err(DeError::new("Failed to find specified attribute")),
         }
@@ -258,11 +262,14 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
 pub struct NlEmpty;
 
 impl Nl for NlEmpty {
-    fn serialize(&self, _state: &mut NlSerState) -> Result<(), SerError> {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, _cur: &mut MemWrite) -> Result<(), SerError> {
         Ok(())
     }
 
-    fn deserialize(_state: &mut NlDeState) -> Result<Self, DeError> {
+    fn deserialize(_cur: &mut MemRead) -> Result<Self, DeError> {
         Ok(NlEmpty)
     }
 
@@ -280,17 +287,17 @@ mod test {
 
     #[test]
     fn test_nlhdr_serialize() {
-        let mut state = NlSerState::new();
+        let mut mem = MemWrite::new_vec(None);
         let nl = NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
-                                                   Vec::new(), None, None, NlEmpty);
-        nl.serialize(&mut state).unwrap();
+                                              Vec::new(), None, None, NlEmpty);
+        nl.serialize(&mut mem).unwrap();
         let s: &mut [u8] = &mut [0; 16];
         {
             let mut c = Cursor::new(&mut *s);
             c.write_u32::<NativeEndian>(16).unwrap();
             c.write_u16::<NativeEndian>(1).unwrap();
         };
-        assert_eq!(&mut *s, state.into_inner().as_slice())
+        assert_eq!(&mut *s, mem.as_slice())
     }
 
     #[test]
@@ -302,8 +309,8 @@ mod test {
             c.write_u16::<NativeEndian>(1).unwrap();
             c.write_u16::<NativeEndian>(NlFlags::Ack.into()).unwrap();
         }
-        let mut state = NlDeState::new(&mut *s);
-        let nl = NlHdr::<Nlmsg, NlEmpty>::deserialize(&mut state).unwrap();
+        let mut mem = MemRead::new_slice(&*s);
+        let nl = NlHdr::<Nlmsg, NlEmpty>::deserialize(&mut mem).unwrap();
         assert_eq!(NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
                                                  vec![NlFlags::Ack], None, None, NlEmpty), nl);
     }

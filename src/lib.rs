@@ -36,7 +36,7 @@ pub mod genlhdr;
 pub mod err;
 
 use std::ffi::{CStr,CString};
-use std::io::{Cursor,Read,Write};
+use std::io::{self,Cursor,Read,Write};
 use std::mem;
 
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
@@ -44,57 +44,176 @@ use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 use ffi::alignto;
 use err::{SerError,DeError};
 
-/// Struct representing the necessary state to serialize an object
-pub struct NlSerState(Cursor<Vec<u8>>, Option<usize>);
+/// Max supported message length for netlink messages supported by the kernel
+pub const MAX_NL_LENGTH: usize = 32768;
 
-impl NlSerState {
-    /// Create new serialization state object
-    pub fn new() -> Self {
-        NlSerState(Cursor::new(Vec::new()), None)
+/// Enum representing stack or heap allocated memory for reading
+pub enum MemRead<'a> {
+    /// Buffer for deserialization on stack
+    Slice(Cursor<&'a [u8]>),
+    /// Buffer for unsized deserialization on heap
+    Vec(Cursor<Vec<u8>>),
+    /// Reference to sized buffer for deserialization on heap
+    BoxedSlice(Cursor<Box<[u8]>>),
+}
+
+impl<'a> MemRead<'a> {
+    /// Create new stack allocated buffer for reading
+    pub fn new_slice(mem: &'a [u8]) -> Self {
+        MemRead::Slice(Cursor::new(mem))
     }
 
-    /// Store length of payload for later use
-    pub fn set_usize(&mut self, sz: usize) {
-        self.1 = Some(sz);
+    /// Create new heap allocated buffer for reading
+    pub fn new_vec(mem: Vec<u8>) -> Self {
+        MemRead::Vec(Cursor::new(mem))
     }
 
-    /// Get length of payload
-    pub fn get_usize(&mut self) -> Option<usize> {
-        self.1.take()
+    /// Create new sized heap allocated buffer for reading
+    pub fn new_boxed_slice(mem: Box<[u8]>) -> Self {
+        MemRead::BoxedSlice(Cursor::new(mem))
     }
 
-    /// Get buffer with serialized representation of consumed struct
-    pub fn into_inner(self) -> Vec<u8> {
-        self.0.into_inner()
+    /// Get underlying buffer as slice
+    pub fn as_slice(&'a self) -> &'a [u8] {
+        match *self {
+            MemRead::Slice(ref cur) => cur.get_ref(),
+            MemRead::Vec(ref cur) => cur.get_ref().as_slice(),
+            MemRead::BoxedSlice(ref cur) => cur.get_ref().as_ref(),
+        }
+    }
+
+    /// Get length of the underlying buffer
+    pub fn len(&self) -> usize {
+        match *self {
+            MemRead::Slice(ref cur) => cur.get_ref().len(),
+            MemRead::Vec(ref cur) => cur.get_ref().len(),
+            MemRead::BoxedSlice(ref cur) => cur.get_ref().len(),
+        }
     }
 }
 
-/// Struct representing the necessary state to deserialize an object
-pub struct NlDeState<'a>(Cursor<&'a [u8]>, Option<usize>);
+impl<'a> Read for MemRead<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            MemRead::Slice(ref mut cur) => cur.read(buf),
+            MemRead::Vec(ref mut cur) => cur.read(buf),
+            MemRead::BoxedSlice(ref mut cur) => cur.read(buf),
+        }
+    }
+}
 
-impl<'a> NlDeState<'a> {
-    /// Create new deserialization state object
-    pub fn new(s: &'a [u8]) -> Self {
-        NlDeState(Cursor::new(s), None)
+impl<'a> From<MemWrite<'a>> for MemRead<'a> {
+    fn from(v: MemWrite<'a>) -> Self {
+        match v {
+            MemWrite::Slice(cur) => MemRead::Slice(Cursor::new(&*cur.into_inner())),
+            MemWrite::Vec(mut cur) => {
+                cur.set_position(0);
+                MemRead::Vec(cur)
+            },
+            MemWrite::BoxedSlice(mut cur) => {
+                cur.set_position(0);
+                MemRead::BoxedSlice(cur)
+            },
+        }
+    }
+}
+
+/// Enum representing stack or heap allocated memory for writing
+pub enum MemWrite<'a> {
+    /// Buffer for serialization on stack
+    Slice(Cursor<&'a mut [u8]>),
+    /// Reference to buffer for serialization on heap
+    Vec(Cursor<Vec<u8>>),
+    /// Reference to sized buffer for serialization on heap
+    BoxedSlice(Cursor<Box<[u8]>>),
+}
+
+impl<'a> MemWrite<'a> {
+    /// Create new stack allocated buffer for writing
+    pub fn new_slice(mem: &'a mut [u8]) -> Self {
+        MemWrite::Slice(Cursor::new(mem))
     }
 
-    /// Store length of payload for later use
-    pub fn set_usize(&mut self, sz: usize) {
-        self.1 = Some(sz);
+    /// Create new heap allocated buffer for writing 
+    pub fn new_vec(alloc_size: Option<usize>) -> Self {
+        MemWrite::Vec(Cursor::new(match alloc_size {
+            Some(sz) => vec![0; sz],
+            None => Vec::new(),
+        }))
     }
 
-    /// Get length of payload
-    pub fn get_usize(&mut self) -> Option<usize> {
-        self.1.take()
+    /// Create new heap allocated buffer for writing 
+    pub fn new_boxed_slice(mem: Box<[u8]>) -> Self {
+        MemWrite::BoxedSlice(Cursor::new(mem))
+    }
+
+    /// Get underlying buffer as slice
+    pub fn as_slice(&'a self) -> &'a [u8] {
+        match *self {
+            MemWrite::Slice(ref cur) => cur.get_ref(),
+            MemWrite::Vec(ref cur) => cur.get_ref().as_slice(),
+            MemWrite::BoxedSlice(ref cur) => cur.get_ref().as_ref(),
+        }
+    }
+
+    /// Get underlying buffer as mutable slice
+    pub fn as_mut_slice(&'a mut self) -> &'a mut [u8] {
+        match *self {
+            MemWrite::Slice(ref mut cur) => cur.get_mut(),
+            MemWrite::Vec(ref mut cur) => cur.get_mut().as_mut_slice(),
+            MemWrite::BoxedSlice(ref mut cur) => cur.get_mut().as_mut(),
+        }
+    }
+
+    /// Get length of underlying buffer
+    pub fn len(&self) -> usize {
+        match *self {
+            MemWrite::Slice(ref cur) => cur.get_ref().len(),
+            MemWrite::Vec(ref cur) => cur.get_ref().len(),
+            MemWrite::BoxedSlice(ref cur) => cur.get_ref().len(),
+        }
+    }
+}
+
+impl<'a> Write for MemWrite<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            MemWrite::Slice(ref mut cur) => cur.write(buf),
+            MemWrite::Vec(ref mut cur) => cur.write(buf),
+            MemWrite::BoxedSlice(ref mut cur) => cur.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
 /// Trait defining basic actions required for netlink communication
 pub trait Nl: Sized {
+    /// Serialization input type for stateful serialization - set to `()` for stateless
+    /// serialization
+    type SerIn;
+    /// Deserialization input type for stateful deserialization - set to `()` for stateless
+    /// deserialization
+    type DeIn;
+
     /// Serialization method
-    fn serialize(&self, &mut NlSerState) -> Result<(), SerError>;
-    /// Deserialization method
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError>;
+    fn serialize(&self, _m: &mut MemWrite) -> Result<(), SerError> {
+        unimplemented!()
+    }
+    /// Serialization method
+    fn serialize_with(&self, _m: &mut MemWrite, _in: Self::SerIn) -> Result<(), SerError> {
+        unimplemented!()
+    }
+    /// Stateless deserialization method
+    fn deserialize(_m: &mut MemRead) -> Result<Self, DeError> {
+        unimplemented!()
+    }
+    /// Stateful deserialization method
+    fn deserialize_with(_m: &mut MemRead, _in: Self::DeIn) -> Result<Self, DeError> {
+        unimplemented!()
+    }
     /// The size of the binary representation of a struct - not aligned to word size
     fn size(&self) -> usize;
     /// The size of the binary representation of a struct - aligned to word size
@@ -104,13 +223,16 @@ pub trait Nl: Sized {
 }
 
 impl Nl for u8 {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(state.0.write_u8(*self));
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        mem.write_u8(*self)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        Ok(try!(state.0.read_u8()))
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        Ok(mem.read_u8()?)
     }
 
     fn size(&self) -> usize {
@@ -119,13 +241,16 @@ impl Nl for u8 {
 }
 
 impl Nl for u16 {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(state.0.write_u16::<NativeEndian>(*self));
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        mem.write_u16::<NativeEndian>(*self)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        Ok(try!(state.0.read_u16::<NativeEndian>()))
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        Ok(mem.read_u16::<NativeEndian>()?)
     }
 
     fn size(&self) -> usize {
@@ -134,13 +259,16 @@ impl Nl for u16 {
 }
 
 impl Nl for u32 {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(state.0.write_u32::<NativeEndian>(*self));
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        mem.write_u32::<NativeEndian>(*self)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        Ok(try!(state.0.read_u32::<NativeEndian>()))
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        Ok(mem.read_u32::<NativeEndian>()?)
     }
 
     fn size(&self) -> usize {
@@ -149,13 +277,16 @@ impl Nl for u32 {
 }
 
 impl Nl for i32 {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        try!(state.0.write_i32::<NativeEndian>(*self));
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        mem.write_i32::<NativeEndian>(*self)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        Ok(try!(state.0.read_i32::<NativeEndian>()))
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        Ok(mem.read_i32::<NativeEndian>()?)
     }
 
     fn size(&self) -> usize {
@@ -163,23 +294,62 @@ impl Nl for i32 {
     }
 }
 
-impl Nl for Vec<u8> {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-        let len = state.get_usize().unwrap_or(self.len());
-        let num_bytes = state.0.write(&self)?;
-        if len - num_bytes > 0 {
-            let padding = vec![0; len - num_bytes];
-            state.0.write(&padding)?;
+impl<'a> Nl for &'a [u8] {
+    type SerIn = ();
+    type DeIn = &'a mut [u8];
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        let num_bytes = mem.write(self)?;
+        if alignto(self.len()) - num_bytes > 0 {
+            let padding = vec![0; self.len() - num_bytes];
+            mem.write(&padding)?;
         }
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let input = state.get_usize().unwrap_or(state.0.get_ref().len());
-        let mut v = vec![0; input];
-        let num_bytes = state.0.by_ref().take(input as u64).read(&mut v)?;
-        if input > num_bytes {
-            v.truncate(num_bytes);
+    fn deserialize_with(mem: &mut MemRead, input: &'a mut [u8]) -> Result<Self, DeError> {
+        mem.read_exact(input)?;
+        Ok(input)
+    }
+
+    fn size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl Nl for Vec<u8> {
+    type SerIn = usize;
+    type DeIn = usize;
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        let num_bytes = mem.write(&self)?;
+        if alignto(self.len()) - num_bytes > 0 {
+            let padding = &[0; 4][0..alignto(self.len()) - num_bytes];
+            mem.write(&padding)?;
+        }
+        Ok(())
+    }
+
+    fn serialize_with(&self, mem: &mut MemWrite, input: usize) -> Result<(), SerError> {
+        let num_bytes = mem.write(&self)?;
+        if alignto(input) - num_bytes > 0 {
+            let padding = &[0; 4][0..alignto(input) - num_bytes];
+            mem.write(&padding)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        let mut v = Vec::new();
+        let _ = mem.read_to_end(&mut v)?;
+        Ok(v)
+    }
+
+    fn deserialize_with(mem: &mut MemRead, input: usize) -> Result<Self, DeError> {
+        let mut v = vec![0; alignto(input)];
+        let _ = mem.read(v.as_mut_slice())?;
+        if alignto(input) - input > 0 {
+            v.truncate(input)
         }
         Ok(v)
     }
@@ -190,26 +360,28 @@ impl Nl for Vec<u8> {
 }
 
 impl Nl for String {
-    fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
+    type SerIn = usize;
+    type DeIn = usize;
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
         let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
             SerError::new("Unable to serialize string containing null byte")
         }));
         let bytes = c_str.as_bytes_with_nul();
-        let len = state.get_usize().unwrap_or(bytes.len());
-        let num_bytes = state.0.write(bytes)?;
+        let len = alignto(bytes.len());
+        let num_bytes = mem.write(bytes)?;
         if len - num_bytes > 0 {
             let padding = vec![0; len - num_bytes];
-            state.0.write(&padding)?;
+            mem.write(&padding)?;
         }
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let input = state.get_usize().unwrap_or(state.0.get_ref().len());
-        let mut v = vec![0; input];
-        let num_bytes = state.0.by_ref().take(input as u64).read(&mut v)?;
-        if input > num_bytes {
-            v.truncate(num_bytes);
+    fn deserialize_with(mem: &mut MemRead, input: usize) -> Result<Self, DeError> {
+        let mut v = vec![0; alignto(input)];
+        let _ = mem.read(v.as_mut_slice())?;
+        if alignto(input) - input > 0 {
+            v.truncate(input);
         }
         let string = CStr::from_bytes_with_nul(&v)?;
         Ok(string.to_str()?.to_string())
@@ -227,14 +399,15 @@ mod test {
     #[test]
     fn test_nl_u8() {
         let v: u8 = 5;
-        let s: &[u8; 1] = &[5];
-        let mut state = NlSerState::new();
-        v.serialize(&mut state).unwrap();
-        assert_eq!(s, state.into_inner().as_slice());
+        let s: &mut [u8; 1] = &mut [0];
+        {
+            let mut mem = MemWrite::new_slice(s);
+            v.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(s[0], v);
 
-        let s: &[u8; 1] = &[5];
-        let mut state = NlDeState::new(s);
-        let v = u8::deserialize(&mut state).unwrap();
+        let mut mem = MemRead::new_slice(&[5]);
+        let v = u8::deserialize(&mut mem).unwrap();
         assert_eq!(v, 5)
     }
 
@@ -243,20 +416,25 @@ mod test {
         let v: u16 = 6000;
         let s: &mut [u8] = &mut [0; 2];
         {
-            let mut c = Cursor::new(&mut *s);
-            c.write_u16::<NativeEndian>(6000).unwrap();
+            let mut mem = MemWrite::new_slice(s);
+            mem.write_u16::<NativeEndian>(6000).unwrap();
         }
-        let mut state = NlSerState::new();
-        v.serialize(&mut state).unwrap();
-        assert_eq!(s, state.into_inner().as_slice());
+        let s_test = &mut [0; 2];
+        {
+            let mut mem = MemWrite::new_slice(s_test);
+            v.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(s, s_test);
 
         let s: &mut [u8] = &mut [0; 2];
         {
             let mut c = Cursor::new(&mut *s);
             c.write_u16::<NativeEndian>(6000).unwrap();
         }
-        let mut state = NlDeState::new(&*s);
-        let v = u16::deserialize(&mut state).unwrap();
+        let v = {
+            let mut mem = MemRead::new_slice(s);
+            u16::deserialize(&mut mem).unwrap()
+        };
         assert_eq!(v, 6000)
     }
 
@@ -268,48 +446,61 @@ mod test {
             let mut c = Cursor::new(&mut *s);
             c.write_u32::<NativeEndian>(600000).unwrap();
         }
-        let mut state = NlSerState::new();
-        v.serialize(&mut state).unwrap();
-        assert_eq!(s, state.into_inner().as_slice());
+        let s_test = &mut [0; 4];
+        {
+            let mut mem = MemWrite::new_slice(s_test);
+            v.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(s, s_test);
 
         let s: &mut [u8] = &mut [0; 4];
         {
             let mut c = Cursor::new(&mut *s);
             c.write_u32::<NativeEndian>(600000).unwrap();
         }
-        let mut state = NlDeState::new(&*s);
-        let v = u32::deserialize(&mut state).unwrap();
+        let v = {
+            let mut mem = MemRead::new_slice(&*s);
+            u32::deserialize(&mut mem).unwrap()
+        };
         assert_eq!(v, 600000)
     }
 
     #[test]
     fn test_nl_vec() {
         let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut state = NlSerState::new();
-        v.serialize(&mut state).unwrap();
-        assert_eq!(vec![1, 2, 3, 4, 5, 6, 7, 8, 9], state.into_inner().as_slice());
+        let s = &mut [0; 9];
+        {
+            let mut mem = MemWrite::new_slice(s);
+            v.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(v, s.to_vec());
 
         let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
-        let mut state = NlDeState::new(s);
-        state.set_usize(s.len() as usize);
-        let v = Vec::<u8>::deserialize(&mut state).unwrap();
-        assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0])
+        let v = {
+            let mut mem = MemRead::new_slice(s);
+            Vec::<u8>::deserialize_with(&mut mem, 9).unwrap()
+        };
+        assert_eq!(v.as_slice(), &[1, 2, 3, 4, 5, 6, 7, 8, 9])
     }
 
     #[test]
     fn test_nl_string() {
         let s = "AAAAA".to_string();
-        let mut state = NlSerState::new();
-        s.serialize(&mut state).unwrap();
-        let serialized = state.into_inner();
-        assert_eq!(vec![65, 65, 65, 65, 65, 0], serialized.as_slice());
-        assert_eq!(Nl::size(&s), serialized.len());
+        let sl = &mut [0; 6];
+        {
+            let mut mem = MemWrite::new_slice(sl);
+            s.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(&[65, 65, 65, 65, 65, 0], sl);
 
-        let s = &[65, 65, 65, 65, 65, 65, 65, 0, 0, 0, 0];
-        let mut state = NlDeState::new(s);
-        // Should be nla_len in the context of netlink attribute deserialization
-        state.set_usize(8);
-        let string = String::deserialize(&mut state).unwrap();
-        assert_eq!(string, "AAAAAAA".to_string())
+        let s = &[65, 65, 65, 65, 65, 65, 65, 0];
+        let mut mem = MemRead::new_slice(s);
+        let string = String::deserialize_with(&mut mem, 8).unwrap();
+        assert_eq!(string, "AAAAAAA".to_string());
+
+        let s = &[65, 65, 65, 65, 65, 65, 0, 0];
+        let mut mem = MemRead::new_slice(s);
+        let string = String::deserialize_with(&mut mem, 7).unwrap();
+        assert_eq!(string, "AAAAAA".to_string())
     }
 }

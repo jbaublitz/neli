@@ -1,7 +1,7 @@
 use std::mem;
 use libc;
 
-use {Nl,NlSerState,NlDeState};
+use {Nl,MemRead,MemWrite};
 use err::{SerError,DeError};
 
 macro_rules! eval_safety {
@@ -52,14 +52,16 @@ macro_rules! impl_var {
         }
 
         impl Nl for $name {
-            fn serialize(&self, state: &mut NlSerState) -> Result<(), SerError> {
-                let mut v: $ty = self.clone().into();
-                try!(Nl::serialize(&mut v, state));
-                Ok(())
+            type SerIn = ();
+            type DeIn = ();
+
+            fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+                let v: $ty = self.clone().into();
+                v.serialize(mem)
             }
 
-            fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-                let v: $ty = try!(<$ty as Nl>::deserialize(state));
+            fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+                let v: $ty = Nl::deserialize(mem)?;
                 Ok(v.into())
             }
 
