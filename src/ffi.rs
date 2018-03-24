@@ -4,19 +4,8 @@ use libc;
 use {Nl,MemRead,MemWrite};
 use err::{SerError,DeError};
 
-macro_rules! eval_safety {
-    (unsafe $expr:expr) => { unsafe { $expr } };
-    (safe $expr:expr) => { $expr };
-}
-
 macro_rules! impl_var {
     ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => (
-          impl_var!($name, $ty, safe, $var_def => $val_def,
-            $( $var => $val ),* );
-      );
-
-    ( $name:ident, $ty:ty, $safety:ident, $var_def:ident => $val_def:expr,
       $( $var:ident => $val:expr ),* ) => (
         /// Enum representing C constants for netlink packets
         #[derive(Clone,Debug,Eq,PartialEq)]
@@ -34,8 +23,8 @@ macro_rules! impl_var {
         impl From<$ty> for $name {
             fn from(v: $ty) -> Self {
                 match v {
-                    i if i == eval_safety!{ $safety $val_def } => $name::$var_def,
-                    $( i if i == eval_safety!{ $safety $val } => $name::$var,)*
+                    i if i == $val_def => $name::$var_def,
+                    $( i if i == $val => $name::$var, )*
                     i => $name::UnrecognizedVariant(i)
                 }
             }
@@ -44,8 +33,8 @@ macro_rules! impl_var {
         impl From<$name> for $ty {
             fn from(v: $name) -> Self {
                 match v {
-                    $name::$var_def => eval_safety!{ $safety $val_def },
-                    $( $name::$var => eval_safety!{ $safety $val }, )*
+                    $name::$var_def => $val_def,
+                    $( $name::$var => $val, )*
                     $name::UnrecognizedVariant(i) => i,
                 }
             }
@@ -72,43 +61,9 @@ macro_rules! impl_var {
     );
 }
 
-#[link(name = "netlink")]
-extern {
-    pub static nla_alignto: usize;
-
-    pub static ctrl_cmd_unspec: u8;
-    pub static ctrl_cmd_newfamily: u8;
-    pub static ctrl_cmd_delfamily: u8;
-    pub static ctrl_cmd_getfamily: u8;
-    pub static ctrl_cmd_newops: u8;
-    pub static ctrl_cmd_delops: u8;
-    pub static ctrl_cmd_getops: u8;
-    pub static ctrl_cmd_newmcast_grp: u8;
-    pub static ctrl_cmd_delmcast_grp: u8;
-    pub static ctrl_cmd_getmcast_grp: u8;
-
-    pub static ctrl_attr_unspec: u16;
-    pub static ctrl_attr_family_id: u16;
-    pub static ctrl_attr_family_name: u16;
-    pub static ctrl_attr_version: u16;
-    pub static ctrl_attr_hdrsize: u16;
-    pub static ctrl_attr_maxattr: u16;
-    pub static ctrl_attr_ops: u16;
-    pub static ctrl_attr_mcast_groups: u16;
-
-    pub static genl_id_generate: u16;
-    pub static genl_id_ctrl: u16;
-    pub static genl_id_vfs_dquot: u16;
-    pub static genl_id_pmcraid: u16;
-
-    pub static ctrl_attr_mcast_grp_unspec: u16;
-    pub static ctrl_attr_mcast_grp_name: u16;
-    pub static ctrl_attr_mcast_grp_id: u16;
-}
-
 /// Reimplementation of alignto macro in C
 pub fn alignto(len: usize) -> usize {
-    (len + unsafe { nla_alignto } - 1) & !(unsafe { nla_alignto } - 1)
+    (len + libc::NLA_ALIGNTO as usize - 1) & !(libc::NLA_ALIGNTO as usize - 1)
 }
 
 /// Values for `nl_family` in `NlSocket`
@@ -162,42 +117,41 @@ impl_var!(NlFlags, u16,
     Append => libc::NLM_F_APPEND as u16
 );
 
-impl_var!(GenlId, u16, unsafe,
-    Generate => genl_id_generate,
-    Ctrl => genl_id_ctrl,
-    VfsDquot => genl_id_vfs_dquot,
-    Pmcraid => genl_id_pmcraid
+impl_var!(GenlId, u16,
+    Ctrl => libc::GENL_ID_CTRL as u16,
+    VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
+    Pmcraid => libc::GENL_ID_PMCRAID as u16 
 );
 
 /// Values for `cmd` in `GenlHdr`
-impl_var!(CtrlCmd, u8, unsafe,
-    Unspec => ctrl_cmd_unspec,
-    Newfamily => ctrl_cmd_newfamily,
-    Delfamily => ctrl_cmd_delfamily,
-    Getfamily => ctrl_cmd_getfamily,
-    Newops => ctrl_cmd_newops,
-    Delops => ctrl_cmd_delops,
-    Getops => ctrl_cmd_getops,
-    NewmcastGrp => ctrl_cmd_newmcast_grp,
-    DelmcastGrp => ctrl_cmd_delmcast_grp,
-    GetmcastGrp => ctrl_cmd_getmcast_grp
+impl_var!(CtrlCmd, u8,
+    Unspec => libc::CTRL_CMD_UNSPEC as u8,
+    Newfamily => libc::CTRL_CMD_NEWFAMILY as u8,
+    Delfamily => libc::CTRL_CMD_DELFAMILY as u8,
+    Getfamily => libc::CTRL_CMD_GETFAMILY as u8,
+    Newops => libc::CTRL_CMD_NEWOPS as u8,
+    Delops => libc::CTRL_CMD_DELOPS as u8,
+    Getops => libc::CTRL_CMD_GETOPS as u8,
+    NewmcastGrp => libc::CTRL_CMD_NEWMCAST_GRP as u8,
+    DelmcastGrp => libc::CTRL_CMD_DELMCAST_GRP as u8,
+    GetmcastGrp => libc::CTRL_CMD_GETMCAST_GRP as u8
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(CtrlAttr, u16, unsafe,
-    Unspec => ctrl_attr_unspec,
-    FamilyId => ctrl_attr_family_id,
-    FamilyName => ctrl_attr_family_name,
-    Version => ctrl_attr_version,
-    Hdrsize => ctrl_attr_hdrsize,
-    Maxattr => ctrl_attr_maxattr,
-    Ops => ctrl_attr_ops,
-    McastGroups => ctrl_attr_mcast_groups
+impl_var!(CtrlAttr, u16,
+    Unspec => libc::CTRL_ATTR_UNSPEC as u16,
+    FamilyId => libc::CTRL_ATTR_FAMILY_ID as u16,
+    FamilyName => libc::CTRL_ATTR_FAMILY_NAME as u16,
+    Version => libc::CTRL_ATTR_VERSION as u16,
+    Hdrsize => libc::CTRL_ATTR_HDRSIZE as u16,
+    Maxattr => libc::CTRL_ATTR_MAXATTR as u16,
+    Ops => libc::CTRL_ATTR_OPS as u16,
+    McastGroups => libc::CTRL_ATTR_MCAST_GROUPS as u16
 );
 
 /// Values for `nla_type` in `NlaAttrHdr`
-impl_var!(CtrlAttrMcastGrp, u16, unsafe,
-    Unspec => ctrl_attr_mcast_grp_unspec,
-    Name => ctrl_attr_mcast_grp_name,
-    Id => ctrl_attr_mcast_grp_id
+impl_var!(CtrlAttrMcastGrp, u16,
+    Unspec => libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16,
+    Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,
+    Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16
 );

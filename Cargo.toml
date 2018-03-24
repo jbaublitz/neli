@@ -8,13 +8,9 @@ repository = "https://github.com/jbaublitz/neli"
 keywords = ["netlink"]
 include = [
     "**/*.rs",
-    "**/*.c",
     "Cargo.toml",
     "LICENSE",
 ]
-
-[build-dependencies]
-cc = "1.0"
 
 [dependencies]
 byteorder = "1"
