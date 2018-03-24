@@ -322,19 +322,15 @@ impl Nl for Vec<u8> {
     type DeIn = usize;
 
     fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
-        let num_bytes = mem.write(&self)?;
-        if alignto(self.len()) - num_bytes > 0 {
-            let padding = &[0; 4][0..alignto(self.len()) - num_bytes];
-            mem.write(&padding)?;
-        }
+        let _ = mem.write(&self)?;
         Ok(())
     }
 
     fn serialize_with(&self, mem: &mut MemWrite, input: usize) -> Result<(), SerError> {
-        let num_bytes = mem.write(&self)?;
-        if alignto(input) - num_bytes > 0 {
-            let padding = &[0; 4][0..alignto(input) - num_bytes];
-            mem.write(&padding)?;
+        let bytes: Vec<u8> = self.iter().take(input).map(|u| *u).collect();
+        let num_bytes = mem.write(&bytes)?;
+        if input - num_bytes > 0 {
+            mem.write(&vec![0; input - num_bytes])?;
         }
         Ok(())
     }
@@ -346,11 +342,8 @@ impl Nl for Vec<u8> {
     }
 
     fn deserialize_with(mem: &mut MemRead, input: usize) -> Result<Self, DeError> {
-        let mut v = vec![0; alignto(input)];
+        let mut v = vec![0; input];
         let _ = mem.read(v.as_mut_slice())?;
-        if alignto(input) - input > 0 {
-            v.truncate(input)
-        }
         Ok(v)
     }
 
@@ -368,21 +361,25 @@ impl Nl for String {
             SerError::new("Unable to serialize string containing null byte")
         }));
         let bytes = c_str.as_bytes_with_nul();
-        let len = alignto(bytes.len());
+        let _ = mem.write(bytes)?;
+        Ok(())
+    }
+
+    fn serialize_with(&self, mem: &mut MemWrite, input: usize) -> Result<(), SerError> {
+        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
+            SerError::new("Unable to serialize string containing null byte")
+        }));
+        let bytes = c_str.as_bytes_with_nul();
         let num_bytes = mem.write(bytes)?;
-        if len - num_bytes > 0 {
-            let padding = vec![0; len - num_bytes];
-            mem.write(&padding)?;
+        if input - num_bytes > 0 {
+            mem.write(&vec![0; input - num_bytes])?;
         }
         Ok(())
     }
 
     fn deserialize_with(mem: &mut MemRead, input: usize) -> Result<Self, DeError> {
-        let mut v = vec![0; alignto(input)];
+        let mut v = vec![0; input];
         let _ = mem.read(v.as_mut_slice())?;
-        if alignto(input) - input > 0 {
-            v.truncate(input);
-        }
         let string = CStr::from_bytes_with_nul(&v)?;
         Ok(string.to_str()?.to_string())
     }

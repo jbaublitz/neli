@@ -1,4 +1,7 @@
+use std::io::Read;
 use std::mem;
+
+use libc;
 
 use {Nl,MemRead,MemWrite};
 use err::{SerError,DeError};
@@ -118,7 +121,11 @@ impl<T> NlAttrHdr<T> where T: Nl {
                     acc + item.asize()
                 })));
                 for item in payload.iter_mut() {
-                    item.serialize(&mut mem)?
+                    item.serialize(&mut mem)?;
+                    if item.asize() != item.size() {
+                        [0u8; libc::NLA_ALIGNTO as usize][0..item.asize() - item.size()]
+                            .as_ref().serialize(&mut mem)?;
+                    }
                 }
                 mem.as_slice().to_vec()
             },
@@ -134,6 +141,11 @@ impl<T> NlAttrHdr<T> where T: Nl {
         let mut nla = NlAttrHdr { nla_type, payload: {
             let mut mem = MemWrite::new_vec(Some(string_payload.asize()));
             string_payload.serialize(&mut mem)?;
+            if string_payload.asize() != string_payload.size() {
+                [0u8; libc::NLA_ALIGNTO as usize]
+                    [0..string_payload.asize() - string_payload.size()]
+                    .as_ref().serialize(&mut mem)?;
+            }
             mem.as_slice().to_vec()
         }, nla_len: 0 };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
@@ -156,6 +168,10 @@ impl<I> Nl for NlAttrHdr<I> where I: Nl {
         self.nla_len.serialize(mem)?;
         self.nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
+        if self.payload.asize() != self.payload.size() {
+            [0u8; libc::NLA_ALIGNTO as usize][0..self.payload.asize() - self.payload.size()]
+                .as_ref().serialize(mem)?;
+        }
         Ok(())
     }
 
@@ -164,7 +180,15 @@ impl<I> Nl for NlAttrHdr<I> where I: Nl {
         let nla = NlAttrHdr {
             nla_len,
             nla_type: I::deserialize(mem)?,
-            payload: Vec::<u8>::deserialize_with(mem, nla_len as usize)?,
+            payload: {
+                let payload = Vec::<u8>::deserialize(mem)?;
+                if payload.asize() != nla_len as usize {
+                    let mut buf = [0u8; libc::NLA_ALIGNTO as usize];
+                    let padding = &mut buf[0..payload.asize() - nla_len as usize];
+                    mem.read_exact(padding)?;
+                }
+                payload
+            },
         };
         Ok(nla)
     }
@@ -192,6 +216,10 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
                 let mut mem = MemRead::new_slice(v.as_slice());
                 while len > 0 {
                     let hdr = NlAttrHdr::<P>::deserialize(&mut mem)?;
+                    let mut padding_buf = [0; libc::NLA_ALIGNTO as usize];
+                    if hdr.asize() != hdr.size() {
+                        mem.read_exact(&mut padding_buf[0..hdr.asize() - hdr.size()])?;
+                    }
                     len -= hdr.asize();
                     attrs.push(hdr);
                 }
