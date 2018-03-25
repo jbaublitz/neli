@@ -60,7 +60,8 @@ impl NlSocket {
     }
 
     /// Receive message encoded as byte slice from the netlink socket.
-    pub fn recv<'a>(&mut self, buf: &'a mut MemWrite<'a>, flags: i32) -> Result<isize, io::Error> {
+    pub fn recv(&mut self, buf: &mut MemWrite, flags: i32)
+            -> Result<isize, io::Error> {
         let len = buf.len();
         match unsafe {
             libc::recv(self.fd, buf.as_mut_slice() as *mut _ as *mut c_void, len, flags)

@@ -35,7 +35,7 @@ pub mod genlhdr;
 /// Error module
 pub mod err;
 
-use std::ffi::{CStr,CString};
+use std::ffi::CString;
 use std::io::{self,Cursor,Read,Write};
 use std::mem;
 
@@ -74,7 +74,7 @@ impl<'a> MemRead<'a> {
     }
 
     /// Get underlying buffer as slice
-    pub fn as_slice(&'a self) -> &'a [u8] {
+    pub fn as_slice<'b>(&'b self) -> &'b [u8] {
         match *self {
             MemRead::Slice(ref cur) => cur.get_ref(),
             MemRead::Vec(ref cur) => cur.get_ref().as_slice(),
@@ -148,7 +148,7 @@ impl<'a> MemWrite<'a> {
     }
 
     /// Get underlying buffer as slice
-    pub fn as_slice(&'a self) -> &'a [u8] {
+    pub fn as_slice<'b>(&'b self) -> &'b [u8] {
         match *self {
             MemWrite::Slice(ref cur) => cur.get_ref(),
             MemWrite::Vec(ref cur) => cur.get_ref().as_slice(),
@@ -157,7 +157,7 @@ impl<'a> MemWrite<'a> {
     }
 
     /// Get underlying buffer as mutable slice
-    pub fn as_mut_slice(&'a mut self) -> &'a mut [u8] {
+    pub fn as_mut_slice<'b>(&'b mut self) -> &'b mut [u8] {
         match *self {
             MemWrite::Slice(ref mut cur) => cur.get_mut(),
             MemWrite::Vec(ref mut cur) => cur.get_mut().as_mut_slice(),
@@ -380,8 +380,11 @@ impl Nl for String {
     fn deserialize_with(mem: &mut MemRead, input: usize) -> Result<Self, DeError> {
         let mut v = vec![0; input];
         let _ = mem.read(v.as_mut_slice())?;
-        let string = CStr::from_bytes_with_nul(&v)?;
-        Ok(string.to_str()?.to_string())
+        let idx = v.iter().position(|elem| *elem == 0);
+        if let Some(i) = idx {
+            v.truncate(i);
+        }
+        Ok(String::from_utf8(v)?)
     }
 
     fn size(&self) -> usize {
