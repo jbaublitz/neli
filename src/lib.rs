@@ -2,22 +2,9 @@
 //! 
 //! ## Rationale
 //! 
-//! The `libc` crate currently provides an interface for sockets but
-//! the constants to configure the socket to do anything useful in netlink
-//! are not included in the crate because they live in `/usr/include/linux/netlink.h` and friends.
-//! As a result, doing anything with netlink in Rust is currently a bit of a headache.
-//! 
-//! This crate aims to define the necessary constants and wrap them in types to both take
-//! advantage of the Rust type system and also avoid the need to pop open `.h` files
-//! to find the information necessary to construct netlink messages.
-//! 
-//! ## Notes
-//! 
-//! This crate is currently under heavy development.
-//! 
-//! The `cc` crate is a build dependency to provide as much of a natively cross distribution
-//! approach as possible regarding `#define`s in C. It is used to compile a C file that includes
-//! the appropriate headers and exports them to the corresponding `stdint.h` types in C.
+//! This crate aims to be a pure Rust implementation that defines
+//! the necessary constants and wraps them in enums to distinguish between various categories of
+//! constants in the context of netlink.
 
 #![deny(missing_docs)]
 
@@ -47,30 +34,23 @@ use err::{SerError,DeError};
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
 
-/// Enum representing stack or heap allocated memory for reading
+/// Enum representing sized or growable allocated memory for reading
 pub enum MemRead<'a> {
-    /// Buffer for deserialization on stack
+    /// Buffer for sized deserialization
     Slice(Cursor<&'a [u8]>),
-    /// Buffer for unsized deserialization on heap
+    /// Buffer for growable deserialization
     Vec(Cursor<Vec<u8>>),
-    /// Reference to sized buffer for deserialization on heap
-    BoxedSlice(Cursor<Box<[u8]>>),
 }
 
 impl<'a> MemRead<'a> {
-    /// Create new stack allocated buffer for reading
+    /// Create new sized buffer for reading
     pub fn new_slice(mem: &'a [u8]) -> Self {
         MemRead::Slice(Cursor::new(mem))
     }
 
-    /// Create new heap allocated buffer for reading
+    /// Create new growable buffer for reading
     pub fn new_vec(mem: Vec<u8>) -> Self {
         MemRead::Vec(Cursor::new(mem))
-    }
-
-    /// Create new sized heap allocated buffer for reading
-    pub fn new_boxed_slice(mem: Box<[u8]>) -> Self {
-        MemRead::BoxedSlice(Cursor::new(mem))
     }
 
     /// Get underlying buffer as slice
@@ -78,7 +58,6 @@ impl<'a> MemRead<'a> {
         match *self {
             MemRead::Slice(ref cur) => cur.get_ref(),
             MemRead::Vec(ref cur) => cur.get_ref().as_slice(),
-            MemRead::BoxedSlice(ref cur) => cur.get_ref().as_ref(),
         }
     }
 
@@ -87,7 +66,6 @@ impl<'a> MemRead<'a> {
         match *self {
             MemRead::Slice(ref cur) => cur.get_ref().len(),
             MemRead::Vec(ref cur) => cur.get_ref().len(),
-            MemRead::BoxedSlice(ref cur) => cur.get_ref().len(),
         }
     }
 }
@@ -97,7 +75,6 @@ impl<'a> Read for MemRead<'a> {
         match *self {
             MemRead::Slice(ref mut cur) => cur.read(buf),
             MemRead::Vec(ref mut cur) => cur.read(buf),
-            MemRead::BoxedSlice(ref mut cur) => cur.read(buf),
         }
     }
 }
@@ -110,31 +87,25 @@ impl<'a> From<MemWrite<'a>> for MemRead<'a> {
                 cur.set_position(0);
                 MemRead::Vec(cur)
             },
-            MemWrite::BoxedSlice(mut cur) => {
-                cur.set_position(0);
-                MemRead::BoxedSlice(cur)
-            },
         }
     }
 }
 
-/// Enum representing stack or heap allocated memory for writing
+/// Enum representing sized or growable allocated memory for writing
 pub enum MemWrite<'a> {
-    /// Buffer for serialization on stack
+    /// Buffer for sized serialization
     Slice(Cursor<&'a mut [u8]>),
-    /// Reference to buffer for serialization on heap
+    /// Buffer for growable serialization
     Vec(Cursor<Vec<u8>>),
-    /// Reference to sized buffer for serialization on heap
-    BoxedSlice(Cursor<Box<[u8]>>),
 }
 
 impl<'a> MemWrite<'a> {
-    /// Create new stack allocated buffer for writing
+    /// Create new sized buffer for writing
     pub fn new_slice(mem: &'a mut [u8]) -> Self {
         MemWrite::Slice(Cursor::new(mem))
     }
 
-    /// Create new heap allocated buffer for writing 
+    /// Create new growable buffer for writing 
     pub fn new_vec(alloc_size: Option<usize>) -> Self {
         MemWrite::Vec(Cursor::new(match alloc_size {
             Some(sz) => vec![0; sz],
@@ -142,17 +113,11 @@ impl<'a> MemWrite<'a> {
         }))
     }
 
-    /// Create new heap allocated buffer for writing 
-    pub fn new_boxed_slice(mem: Box<[u8]>) -> Self {
-        MemWrite::BoxedSlice(Cursor::new(mem))
-    }
-
     /// Get underlying buffer as slice
     pub fn as_slice<'b>(&'b self) -> &'b [u8] {
         match *self {
             MemWrite::Slice(ref cur) => cur.get_ref(),
             MemWrite::Vec(ref cur) => cur.get_ref().as_slice(),
-            MemWrite::BoxedSlice(ref cur) => cur.get_ref().as_ref(),
         }
     }
 
@@ -161,7 +126,6 @@ impl<'a> MemWrite<'a> {
         match *self {
             MemWrite::Slice(ref mut cur) => cur.get_mut(),
             MemWrite::Vec(ref mut cur) => cur.get_mut().as_mut_slice(),
-            MemWrite::BoxedSlice(ref mut cur) => cur.get_mut().as_mut(),
         }
     }
 
@@ -170,7 +134,6 @@ impl<'a> MemWrite<'a> {
         match *self {
             MemWrite::Slice(ref cur) => cur.get_ref().len(),
             MemWrite::Vec(ref cur) => cur.get_ref().len(),
-            MemWrite::BoxedSlice(ref cur) => cur.get_ref().len(),
         }
     }
 }
@@ -180,7 +143,6 @@ impl<'a> Write for MemWrite<'a> {
         match *self {
             MemWrite::Slice(ref mut cur) => cur.write(buf),
             MemWrite::Vec(ref mut cur) => cur.write(buf),
-            MemWrite::BoxedSlice(ref mut cur) => cur.write(buf),
         }
     }
 
