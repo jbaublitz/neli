@@ -15,3 +15,5 @@ include = [
 [dependencies]
 byteorder = "1"
 libc = "0.2"
+mio = "*"
+tokio = "*"

@@ -100,7 +100,7 @@ impl_var!(Nlmsg, u16,
 );
 
 /// Values for `nl_flags` in `NlHdr`
-impl_var!(NlFlags, u16,
+impl_var!(NlmF, u16,
     Request => libc::NLM_F_REQUEST as u16,
     Multi => libc::NLM_F_MULTI as u16,
     Ack => libc::NLM_F_ACK as u16,

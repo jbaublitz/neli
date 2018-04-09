@@ -8,8 +8,10 @@
 
 #![deny(missing_docs)]
 
-extern crate libc;
 extern crate byteorder;
+extern crate libc;
+extern crate mio;
+extern crate tokio;
 
 /// C constants defined as types
 pub mod ffi;
@@ -101,7 +103,7 @@ pub enum MemWrite<'a> {
 
 impl<'a> MemWrite<'a> {
     /// Create new sized buffer for writing
-    pub fn new_slice(mem: &'a mut [u8]) -> Self {
+    pub fn new_slice<'b: 'a>(mem: &'b mut [u8]) -> Self {
         MemWrite::Slice(Cursor::new(mem))
     }
 
@@ -134,6 +136,21 @@ impl<'a> MemWrite<'a> {
         match *self {
             MemWrite::Slice(ref cur) => cur.get_ref().len(),
             MemWrite::Vec(ref cur) => cur.get_ref().len(),
+        }
+    }
+
+    /// Shrink buffer to fit bytes read
+    pub fn shrink(self, size: usize) -> Self {
+        match self {
+            MemWrite::Slice(cur) => {
+                let s = cur.into_inner();
+                let (first, _) = s.split_at_mut(size);
+                MemWrite::new_slice(first)
+            },
+            MemWrite::Vec(mut cur) => {
+                cur.get_mut().truncate(size);
+                MemWrite::Vec(cur)
+            }
         }
     }
 }
@@ -290,10 +307,7 @@ impl Nl for Vec<u8> {
 
     fn serialize_with(&self, mem: &mut MemWrite, input: usize) -> Result<(), SerError> {
         let bytes: Vec<u8> = self.iter().take(input).map(|u| *u).collect();
-        let num_bytes = mem.write(&bytes)?;
-        if input - num_bytes > 0 {
-            mem.write(&vec![0; input - num_bytes])?;
-        }
+        let _ = mem.write(&bytes)?;
         Ok(())
     }
 

@@ -8,19 +8,25 @@
 
 use std::io;
 use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
+use std::marker::PhantomData;
 use std::mem::{zeroed,size_of};
 
 use libc::{self,c_int,c_void};
+use mio::{self,Evented};
+use tokio::prelude::{Async,Stream};
 
-use {MemRead,MemWrite};
+use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
 use ffi::NlFamily;
+use nlhdr::NlHdr;
 
 /// Handle for the socket file descriptor
-pub struct NlSocket {
+pub struct NlSocket<I, P> {
     fd: c_int,
+    data_type: PhantomData<I>,
+    data_payload: PhantomData<P>,
 }
 
-impl NlSocket {
+impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
@@ -29,7 +35,7 @@ impl NlSocket {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
         };
-        Ok(NlSocket { fd: try!(fd) })
+        Ok(NlSocket { fd: try!(fd), data_type: PhantomData, data_payload: PhantomData })
     }
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
@@ -50,7 +56,7 @@ impl NlSocket {
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
     /// (`nl::nlhdr::NlHdr`).
-    pub fn send(&mut self, buf: &MemRead, flags: i32) -> Result<isize, io::Error> {
+    pub fn send(&mut self, buf: MemRead, flags: i32) -> Result<isize, io::Error> {
         match unsafe {
             libc::send(self.fd, buf.as_slice() as *const _ as *const c_void, buf.len(), flags)
         } {
@@ -60,13 +66,12 @@ impl NlSocket {
     }
 
     /// Receive message encoded as byte slice from the netlink socket.
-    pub fn recv(&mut self, buf: &mut MemWrite, flags: i32)
-            -> Result<isize, io::Error> {
-        let len = buf.len();
+    pub fn recv<'a>(&mut self, mut buf: MemWrite<'a>, flags: i32)
+            -> Result<MemRead<'a>, io::Error> {
         match unsafe {
-            libc::recv(self.fd, buf.as_mut_slice() as *mut _ as *mut c_void, len, flags)
+            libc::recv(self.fd, buf.as_mut_slice() as *mut _ as *mut c_void, buf.len(), flags)
         } {
-            i if i >= 0 => Ok(i),
+            i if i >= 0 => Ok(buf.shrink(i as usize).into()),
             _ => Err(io::Error::last_os_error()),
         }
     }
@@ -80,19 +85,60 @@ impl NlSocket {
     }
 }
 
-impl AsRawFd for NlSocket {
+impl<I, P> AsRawFd for NlSocket<I, P> {
     fn as_raw_fd(&self) -> RawFd {
         self.fd
     }
 }
 
-impl IntoRawFd for NlSocket {
+impl<I, P> IntoRawFd for NlSocket<I, P> {
     fn into_raw_fd(self) -> RawFd {
         self.fd
     }
 }
 
-impl Drop for NlSocket {
+impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
+    type Item = NlHdr<I, P>;
+    type Error = ();
+
+    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        let mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
+        let mut mem_read = match self.recv(mem, 0) {
+            Ok(mr) => mr,
+            Err(e) => {
+                println!("{}", e);
+                return Err(());
+            }
+        };
+        if mem_read.len() == 0 {
+            Ok(Async::Ready(None))
+        } else {
+            let hdr = match NlHdr::<I, P>::deserialize(&mut mem_read) {
+                Ok(h) => h,
+                Err(_) => return Err(()),
+            };
+            Ok(Async::Ready(Some(hdr)))
+        }
+    }
+}
+
+impl<I, P> Evented for NlSocket<I, P> {
+    fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
+                opts: mio::PollOpt) -> io::Result<()> {
+        poll.register(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
+    }
+
+    fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
+                  opts: mio::PollOpt) -> io::Result<()> {
+        poll.reregister(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
+    }
+
+    fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
+        poll.deregister(&mio::unix::EventedFd(&self.as_raw_fd()))
+    }
+}
+
+impl<I, P> Drop for NlSocket<I, P> {
     /// Closes underlying file descriptor to avoid file descriptor leaks.
     fn drop(&mut self) {
         unsafe { libc::close(self.fd); }
@@ -102,10 +148,12 @@ impl Drop for NlSocket {
 #[cfg(test)]
 mod test {
     use super::*;
+    use ffi::Nlmsg;
+    use genlhdr::GenlHdr;
 
     #[test]
     fn test_socket_creation() {
-        match NlSocket::connect(NlFamily::Generic, None, None) {
+        match NlSocket::<Nlmsg, GenlHdr>::connect(NlFamily::Generic, None, None) {
             Err(_) => panic!(),
             _ => (),
         }

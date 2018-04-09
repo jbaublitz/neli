@@ -23,6 +23,13 @@ pub struct NlError(String);
 
 try_err_compat!(NlError, io::Error, SerError, DeError);
 
+impl NlError {
+    /// Create new error from `&str`
+    pub fn new(s: &str) -> Self {
+        NlError(s.to_string())
+    }
+}
+
 /// Netlink protocol error
 impl Display for NlError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
