@@ -15,5 +15,16 @@ include = [
 [dependencies]
 byteorder = "1"
 libc = "0.2"
-mio = "*"
-tokio = "*"
+
+[dependencies.mio]
+version = "0.6"
+optional = true
+
+[dependencies.tokio]
+version = "0.1"
+optional = true
+
+[features]
+default = []
+evented = ["mio"]
+stream = ["evented", "tokio"]

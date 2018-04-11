@@ -10,17 +10,25 @@ use std::io;
 use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
 use std::marker::PhantomData;
 use std::mem::{zeroed,size_of};
+#[cfg(feature = "stream")]
 use std::time::Duration;
 
 use libc::{self,c_int,c_void};
+#[cfg(feature = "evented")]
 use mio::{self,Evented};
+#[cfg(feature = "stream")]
 use tokio::prelude::{Async,Stream};
 
+#[cfg(feature = "stream")]
 use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
+#[cfg(not(feature = "stream"))]
+use {Nl,MemRead,MemWrite};
 use ffi::NlFamily;
+#[cfg(feature = "stream")]
 use nlhdr::NlHdr;
 
 /// Handle for the socket file descriptor
+#[cfg(feature = "stream")]
 pub struct NlSocket<I, P> {
     fd: c_int,
     poll: mio::Poll,
@@ -28,8 +36,17 @@ pub struct NlSocket<I, P> {
     data_payload: PhantomData<P>,
 }
 
+/// Handle for the socket file descriptor
+#[cfg(not(feature = "stream"))]
+pub struct NlSocket<I, P> {
+    fd: c_int,
+    data_type: PhantomData<I>,
+    data_payload: PhantomData<P>,
+}
+
 impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
+    #[cfg(feature = "stream")]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
             libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
@@ -38,9 +55,21 @@ impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
             _ => Err(io::Error::last_os_error()),
         }?;
         let poll = mio::Poll::new()?;
-        let socket = NlSocket { fd: fd, poll, data_type: PhantomData, data_payload: PhantomData };
+        let socket = NlSocket { fd, poll, data_type: PhantomData, data_payload: PhantomData };
         socket.register(&socket.poll, mio::Token(0), mio::Ready::readable(), mio::PollOpt::edge())?;
         Ok(socket)
+    }
+
+    /// Wrapper around `socket()` syscall filling in the netlink-specific information
+    #[cfg(not(feature = "stream"))]
+    pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
+        let fd = match unsafe {
+            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
+        } {
+            i if i >= 0 => Ok(i),
+            _ => Err(io::Error::last_os_error()),
+        }?;
+        Ok(NlSocket { fd, data_type: PhantomData, data_payload: PhantomData })
     }
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
@@ -102,6 +131,7 @@ impl<I, P> IntoRawFd for NlSocket<I, P> {
     }
 }
 
+#[cfg(feature = "stream")]
 impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
     type Item = NlHdr<I, P>;
     type Error = ();
@@ -113,10 +143,12 @@ impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
             Ok(_) => (),
             Err(_) => return Err(()),
         };
-        for event in events {
+        if let Some(event) = events.iter().nth(0) {
             if !event.readiness().is_readable() {
                 return Ok(Async::NotReady);
             }
+        } else {
+            return Err(());
         }
         let mut mem_read = match self.recv(mem, 0) {
             Ok(mr) => mr,
@@ -133,6 +165,7 @@ impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
     }
 }
 
+#[cfg(feature = "evented")]
 impl<I, P> Evented for NlSocket<I, P> {
     fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
                 opts: mio::PollOpt) -> io::Result<()> {
