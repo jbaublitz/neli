@@ -147,8 +147,6 @@ impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
             if !event.readiness().is_readable() {
                 return Ok(Async::NotReady);
             }
-        } else {
-            return Err(());
         }
         let mut mem_read = match self.recv(mem, 0) {
             Ok(mr) => mr,
