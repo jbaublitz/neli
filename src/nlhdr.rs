@@ -177,15 +177,14 @@ impl<I> Nl for NlAttrHdr<I> where I: Nl {
     }
 
     fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
-        let nla_len = u16::deserialize(mem)?;
         let mut nla = NlAttrHdr {
-            nla_len,
+            nla_len: u16::deserialize(mem)?,
             nla_type: I::deserialize(mem)?,
             payload: Vec::new(),
         };
-        nla.payload = Vec::<u8>::deserialize_with(mem, nla_len as usize -
+        nla.payload = Vec::<u8>::deserialize_with(mem, nla.nla_len as usize -
                                                   (nla.nla_len.size() + nla.nla_type.size()))?;
-        let padding = &mut [0u8; 4][0..alignto(nla_len as usize) - nla_len as usize];
+        let padding = &mut [0u8; 4][0..alignto(nla.nla_len as usize) - nla.nla_len as usize];
         let _ = mem.read_exact(padding);
         Ok(nla)
     }

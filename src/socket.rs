@@ -10,6 +10,7 @@ use std::io;
 use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
 use std::marker::PhantomData;
 use std::mem::{zeroed,size_of};
+use std::time::Duration;
 
 use libc::{self,c_int,c_void};
 use mio::{self,Evented};
@@ -22,6 +23,7 @@ use nlhdr::NlHdr;
 /// Handle for the socket file descriptor
 pub struct NlSocket<I, P> {
     fd: c_int,
+    poll: mio::Poll,
     data_type: PhantomData<I>,
     data_payload: PhantomData<P>,
 }
@@ -34,8 +36,11 @@ impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
-        };
-        Ok(NlSocket { fd: try!(fd), data_type: PhantomData, data_payload: PhantomData })
+        }?;
+        let poll = mio::Poll::new()?;
+        let socket = NlSocket { fd: fd, poll, data_type: PhantomData, data_payload: PhantomData };
+        socket.register(&socket.poll, mio::Token(0), mio::Ready::readable(), mio::PollOpt::edge())?;
+        Ok(socket)
     }
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
@@ -103,22 +108,28 @@ impl<I, P> Stream for NlSocket<I, P> where I: Nl, P: Nl {
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
         let mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
+        let mut events = mio::Events::with_capacity(1);
+        match self.poll.poll(&mut events, Some(Duration::from_secs(0))) {
+            Ok(_) => (),
+            Err(_) => return Err(()),
+        };
+        for event in events {
+            if !event.readiness().is_readable() {
+                return Ok(Async::NotReady);
+            }
+        }
         let mut mem_read = match self.recv(mem, 0) {
             Ok(mr) => mr,
-            Err(e) => {
-                println!("{}", e);
-                return Err(());
-            }
+            Err(_) => return Err(()),
         };
-        if mem_read.len() == 0 {
-            Ok(Async::Ready(None))
-        } else {
-            let hdr = match NlHdr::<I, P>::deserialize(&mut mem_read) {
-                Ok(h) => h,
-                Err(_) => return Err(()),
-            };
-            Ok(Async::Ready(Some(hdr)))
+        if mem_read.as_slice().len() == 0 {
+            return Ok(Async::Ready(None));
         }
+        let hdr = match NlHdr::<I, P>::deserialize(&mut mem_read) {
+            Ok(h) => h,
+            Err(_) => return Err(()),
+        };
+        Ok(Async::Ready(Some(hdr)))
     }
 }
 
