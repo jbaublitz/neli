@@ -13,7 +13,7 @@ include = [
 ]
 
 [dependencies]
-byteorder = "1"
+byteorder = "1.2"
 libc = "0.2"
 
 [dependencies.mio]
