@@ -89,7 +89,7 @@ impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
     }
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
-    /// (`nl::nlhdr::NlHdr`).
+    /// (`neli::nlhdr::NlHdr`).
     pub fn send(&mut self, buf: MemRead, flags: i32) -> Result<isize, io::Error> {
         match unsafe {
             libc::send(self.fd, buf.as_slice() as *const _ as *const c_void, buf.len(), flags)
