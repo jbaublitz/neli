@@ -275,6 +275,22 @@ impl<'a, P> AttrHandle<P> where P: PartialEq + Nl {
             _ => Err(DeError::new("Failed to find specified attribute")),
         }
     }
+
+    /// Parse binary payload as a type that implements `Nl` using `deserialize_with` if `with` is
+    /// not `None`
+    pub fn get_payload_with<R>(&mut self, attr: P, with: Option<R::DeIn>) -> Result<R, DeError> where R: Nl {
+        match self.parse_nested_attributes()?.get_attribute(attr) {
+            Some(ref a) => {
+                let mut state = MemRead::new_slice(&a.payload);
+                if let Some(w) = with {
+                    R::deserialize_with(&mut state, w)
+                } else {
+                    R::deserialize(&mut state)
+                }
+            },
+            _ => Err(DeError::new("Failed to find specified attribute")),
+        }
+    }
 }
 
 /// Struct indicating an empty payload
