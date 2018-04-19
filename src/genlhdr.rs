@@ -69,7 +69,7 @@ mod test {
     use super::*;
     use byteorder::{NativeEndian,WriteBytesExt};
     use std::io::{Cursor,Write};
-    use ffi::CtrlAttr;
+    use ffi::{CtrlAttr,CtrlCmd};
 
     #[test]
     pub fn test_serialize() {

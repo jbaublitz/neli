@@ -222,12 +222,12 @@ impl<I, P> Drop for NlSocket<I, P> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ffi::Nlmsg;
+    use ffi::{CtrlCmd,Nlmsg};
     use genlhdr::GenlHdr;
 
     #[test]
     fn test_socket_creation() {
-        match NlSocket::<Nlmsg, GenlHdr>::connect(NlFamily::Generic, None, None) {
+        match NlSocket::<Nlmsg, GenlHdr<CtrlCmd>>::connect(NlFamily::Generic, None, None) {
             Err(_) => panic!(),
             _ => (),
         }
