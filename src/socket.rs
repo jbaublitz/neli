@@ -19,13 +19,13 @@ use mio::{self,Evented};
 #[cfg(feature = "stream")]
 use tokio::prelude::{Async,Stream};
 
-#[cfg(feature = "stream")]
-use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
-#[cfg(not(feature = "stream"))]
 use {Nl,MemRead,MemWrite};
-use ffi::NlFamily;
 #[cfg(feature = "stream")]
-use nlhdr::NlHdr;
+use MAX_NL_LENGTH;
+use err::NlError;
+use ffi::{NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
+use genlhdr::GenlHdr;
+use nlhdr::{NlHdr,NlAttrHdr};
 
 /// Handle for the socket file descriptor
 #[cfg(feature = "stream")]
@@ -116,6 +116,38 @@ impl<I, P> NlSocket<I, P> where I: Nl, P: Nl {
         let mut s = try!(NlSocket::new(proto));
         try!(s.bind(pid, groups));
         Ok(s)
+    }
+
+    /// Convenience function for resolving a `&str` containing the multicast group name to a
+    /// numeric netlink ID
+    pub fn resolve_nl_mcast_group(family_name: &str, mcast_name: &str) -> Result<u32, NlError> {
+        let mut socket = Self::connect(NlFamily::Generic, None, None)?;
+        let attrs = vec![NlAttrHdr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
+        let genlhdr = GenlHdr::new(CtrlCmd::Getfamily, 2, attrs)?;
+        let nlhdr = NlHdr::new(None, GenlId::Ctrl,
+                               vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
+        let mut mem_req = MemWrite::new_vec(Some(nlhdr.asize()));
+        nlhdr.serialize(&mut mem_req)?;
+        socket.send(mem_req.into(), 0)?;
+
+        let mem_resp = MemWrite::new_vec(Some(4096));
+        let mut mem_resp_recv = socket.recv(mem_resp, 0)?;
+        let nlhdr = NlHdr::<GenlId, GenlHdr<CtrlCmd>>::deserialize(&mut mem_resp_recv)?;
+        let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
+        let mcast_groups = handle.get_nested_attributes::<u16>(CtrlAttr::McastGroups)?;
+        let mut id = None;
+        if let Some(iter) = mcast_groups.iter() {
+            for attribute in iter {
+                let attribute_len = attribute.nla_len;
+                let mut handle = attribute.get_attr_handle();
+                let string = handle.get_payload_with::<String>(CtrlAttrMcastGrp::Name,
+                    Some(attribute_len as usize))?;
+                if string.as_str() == mcast_name {
+                    id = handle.get_payload_as::<u32>(CtrlAttrMcastGrp::Id).ok();
+                }
+            }
+        }
+        id.ok_or(NlError::new("Failed to resolve multicast group ID"))
     }
 }
 

@@ -1,12 +1,11 @@
 use {Nl,MemRead,MemWrite,SerError,DeError};
-use ffi::CtrlCmd;
 use nlhdr::{NlAttrHdr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
-pub struct GenlHdr {
+pub struct GenlHdr<C> {
     /// Generic netlink message command
-    pub cmd: CtrlCmd,
+    pub cmd: C,
     /// Version of generic netlink family protocol
     pub version: u8,
     reserved: u16,
@@ -14,10 +13,10 @@ pub struct GenlHdr {
     attrs: Vec<u8>,
 }
 
-impl GenlHdr {
+impl<C> GenlHdr<C> where C: From<u8> + Into<u8> {
     /// Create new generic netlink packet
-    pub fn new<I>(cmd: CtrlCmd, version: u8, mut attrs: Vec<NlAttrHdr<I>>) -> Result<Self, SerError>
-                  where I: Nl {
+    pub fn new<T>(cmd: C, version: u8, mut attrs: Vec<NlAttrHdr<T>>)
+            -> Result<Self, SerError> where T: Nl + Into<u16> + From<u16> {
         let mut mem = MemWrite::new_vec(Some(attrs.iter().fold(0, |acc, item| {
             acc + item.asize()
         })));
@@ -33,12 +32,12 @@ impl GenlHdr {
     }
 
     /// Get handle for attribute parsing and traversal
-    pub fn get_attr_handle<T>(&self) -> AttrHandle<T> where T: Nl {
-        AttrHandle::Bin(self.attrs.clone())
+    pub fn get_attr_handle<T>(&self) -> AttrHandle<T> where T: Nl + Into<u16> + From<u16> {
+        AttrHandle::Bin(self.attrs.as_slice())
     }
 }
 
-impl Nl for GenlHdr {
+impl<C> Nl for GenlHdr<C> where C: Nl + From<u8> + Into<u8> {
     type SerIn = ();
     type DeIn = ();
 
@@ -52,7 +51,7 @@ impl Nl for GenlHdr {
 
     fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
         Ok(GenlHdr {
-            cmd: CtrlCmd::deserialize(mem)?,
+            cmd: C::deserialize(mem)?,
             version: u8::deserialize(mem)?,
             reserved: u16::deserialize(mem)?,
             attrs: Vec::<u8>::deserialize(mem)?,

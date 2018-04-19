@@ -25,6 +25,8 @@ pub mod nlhdr;
 pub mod genlhdr;
 /// Error module
 pub mod err;
+/// Helper macros
+pub mod macros;
 
 use std::ffi::CString;
 use std::io::{self,Cursor,Read,Write};
