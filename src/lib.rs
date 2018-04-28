@@ -135,6 +135,14 @@ impl<'a> MemWrite<'a> {
         }
     }
 
+    /// Convert underlying buffer to `Vec`
+    pub fn into_vec(self) -> Vec<u8> {
+        match self {
+            MemWrite::Slice(cur) => cur.into_inner().to_vec(),
+            MemWrite::Vec(cur) => cur.into_inner(),
+        }
+    }
+
     /// Get length of underlying buffer
     pub fn len(&self) -> usize {
         match *self {

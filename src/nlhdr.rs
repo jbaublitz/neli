@@ -106,10 +106,24 @@ impl<T> NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
         let mut nla = NlAttrHdr {
             nla_type,
             payload,
-            nla_len: 0, 
+            nla_len: 0,
         };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         nla
+    }
+
+    /// Create new netlink attribute with a payload from an object implementing `Nl`
+    pub fn new_nl_payload<P>(nla_len: Option<u16>, nla_type: T, payload: P)
+            -> Result<Self, SerError> where P: Nl {
+        let mut mem = MemWrite::new_vec(Some(payload.asize()));
+        payload.serialize(&mut mem)?;
+        let mut nla = NlAttrHdr {
+            nla_type,
+            payload: mem.into_vec(),
+            nla_len: 0,
+        };
+        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
+        Ok(nla)
     }
 
     /// Create new netlink attribute with a nested payload
