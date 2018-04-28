@@ -98,8 +98,8 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 
     /// Convenience function to send an `NlHdr` struct
-    pub fn send_nl(&mut self, msg: NlHdr<T, P>, buf_sz: Option<usize>) -> Result<(), NlError> {
-        let mut mem = MemWrite::new_vec(buf_sz.or(Some(MAX_NL_LENGTH)));
+    pub fn send_nl(&mut self, msg: NlHdr<T, P>) -> Result<(), NlError> {
+        let mut mem = MemWrite::new_vec(Some(msg.asize()));
         msg.serialize(&mut mem)?;
         self.send(mem.into(), 0)?;
         Ok(())
