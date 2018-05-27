@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
 license = "BSD-3-Clause"
@@ -27,4 +27,4 @@ optional = true
 [features]
 default = []
 evented = ["mio"]
-stream = ["evented", "tokio"]
+stream = ["tokio"]

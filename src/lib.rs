@@ -25,6 +25,8 @@ pub mod nlhdr;
 pub mod genlhdr;
 /// Error module
 pub mod err;
+/// Helper macros
+pub mod macros;
 
 use std::ffi::CString;
 use std::io::{self,Cursor,Read,Write};
@@ -130,6 +132,14 @@ impl<'a> MemWrite<'a> {
         match *self {
             MemWrite::Slice(ref mut cur) => cur.get_mut(),
             MemWrite::Vec(ref mut cur) => cur.get_mut().as_mut_slice(),
+        }
+    }
+
+    /// Convert underlying buffer to `Vec`
+    pub fn into_vec(self) -> Vec<u8> {
+        match self {
+            MemWrite::Slice(cur) => cur.into_inner().to_vec(),
+            MemWrite::Vec(cur) => cur.into_inner(),
         }
     }
 
