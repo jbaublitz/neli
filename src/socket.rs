@@ -90,7 +90,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 
     /// Determines if underlying file descriptor is blocking - `Stream` feature will throw an
-    /// error if this function returns true
+    /// error if this function returns false
     pub fn is_blocking(&self) -> Result<bool, io::Error> {
         let is_blocking = match unsafe { libc::fcntl(self.fd, libc::F_GETFL, 0) } {
             i if i >= 0 => i & libc::O_NONBLOCK == 0,
