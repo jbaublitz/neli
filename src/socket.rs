@@ -10,12 +10,12 @@ use std::io;
 use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
 use std::marker::PhantomData;
 use std::mem::{zeroed,size_of};
-#[cfg(feature = "stream")]
-use std::time::Duration;
 
 use libc::{self,c_int,c_void};
 #[cfg(feature = "evented")]
 use mio::{self,Evented};
+#[cfg(feature = "stream")]
+use tokio::io::AsyncRead;
 #[cfg(feature = "stream")]
 use tokio::prelude::{Async,Stream};
 
@@ -26,7 +26,7 @@ use genlhdr::GenlHdr;
 use nlhdr::{NlHdr,NlAttrHdr};
 
 /// Handle for the socket file descriptor
-#[cfg(feature = "stream")]
+#[cfg(feature = "evented")]
 pub struct NlSocket<T, P> {
     fd: c_int,
     poll: mio::Poll,
@@ -35,7 +35,7 @@ pub struct NlSocket<T, P> {
 }
 
 /// Handle for the socket file descriptor
-#[cfg(not(feature = "stream"))]
+#[cfg(not(feature = "evented"))]
 pub struct NlSocket<T, P> {
     fd: c_int,
     data_type: PhantomData<T>,
@@ -44,7 +44,7 @@ pub struct NlSocket<T, P> {
 
 impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    #[cfg(feature = "stream")]
+    #[cfg(feature = "evented")]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
             libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
@@ -59,7 +59,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    #[cfg(not(feature = "stream"))]
+    #[cfg(not(feature = "evented"))]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
             libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
@@ -68,6 +68,15 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
             _ => Err(io::Error::last_os_error()),
         }?;
         Ok(NlSocket { fd, data_type: PhantomData, data_payload: PhantomData })
+    }
+
+    /// Set underlying socket file descriptor to be non blocking
+    pub fn nonblock(&mut self) -> Result<&mut Self, io::Error> {
+        match unsafe { libc::fcntl(self.fd, libc::F_SETFL,
+                                   libc::fcntl(self.fd, libc::F_GETFL, 0) | libc::O_NONBLOCK) } {
+            i if i < 0 => return Err(io::Error::last_os_error()),
+            _ => Ok(self),
+        }
     }
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
@@ -198,30 +207,34 @@ impl<T, P> IntoRawFd for NlSocket<T, P> {
     }
 }
 
+impl<T, P> io::Read for NlSocket<T, P> where T: Nl, P: Nl {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match unsafe {
+            libc::recv(self.fd, buf as *mut _ as *mut c_void, buf.len(), 0)
+        } {
+            i if i >= 0 => Ok(i as usize),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+}
+
+#[cfg(feature = "stream")]
+impl<T, P> AsyncRead for NlSocket<T, P> where T: Nl, P: Nl { }
+
 #[cfg(feature = "stream")]
 impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
     type Item = NlHdr<T, P>;
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        let mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
-        let mut events = mio::Events::with_capacity(1);
-        match self.poll.poll(&mut events, Some(Duration::from_secs(0))) {
-            Ok(_) => (),
+        let mut mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
+        let bytes_read = match self.poll_read(mem.as_mut_slice()) {
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
+            Ok(Async::Ready(i)) => i,
             Err(_) => return Err(()),
         };
-        if let Some(event) = events.iter().nth(0) {
-            if !event.readiness().is_readable() {
-                return Ok(Async::NotReady);
-            }
-        }
-        let mut mem_read = match self.recv(mem, 0) {
-            Ok(mr) => mr,
-            Err(_) => return Err(()),
-        };
-        if mem_read.as_slice().len() == 0 {
-            return Ok(Async::Ready(None));
-        }
+        let mut mem_read = mem.shrink(bytes_read).into();
         let hdr = match NlHdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
             Err(_) => return Err(()),
