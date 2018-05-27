@@ -1,0 +1,24 @@
+# Changelog
+
+## [0.3.0]
+### Breaking changes
+* Type signature of `bind` and `connect` calls' `groups` parameter was changed to be a `Vec<u32>`
+which will allow specifying a list of IDs and the group bitmask will be calculated for the user.
+* `poll` implementation of for `NlSocket` for `tokio::prelude::Stream` trait will now return
+`io::ErrorKind::InvalidData` if the socket file descriptor is not set to non-blocking
+before polling. This is intentional as Tokio docs rely on polls being non-blocking and my
+implementation requires a read that either returns an `io::ErrorKind::WouldBlock` value or
+the desired data.
+* There is now an `nlattr` module to group together all of the netlink attribute code.
+
+### Additions
+* A function `block` was added to allow reversing `nonblock` function on `NlSocket`.
+* `is_blocking` was added and returns a `bool` indicating whether reads will block on this socket.
+
+### Deprecations
+* `get_payload_as` was deprecated in favor of `get_payload_with`.
+
+### Removed
+None
+
+## Versions prior to 0.3.0 are not included in the CHANGELOG

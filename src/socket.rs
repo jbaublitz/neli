@@ -23,7 +23,8 @@ use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
 use err::NlError;
 use ffi::{NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
 use genlhdr::GenlHdr;
-use nlhdr::{NlHdr,NlAttrHdr};
+use nlattr::NlAttrHdr;
+use nlhdr::NlHdr;
 
 /// Handle for the socket file descriptor
 #[cfg(feature = "evented")]
@@ -70,6 +71,15 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         Ok(NlSocket { fd, data_type: PhantomData, data_payload: PhantomData })
     }
 
+    /// Set underlying socket file descriptor to be blocking
+    pub fn block(&mut self) -> Result<&mut Self, io::Error> {
+        match unsafe { libc::fcntl(self.fd, libc::F_SETFL,
+                                   libc::fcntl(self.fd, libc::F_GETFL, 0) & !libc::O_NONBLOCK) } {
+            i if i < 0 => return Err(io::Error::last_os_error()),
+            _ => Ok(self),
+        }
+    }
+
     /// Set underlying socket file descriptor to be non blocking
     pub fn nonblock(&mut self) -> Result<&mut Self, io::Error> {
         match unsafe { libc::fcntl(self.fd, libc::F_SETFL,
@@ -79,13 +89,25 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         }
     }
 
+    /// Determines if underlying file descriptor is blocking - `Stream` feature will throw an
+    /// error if this function returns true
+    pub fn is_blocking(&self) -> Result<bool, io::Error> {
+        let is_blocking = match unsafe { libc::fcntl(self.fd, libc::F_GETFL, 0) } {
+            i if i >= 0 => i & libc::O_NONBLOCK == 0,
+            _ => return Err(io::Error::last_os_error()),
+        };
+        Ok(is_blocking)
+    }
+
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
     /// man pages for more information on netlink IDs and groups.
-    pub fn bind(&mut self, pid: Option<u32>, groups: Option<u32>) -> Result<(), io::Error> {
+    pub fn bind(&mut self, pid: Option<u32>, groups: Vec<u32>) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::AF_NETLINK as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
-        nladdr.nl_groups = groups.unwrap_or(0);
+        nladdr.nl_groups = groups.into_iter().fold(0, |acc, next| {
+            acc | (1 << (next - 1))
+        });
         match unsafe {
             libc::bind(self.fd, &nladdr as *const _ as *const libc::sockaddr,
                        size_of::<libc::sockaddr_nl>() as u32)
@@ -134,7 +156,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
 
 
     /// Equivalent of `socket` and `bind` calls.
-    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Option<u32>)
+    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Vec<u32>)
                    -> Result<Self, io::Error> {
         let mut s = try!(NlSocket::new(proto));
         try!(s.bind(pid, groups));
@@ -145,7 +167,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
 impl NlSocket<GenlId, GenlHdr<CtrlCmd>> {
     /// Create generic netlink resolution socket
     pub fn new_genl() -> Result<NlSocket<GenlId, GenlHdr<CtrlCmd>>, io::Error> {
-        Self::connect(NlFamily::Generic, None, None)
+        Self::connect(NlFamily::Generic, None, Vec::new())
     }
 
     fn get_genl_family(&mut self, family_name: &str)
@@ -168,7 +190,7 @@ impl NlSocket<GenlId, GenlHdr<CtrlCmd>> {
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
         let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
-        Ok(handle.get_payload_as::<u16>(CtrlAttr::FamilyId)?)
+        Ok(handle.get_payload_with::<u16>(CtrlAttr::FamilyId, None)?)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a
@@ -187,7 +209,7 @@ impl NlSocket<GenlId, GenlHdr<CtrlCmd>> {
                 let string = handle.get_payload_with::<String>(CtrlAttrMcastGrp::Name,
                     Some(attribute_len as usize))?;
                 if string.as_str() == mcast_name {
-                    id = handle.get_payload_as::<u32>(CtrlAttrMcastGrp::Id).ok();
+                    id = handle.get_payload_with::<u32>(CtrlAttrMcastGrp::Id, None).ok();
                 }
             }
         }
@@ -227,6 +249,9 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        if self.is_blocking().map_err(|_| ())? {
+            return Err(());
+        }
         let mut mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
         let bytes_read = match self.poll_read(mem.as_mut_slice()) {
             Ok(Async::NotReady) => return Ok(Async::NotReady),
@@ -275,7 +300,7 @@ mod test {
 
     #[test]
     fn test_socket_creation() {
-       NlSocket::<Nlmsg, GenlHdr<CtrlCmd>>::connect(NlFamily::Generic, None, None).unwrap();
+       NlSocket::<Nlmsg, GenlHdr<CtrlCmd>>::connect(NlFamily::Generic, None, Vec::new()).unwrap();
     }
 
     #[ignore]

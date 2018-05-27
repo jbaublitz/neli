@@ -19,6 +19,8 @@ extern crate tokio;
 pub mod ffi;
 /// Wrapper for `libc` sockets
 pub mod socket;
+/// Netlink attribute handler
+pub mod nlattr;
 /// Top-level netlink header
 pub mod nlhdr;
 /// Genetlink (generic netlink) header and attribute helpers

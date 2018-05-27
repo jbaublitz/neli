@@ -1,5 +1,5 @@
 use {Nl,MemRead,MemWrite,SerError,DeError};
-use nlhdr::{NlAttrHdr,AttrHandle};
+use nlattr::{NlAttrHdr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
