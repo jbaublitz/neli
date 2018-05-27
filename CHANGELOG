@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0-r1]
+### Bug Fixes
+* After looking at tokio's `File` implementation, the file descriptor should block for
+the `Stream` implementation
+
 ## [0.3.0]
 ### Breaking changes
 * Type signature of `bind` and `connect` calls' `groups` parameter was changed to be a `Vec<u32>`

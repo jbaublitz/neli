@@ -249,7 +249,7 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        if self.is_blocking().map_err(|_| ())? {
+        if !self.is_blocking().map_err(|_| ())? {
             return Err(());
         }
         let mut mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
