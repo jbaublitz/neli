@@ -20,8 +20,8 @@ use tokio::io::AsyncRead;
 use tokio::prelude::{Async,Stream};
 
 use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
-use err::NlError;
-use ffi::{NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
+use err::{NlError,Nlmsgerr};
+use ffi::{self,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
 use genlhdr::GenlHdr;
 use nlattr::NlAttrHdr;
 use nlhdr::NlHdr;
@@ -118,7 +118,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
-    /// (`neli::nlhdr::NlHdr`).
+    /// (`neli::nlhdr::NlHdr`)
     pub fn send(&mut self, buf: MemRead, flags: i32) -> Result<isize, io::Error> {
         match unsafe {
             libc::send(self.fd, buf.as_slice() as *const _ as *const c_void, buf.len(), flags)
@@ -136,7 +136,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         Ok(())
     }
 
-    /// Receive message encoded as byte slice from the netlink socket.
+    /// Receive message encoded as byte slice from the netlink socket
     pub fn recv<'a>(&mut self, mut buf: MemWrite<'a>, flags: i32)
             -> Result<MemRead<'a>, io::Error> {
         match unsafe {
@@ -154,6 +154,24 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         Ok(NlHdr::<T, P>::deserialize(&mut mem_read)?)
     }
 
+    /// Convenience function to receive an `NlHdr` struct with function type parameters
+    /// that determine deserialization type
+    pub fn recv_nl_typed<TT, PP>(&mut self, buf_sz: Option<usize>)
+            -> Result<NlHdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
+        let mem_write = MemWrite::new_vec(buf_sz.or(Some(MAX_NL_LENGTH)));
+        let mut mem_read = self.recv(mem_write, 0)?;
+        Ok(NlHdr::<TT, PP>::deserialize(&mut mem_read)?)
+    }
+
+    /// Consume an ACK and return an error if an ACK is not found
+    pub fn recv_ack(&mut self, buf_sz: Option<usize>) -> Result<(), NlError> {
+        let ack = self.recv_nl_typed::<ffi::Nlmsg, Nlmsgerr<ffi::Nlmsg>>(buf_sz)?;
+        if ack.nl_type == ffi::Nlmsg::Error && ack.nl_payload.error == 0 {
+            Ok(())
+        } else {
+            Err(NlError::NoAck)
+        }
+    }
 
     /// Equivalent of `socket` and `bind` calls.
     pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Vec<u32>)
@@ -175,14 +193,10 @@ impl NlSocket<GenlId, GenlHdr<CtrlCmd>> {
         let attrs = vec![NlAttrHdr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = GenlHdr::new(CtrlCmd::Getfamily, 2, attrs)?;
         let nlhdr = NlHdr::new(None, GenlId::Ctrl,
-                               vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
-        let mut mem_req = MemWrite::new_vec(Some(nlhdr.asize()));
-        nlhdr.serialize(&mut mem_req)?;
-        self.send(mem_req.into(), 0)?;
+                               vec![NlmF::Request], None, None, genlhdr);
+        self.send_nl(nlhdr)?;
 
-        let mem_resp = MemWrite::new_vec(Some(4096));
-        let mut mem_resp_recv = self.recv(mem_resp, 0)?;
-        Ok(NlHdr::<GenlId, GenlHdr<CtrlCmd>>::deserialize(&mut mem_resp_recv)?)
+        Ok(self.recv_nl(Some(4096))?)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a

@@ -33,6 +33,7 @@ pub mod macros;
 use std::ffi::CString;
 use std::io::{self,Cursor,Read,Write};
 use std::mem;
+use std::str;
 
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
@@ -335,6 +336,47 @@ impl Nl for Vec<u8> {
         let mut v = vec![0; input];
         let _ = mem.read(v.as_mut_slice())?;
         Ok(v)
+    }
+
+    fn size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a> Nl for &'a str {
+    type SerIn = usize;
+    type DeIn = &'a mut [u8];
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
+            SerError::new("Unable to serialize string containing null byte")
+        }));
+        let bytes = c_str.as_bytes_with_nul();
+        let _ = mem.write(bytes)?;
+        Ok(())
+    }
+
+    fn serialize_with(&self, mem: &mut MemWrite, input: usize) -> Result<(), SerError> {
+        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
+            SerError::new("Unable to serialize string containing null byte")
+        }));
+        let bytes = c_str.as_bytes_with_nul();
+        let num_bytes = mem.write(bytes)?;
+        if input - num_bytes > 0 {
+            mem.write(&vec![0; input - num_bytes])?;
+        }
+        Ok(())
+    }
+
+    fn deserialize_with(mem: &mut MemRead, input: &'a mut [u8]) -> Result<Self, DeError> {
+        mem.read_exact(input)?;
+        let idx = input.iter().position(|elem| *elem == 0);
+        let mut new_input: (&[u8], &[u8]) = (&[], &[]);
+        if let Some(i) = idx {
+            new_input = input.split_at(i);
+        }
+        let (beginning, _) = new_input;
+        Ok(str::from_utf8(beginning)?)
     }
 
     fn size(&self) -> usize {
