@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+### Breaking changes
+* Migration to buffering crate for buffer operations - _this does change the API_
+
 ## [0.3.0-r2]
 ### Bug Fixes
 * Fix documentation bug
