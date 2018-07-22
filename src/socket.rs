@@ -278,7 +278,10 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
             Ok(Async::Ready(i)) => i,
             Err(_) => return Err(()),
         };
-        mem.set_bytes_written(bytes_written);
+        match mem.set_bytes_written(bytes_written) {
+            Ok(()) => (),
+            Err(_) => return Err(()),
+        };
         let mut mem_read = StreamReadBuffer::new(mem);
         let hdr = match NlHdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
