@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.3.0-r2"
+version = "0.3.1"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
 license = "BSD-3-Clause"
@@ -13,6 +13,7 @@ include = [
 ]
 
 [dependencies]
+buffering = { git = "https://github.com/jbaublitz/buffering", version = "0.1.0" }
 byteorder = "1.2"
 libc = "0.2"
 

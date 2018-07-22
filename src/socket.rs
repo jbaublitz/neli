@@ -11,6 +11,7 @@ use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
 use std::marker::PhantomData;
 use std::mem::{zeroed,size_of};
 
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc::{self,c_int,c_void};
 #[cfg(feature = "evented")]
 use mio::{self,Evented};
@@ -19,7 +20,7 @@ use tokio::io::AsyncRead;
 #[cfg(feature = "stream")]
 use tokio::prelude::{Async,Stream};
 
-use {Nl,MemRead,MemWrite,MAX_NL_LENGTH};
+use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
 use ffi::{self,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
 use genlhdr::GenlHdr;
@@ -119,9 +120,10 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
     /// (`neli::nlhdr::NlHdr`)
-    pub fn send(&mut self, buf: MemRead, flags: i32) -> Result<isize, io::Error> {
+    pub fn send<B>(&mut self, buf: StreamReadBuffer<B>, flags: i32) -> Result<isize, io::Error>
+            where B: AsRef<[u8]> {
         match unsafe {
-            libc::send(self.fd, buf.as_slice() as *const _ as *const c_void, buf.len(), flags)
+            libc::send(self.fd, buf.as_ref() as *const _ as *const c_void, buf.as_ref().len(), flags)
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
@@ -130,26 +132,29 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
 
     /// Convenience function to send an `NlHdr` struct
     pub fn send_nl(&mut self, msg: NlHdr<T, P>) -> Result<(), NlError> {
-        let mut mem = MemWrite::new_vec(Some(msg.asize()));
+        let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
         msg.serialize(&mut mem)?;
-        self.send(mem.into(), 0)?;
+        self.send(StreamReadBuffer::new(mem), 0)?;
         Ok(())
     }
 
     /// Receive message encoded as byte slice from the netlink socket
-    pub fn recv<'a>(&mut self, mut buf: MemWrite<'a>, flags: i32)
-            -> Result<MemRead<'a>, io::Error> {
+    pub fn recv<'a>(&mut self, mut buf: StreamWriteBuffer<'a>, flags: i32)
+            -> Result<StreamReadBuffer<StreamWriteBuffer<'a>>, io::Error> {
         match unsafe {
-            libc::recv(self.fd, buf.as_mut_slice() as *mut _ as *mut c_void, buf.len(), flags)
+            libc::recv(self.fd, buf.as_mut() as *mut _ as *mut c_void, buf.as_mut().len(), flags)
         } {
-            i if i >= 0 => Ok(buf.shrink(i as usize).into()),
+            i if i >= 0 => {
+                unsafe { buf.set_bytes_written(i as usize) };
+                Ok(StreamReadBuffer::new(buf))
+            },
             _ => Err(io::Error::last_os_error()),
         }
     }
 
     /// Convenience function to receive an `NlHdr` struct
     pub fn recv_nl(&mut self, buf_sz: Option<usize>) -> Result<NlHdr<T, P>, NlError> {
-        let mem_write = MemWrite::new_vec(buf_sz.or(Some(MAX_NL_LENGTH)));
+        let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
         let mut mem_read = self.recv(mem_write, 0)?;
         Ok(NlHdr::<T, P>::deserialize(&mut mem_read)?)
     }
@@ -158,7 +163,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     /// that determine deserialization type
     pub fn recv_nl_typed<TT, PP>(&mut self, buf_sz: Option<usize>)
             -> Result<NlHdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
-        let mem_write = MemWrite::new_vec(buf_sz.or(Some(MAX_NL_LENGTH)));
+        let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
         let mut mem_read = self.recv(mem_write, 0)?;
         Ok(NlHdr::<TT, PP>::deserialize(&mut mem_read)?)
     }

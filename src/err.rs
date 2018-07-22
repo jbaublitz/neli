@@ -7,8 +7,9 @@ use std::str;
 use std::string;
 
 use libc;
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
-use {Nl,MemRead,MemWrite};
+use Nl;
 use nlhdr::{NlHdr,NlEmpty};
 
 macro_rules! try_err_compat {
@@ -35,13 +36,13 @@ impl<T> Nl for Nlmsgerr<T> where T: Into<u16> + From<u16> + Nl {
     type SerIn = ();
     type DeIn = ();
 
-    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.error.serialize(mem)?;
         self.nlmsg.serialize(mem)?;
         Ok(())
     }
 
-    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         Ok(Nlmsgerr {
             error: libc::c_int::deserialize(mem)?,
             nlmsg: NlHdr::<T, NlEmpty>::deserialize(mem)?,

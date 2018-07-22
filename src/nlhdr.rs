@@ -5,7 +5,9 @@
 
 use std::mem;
 
-use {Nl,MemRead,MemWrite};
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
+
+use Nl;
 use err::{SerError,DeError};
 use ffi::NlmF;
 
@@ -43,11 +45,11 @@ impl<T, P> NlHdr<T, P> where T: Nl + Into<u16> + From<u16>, P: Nl {
     }
 }
 
-impl<I, P> Nl for NlHdr<I, P> where I: Nl, P: Nl {
+impl<T, P> Nl for NlHdr<T, P> where T: Nl, P: Nl {
     type SerIn = ();
     type DeIn = ();
 
-    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nl_len.serialize(mem)?;
         self.nl_type.serialize(mem)?;
         let val = self.nl_flags.iter().fold(0, |acc: u16, val| {
@@ -61,10 +63,10 @@ impl<I, P> Nl for NlHdr<I, P> where I: Nl, P: Nl {
         Ok(())
     }
 
-    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
-        let nl = NlHdr::<I, P> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+        let nl = NlHdr::<T, P> {
             nl_len: u32::deserialize(mem)?,
-            nl_type: I::deserialize(mem)?,
+            nl_type: T::deserialize(mem)?,
             nl_flags: {
                 let flags = u16::deserialize(mem)?;
                 let mut nl_flags = Vec::new();
@@ -98,12 +100,12 @@ impl Nl for NlEmpty {
     type DeIn = ();
 
     #[inline]
-    fn serialize(&self, _cur: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, _cur: &mut StreamWriteBuffer) -> Result<(), SerError> {
         Ok(())
     }
 
     #[inline]
-    fn deserialize(_cur: &mut MemRead) -> Result<Self, DeError> {
+    fn deserialize<B>(_cur: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         Ok(NlEmpty)
     }
 
@@ -122,7 +124,7 @@ mod test {
 
     #[test]
     fn test_nlhdr_serialize() {
-        let mut mem = MemWrite::new_vec(None);
+        let mut mem = StreamWriteBuffer::new_growable(None);
         let nl = NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
                                               Vec::new(), None, None, NlEmpty);
         nl.serialize(&mut mem).unwrap();
@@ -132,7 +134,7 @@ mod test {
             c.write_u32::<NativeEndian>(16).unwrap();
             c.write_u16::<NativeEndian>(1).unwrap();
         };
-        assert_eq!(&mut *s, mem.as_slice())
+        assert_eq!(&mut *s, mem.as_ref())
     }
 
     #[test]
@@ -144,7 +146,7 @@ mod test {
             c.write_u16::<NativeEndian>(1).unwrap();
             c.write_u16::<NativeEndian>(NlmF::Ack.into()).unwrap();
         }
-        let mut mem = MemRead::new_slice(&*s);
+        let mut mem = StreamReadBuffer::new(&*s);
         let nl = NlHdr::<Nlmsg, NlEmpty>::deserialize(&mut mem).unwrap();
         assert_eq!(NlHdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
                                                  vec![NlmF::Ack], None, None, NlEmpty), nl);

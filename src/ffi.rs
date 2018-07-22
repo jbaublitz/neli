@@ -1,7 +1,9 @@
 use std::mem;
+
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
-use {Nl,MemRead,MemWrite};
+use Nl;
 use err::{SerError,DeError};
 
 macro_rules! impl_var {
@@ -44,12 +46,13 @@ macro_rules! impl_var {
             type SerIn = ();
             type DeIn = ();
 
-            fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+            fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
                 let v: $ty = self.clone().into();
                 v.serialize(mem)
             }
 
-            fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+            fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+                    where T: AsRef<[u8]> {
                 let v: $ty = Nl::deserialize(mem)?;
                 Ok(v.into())
             }

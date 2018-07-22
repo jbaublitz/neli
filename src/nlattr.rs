@@ -23,9 +23,10 @@
 use std::io::Read;
 use std::slice;
 
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
-use {Nl,MemRead,MemWrite};
+use Nl;
 use err::{SerError,DeError};
 use ffi::alignto;
 
@@ -56,11 +57,11 @@ impl<T> NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
     /// Create new netlink attribute with a payload from an object implementing `Nl`
     pub fn new_nl_payload<P>(nla_len: Option<u16>, nla_type: T, payload: P)
             -> Result<Self, SerError> where P: Nl {
-        let mut mem = MemWrite::new_vec(Some(payload.asize()));
+        let mut mem = StreamWriteBuffer::new_growable(Some(payload.asize()));
         payload.serialize(&mut mem)?;
         let mut nla = NlAttrHdr {
             nla_type,
-            payload: mem.into_vec(),
+            payload: mem.as_ref().to_vec(),
             nla_len: 0,
         };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
@@ -73,7 +74,7 @@ impl<T> NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
         let mut nla = NlAttrHdr {
             nla_type,
             payload: {
-                let mut mem = MemWrite::new_vec(Some(payload.iter().fold(0, |acc, item| {
+                let mut mem = StreamWriteBuffer::new_growable(Some(payload.iter().fold(0, |acc, item| {
                     acc + item.asize()
                 })));
                 for item in payload.iter_mut() {
@@ -84,7 +85,7 @@ impl<T> NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
                             .as_ref().serialize(&mut mem)?;
                     }
                 }
-                mem.as_slice().to_vec()
+                mem.as_ref().to_vec()
             },
             nla_len: 0,
         };
@@ -100,14 +101,14 @@ impl<T> NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
                                        as u16),
             nla_type,
             payload: {
-                let mut mem = MemWrite::new_vec(Some(string_payload.asize()));
+                let mut mem = StreamWriteBuffer::new_growable(Some(string_payload.asize()));
                 string_payload.serialize(&mut mem)?;
                 if string_payload.asize() != string_payload.size() {
                     [0u8; libc::NLA_ALIGNTO as usize]
                         [0..string_payload.asize() - string_payload.size()]
                         .as_ref().serialize(&mut mem)?;
                 }
-                mem.as_slice().to_vec()
+                mem.as_ref().to_vec()
             },
         };
         Ok(nla)
@@ -130,14 +131,14 @@ impl<T> Nl for NlAttrHdr<T> where T: Nl + Into<u16> + From<u16> {
     type SerIn = ();
     type DeIn = ();
 
-    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nla_len.serialize(mem)?;
         self.nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
         Ok(())
     }
 
-    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let mut nla = NlAttrHdr {
             nla_len: u16::deserialize(mem)?,
             nla_type: T::deserialize(mem)?,
@@ -186,7 +187,7 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
             AttrHandle::Bin(ref v) => {
                 let mut len = v.asize();
                 let mut attrs = Vec::new();
-                let mut mem = MemRead::new_slice(v);
+                let mut mem = StreamReadBuffer::new(v);
                 while len > 0 {
                     let hdr = NlAttrHdr::deserialize(&mut mem)?;
                     len -= hdr.asize();
@@ -247,7 +248,7 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
     pub fn get_payload_as<R>(&mut self, attr: P) -> Result<R, DeError> where R: Nl {
         match self.parse_nested_attributes()?.get_attribute(attr) {
             Some(ref a) => {
-                let mut state = MemRead::new_slice(&a.payload);
+                let mut state = StreamReadBuffer::new(&a.payload);
                 R::deserialize(&mut state)
             },
             _ => Err(DeError::new("Failed to find specified attribute")),
@@ -260,7 +261,7 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
             where R: Nl {
         match self.parse_nested_attributes()?.get_attribute(attr) {
             Some(ref a) => {
-                let mut state = MemRead::new_slice(&a.payload);
+                let mut state = StreamReadBuffer::new(&a.payload);
                 if let Some(w) = with {
                     R::deserialize_with(&mut state, w)
                 } else {
