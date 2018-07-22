@@ -271,14 +271,14 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
         if !self.is_blocking().map_err(|_| ())? {
             return Err(());
         }
-        let mut mem = MemWrite::new_vec(Some(MAX_NL_LENGTH));
-        let bytes_read = match self.poll_read(mem.as_mut_slice()) {
+        let mut mem = StreamWriteBuffer::new_growable(Some(MAX_NL_LENGTH));
+        match self.poll_read(mem.as_mut()) {
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
-            Ok(Async::Ready(i)) => i,
+            Ok(Async::Ready(_)) => (),
             Err(_) => return Err(()),
         };
-        let mut mem_read = mem.shrink(bytes_read).into();
+        let mut mem_read = StreamReadBuffer::new(mem);
         let hdr = match NlHdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
             Err(_) => return Err(()),
