@@ -13,7 +13,7 @@ include = [
 ]
 
 [dependencies]
-buffering = { git = "https://github.com/jbaublitz/buffering", version = "0.1.0" }
+buffering = "0.1.0"
 byteorder = "1.2"
 libc = "0.2"
 

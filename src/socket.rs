@@ -145,7 +145,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
             libc::recv(self.fd, buf.as_mut() as *mut _ as *mut c_void, buf.as_mut().len(), flags)
         } {
             i if i >= 0 => {
-                unsafe { buf.set_bytes_written(i as usize) };
+                buf.set_bytes_written(i as usize)?;
                 Ok(StreamReadBuffer::new(buf))
             },
             _ => Err(io::Error::last_os_error()),
@@ -272,12 +272,13 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
             return Err(());
         }
         let mut mem = StreamWriteBuffer::new_growable(Some(MAX_NL_LENGTH));
-        match self.poll_read(mem.as_mut()) {
+        let bytes_written = match self.poll_read(mem.as_mut()) {
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
-            Ok(Async::Ready(_)) => (),
+            Ok(Async::Ready(i)) => i,
             Err(_) => return Err(()),
         };
+        mem.set_bytes_written(bytes_written);
         let mut mem_read = StreamReadBuffer::new(mem);
         let hdr = match NlHdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
