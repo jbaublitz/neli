@@ -1,11 +1,11 @@
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use {Nl,SerError,DeError};
-use nlattr::{NlAttrHdr,AttrHandle};
+use nlattr::{Nlattr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
-pub struct GenlHdr<C> {
+pub struct Genlmsghdr<C> {
     /// Generic netlink message command
     pub cmd: C,
     /// Version of generic netlink family protocol
@@ -15,9 +15,9 @@ pub struct GenlHdr<C> {
     attrs: Vec<u8>,
 }
 
-impl<C> GenlHdr<C> where C: From<u8> + Into<u8> {
+impl<C> Genlmsghdr<C> where C: From<u8> + Into<u8> {
     /// Create new generic netlink packet
-    pub fn new<T>(cmd: C, version: u8, mut attrs: Vec<NlAttrHdr<T>>)
+    pub fn new<T>(cmd: C, version: u8, mut attrs: Vec<Nlattr<T>>)
             -> Result<Self, SerError> where T: Nl + Into<u16> + From<u16> {
         let mut mem = StreamWriteBuffer::new_growable(Some(attrs.iter().fold(0, |acc, item| {
             acc + item.asize()
@@ -25,7 +25,7 @@ impl<C> GenlHdr<C> where C: From<u8> + Into<u8> {
         for item in attrs.iter_mut() {
             item.serialize(&mut mem)?;
         }
-        Ok(GenlHdr {
+        Ok(Genlmsghdr {
             cmd,
             version,
             reserved: 0,
@@ -39,7 +39,7 @@ impl<C> GenlHdr<C> where C: From<u8> + Into<u8> {
     }
 }
 
-impl<C> Nl for GenlHdr<C> where C: Nl + From<u8> + Into<u8> {
+impl<C> Nl for Genlmsghdr<C> where C: Nl + From<u8> + Into<u8> {
     type SerIn = ();
     type DeIn = ();
 
@@ -52,7 +52,7 @@ impl<C> Nl for GenlHdr<C> where C: Nl + From<u8> + Into<u8> {
     }
 
     fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
-        Ok(GenlHdr {
+        Ok(Genlmsghdr {
             cmd: C::deserialize(mem)?,
             version: u8::deserialize(mem)?,
             reserved: u16::deserialize(mem)?,
@@ -71,14 +71,14 @@ mod test {
     use super::*;
     use byteorder::{NativeEndian,WriteBytesExt};
     use std::io::{Cursor,Write};
-    use ffi::{CtrlAttr,CtrlCmd};
+    use consts::{CtrlAttr,CtrlCmd};
 
     #[test]
     pub fn test_serialize() {
-        let attr = vec![NlAttrHdr::new_binary_payload(None, CtrlAttr::FamilyId,
+        let attr = vec![Nlattr::new_binary_payload(None, CtrlAttr::FamilyId,
                                                         vec![0, 1, 2, 3, 4, 5, 0, 0]
                                                       )];
-        let genl = GenlHdr::new(CtrlCmd::Getops, 2,
+        let genl = Genlmsghdr::new(CtrlCmd::Getops, 2,
                                     attr).unwrap();
         let mut mem = StreamWriteBuffer::new_growable(None);
         genl.serialize(&mut mem).unwrap();
@@ -98,8 +98,8 @@ mod test {
 
     #[test]
     pub fn test_deserialize() {
-        let genl_mock = GenlHdr::new(CtrlCmd::Getops, 2,
-                                     vec![NlAttrHdr::new_str_payload(None,
+        let genl_mock = Genlmsghdr::new(CtrlCmd::Getops, 2,
+                                     vec![Nlattr::new_str_payload(None,
                                             CtrlAttr::FamilyId, "AAAAAAA"
                                         ).unwrap()]
                                      ).unwrap();
@@ -115,7 +115,7 @@ mod test {
             c.into_inner()
         };
         let mut mem = StreamReadBuffer::new(&v_final);
-        let genl = GenlHdr::deserialize(&mut mem).unwrap();
+        let genl = Genlmsghdr::deserialize(&mut mem).unwrap();
         assert_eq!(genl, genl_mock)
     }
 }

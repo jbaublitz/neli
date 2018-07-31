@@ -17,19 +17,21 @@ extern crate mio;
 extern crate tokio;
 
 /// C constants defined as types
-pub mod ffi;
+pub mod consts;
 /// Wrapper for `libc` sockets
 pub mod socket;
 /// Netlink attribute handler
 pub mod nlattr;
 /// Top-level netlink header
-pub mod nlhdr;
+pub mod nl;
 /// Genetlink (generic netlink) header and attribute helpers
-pub mod genlhdr;
+pub mod genl;
+/// Route netlink bindings
+pub mod rtnl;
 /// Error module
 pub mod err;
 /// Helper macros
-//pub mod macros;
+pub mod macros;
 
 use std::ffi::CString;
 use std::io::{Read,Write};
@@ -39,7 +41,7 @@ use std::str;
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
-use ffi::alignto;
+use consts::alignto;
 use err::{SerError,DeError};
 
 /// Max supported message length for netlink messages supported by the kernel

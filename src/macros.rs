@@ -29,13 +29,13 @@ macro_rules! enum_to_nl {
             type SerIn = ();
             type DeIn = ();
 
-            fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+            fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
                 let val = self.clone() as $type;
                 val.serialize(mem)?;
                 Ok(())
             }
 
-            fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+            fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
                 let cmd = $type::deserialize(mem)?;
                 Ok(Self::from(cmd))
             }
@@ -103,18 +103,20 @@ macro_rules! cmd_to_nl {
 
 #[cfg(test)]
 mod test {
-    use {Nl,MemRead,MemWrite};
+    use Nl;
     use err::{SerError,DeError};
+
+    use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
     #[test]
     fn test_attr_cmd_to_nl_macro() {
         cmd_to_nl!(TestCmd, Cmd0, Cmd1, Cmd2, Cmd3);
 
         let slice = &mut [0u8; 1];
-        let mut ser_mem = MemWrite::new_slice(slice);
+        let mut ser_mem = StreamWriteBuffer::new_sized(slice);
         TestCmd::Cmd1.serialize(&mut ser_mem).unwrap();
-        assert_eq!(ser_mem.as_slice(), &[1]);
-        let mut de_mem = ser_mem.into();
+        assert_eq!(ser_mem.as_ref(), &[1]);
+        let mut de_mem = StreamReadBuffer::new(ser_mem);
         assert_eq!(TestCmd::Cmd1, TestCmd::deserialize(&mut de_mem).unwrap());
     }
 }

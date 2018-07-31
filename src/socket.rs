@@ -22,10 +22,10 @@ use tokio::prelude::{Async,Stream};
 
 use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
-use ffi::{self,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
-use genlhdr::GenlHdr;
-use nlattr::NlAttrHdr;
-use nlhdr::NlHdr;
+use consts::{self,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
+use genl::Genlmsghdr;
+use nlattr::Nlattr;
+use nl::Nlmsghdr;
 
 /// Handle for the socket file descriptor
 #[cfg(feature = "evented")]
@@ -119,7 +119,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
-    /// (`neli::nlhdr::NlHdr`)
+    /// (`neli::nl::Nlmsghdr`)
     pub fn send<B>(&mut self, buf: StreamReadBuffer<B>, flags: i32) -> Result<isize, io::Error>
             where B: AsRef<[u8]> {
         match unsafe {
@@ -130,8 +130,8 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         }
     }
 
-    /// Convenience function to send an `NlHdr` struct
-    pub fn send_nl(&mut self, msg: NlHdr<T, P>) -> Result<(), NlError> {
+    /// Convenience function to send an `Nlmsghdr` struct
+    pub fn send_nl(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
         msg.serialize(&mut mem)?;
         self.send(StreamReadBuffer::new(mem), 0)?;
@@ -152,26 +152,26 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         }
     }
 
-    /// Convenience function to receive an `NlHdr` struct
-    pub fn recv_nl(&mut self, buf_sz: Option<usize>) -> Result<NlHdr<T, P>, NlError> {
+    /// Convenience function to receive an `Nlmsghdr` struct
+    pub fn recv_nl(&mut self, buf_sz: Option<usize>) -> Result<Nlmsghdr<T, P>, NlError> {
         let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
         let mut mem_read = self.recv(mem_write, 0)?;
-        Ok(NlHdr::<T, P>::deserialize(&mut mem_read)?)
+        Ok(Nlmsghdr::<T, P>::deserialize(&mut mem_read)?)
     }
 
-    /// Convenience function to receive an `NlHdr` struct with function type parameters
+    /// Convenience function to receive an `Nlmsghdr` struct with function type parameters
     /// that determine deserialization type
     pub fn recv_nl_typed<TT, PP>(&mut self, buf_sz: Option<usize>)
-            -> Result<NlHdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
+            -> Result<Nlmsghdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
         let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
         let mut mem_read = self.recv(mem_write, 0)?;
-        Ok(NlHdr::<TT, PP>::deserialize(&mut mem_read)?)
+        Ok(Nlmsghdr::<TT, PP>::deserialize(&mut mem_read)?)
     }
 
     /// Consume an ACK and return an error if an ACK is not found
     pub fn recv_ack(&mut self, buf_sz: Option<usize>) -> Result<(), NlError> {
-        let ack = self.recv_nl_typed::<ffi::Nlmsg, Nlmsgerr<ffi::Nlmsg>>(buf_sz)?;
-        if ack.nl_type == ffi::Nlmsg::Error && ack.nl_payload.error == 0 {
+        let ack = self.recv_nl_typed::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(buf_sz)?;
+        if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
             Ok(())
         } else {
             Err(NlError::NoAck)
@@ -187,17 +187,17 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     }
 }
 
-impl NlSocket<GenlId, GenlHdr<CtrlCmd>> {
+impl NlSocket<GenlId, Genlmsghdr<CtrlCmd>> {
     /// Create generic netlink resolution socket
-    pub fn new_genl() -> Result<NlSocket<GenlId, GenlHdr<CtrlCmd>>, io::Error> {
+    pub fn new_genl() -> Result<NlSocket<GenlId, Genlmsghdr<CtrlCmd>>, io::Error> {
         Self::connect(NlFamily::Generic, None, Vec::new())
     }
 
     fn get_genl_family(&mut self, family_name: &str)
-            -> Result<NlHdr<GenlId, GenlHdr<CtrlCmd>>, NlError> {
-        let attrs = vec![NlAttrHdr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
-        let genlhdr = GenlHdr::new(CtrlCmd::Getfamily, 2, attrs)?;
-        let nlhdr = NlHdr::new(None, GenlId::Ctrl,
+            -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd>>, NlError> {
+        let attrs = vec![Nlattr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
+        let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
+        let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl,
                                vec![NlmF::Request], None, None, genlhdr);
         self.send_nl(nlhdr)?;
 
@@ -264,7 +264,7 @@ impl<T, P> AsyncRead for NlSocket<T, P> where T: Nl, P: Nl { }
 
 #[cfg(feature = "stream")]
 impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
-    type Item = NlHdr<T, P>;
+    type Item = Nlmsghdr<T, P>;
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
@@ -283,7 +283,7 @@ impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
             Err(_) => return Err(()),
         };
         let mut mem_read = StreamReadBuffer::new(mem);
-        let hdr = match NlHdr::<T, P>::deserialize(&mut mem_read) {
+        let hdr = match Nlmsghdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
             Err(_) => return Err(()),
         };
@@ -318,12 +318,12 @@ impl<T, P> Drop for NlSocket<T, P> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ffi::{CtrlCmd,Nlmsg};
-    use genlhdr::GenlHdr;
+    use consts::{CtrlCmd,Nlmsg};
+    use genl::Genlmsghdr;
 
     #[test]
     fn test_socket_creation() {
-       NlSocket::<Nlmsg, GenlHdr<CtrlCmd>>::connect(NlFamily::Generic, None, Vec::new()).unwrap();
+       NlSocket::<Nlmsg, Genlmsghdr<CtrlCmd>>::connect(NlFamily::Generic, None, Vec::new()).unwrap();
     }
 
     #[ignore]

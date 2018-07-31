@@ -10,7 +10,7 @@ use libc;
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use Nl;
-use nlhdr::{NlHdr,NlEmpty};
+use nl::{Nlmsghdr,NlEmpty};
 
 macro_rules! try_err_compat {
     ( $err_name:ident, $( $from_err_name:path ),* ) => {
@@ -29,7 +29,7 @@ pub struct Nlmsgerr<T> {
     /// Error code
     pub error: libc::c_int,
     /// Packet header for request that failed
-    pub nlmsg: NlHdr<T, NlEmpty>,
+    pub nlmsg: Nlmsghdr<T, NlEmpty>,
 }
 
 impl<T> Nl for Nlmsgerr<T> where T: Into<u16> + From<u16> + Nl {
@@ -45,7 +45,7 @@ impl<T> Nl for Nlmsgerr<T> where T: Into<u16> + From<u16> + Nl {
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         Ok(Nlmsgerr {
             error: libc::c_int::deserialize(mem)?,
-            nlmsg: NlHdr::<T, NlEmpty>::deserialize(mem)?,
+            nlmsg: Nlmsghdr::<T, NlEmpty>::deserialize(mem)?,
         })
     }
 
