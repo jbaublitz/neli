@@ -2,13 +2,15 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::AddrFamily;
+use consts::{Arphrd,AddrFamily};
 use err::{SerError,DeError};
 
 /// Struct representing interface information messages
 pub struct Ifinfomsg {
     /// Interface address family
     pub ifi_family: AddrFamily,
+    /// Interface type
+    pub ifi_type: Arphrd
 }
 
 /// Struct representing route netlink attributes

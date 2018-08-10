@@ -84,6 +84,12 @@ impl_var!(AddrFamily, libc::c_int,
     Alg => libc::AF_ALG
 );
 
+/// Interface types
+impl_var!(Arphrd, libc::c_ushort,
+    Netrom => libc::ARPHRD_NETROM,
+    Ether => libc::ARPHRD_ETHER
+);
+
 /// Values for `nl_family` in `NlSocket`
 impl_var!(NlFamily, libc::c_int,
     Route => libc::NETLINK_ROUTE,

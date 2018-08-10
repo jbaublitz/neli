@@ -38,7 +38,7 @@ use std::io::{Read,Write};
 use std::mem;
 use std::str;
 
-use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
+pub use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
 
 use consts::alignto;
