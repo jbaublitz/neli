@@ -69,6 +69,21 @@ pub fn alignto(len: usize) -> usize {
     (len + libc::NLA_ALIGNTO as usize - 1) & !(libc::NLA_ALIGNTO as usize - 1)
 }
 
+/// Address families for sockets
+impl_var!(AddrFamily, libc::c_int,
+    UnixOrLocal => libc::AF_UNIX,
+    Inet => libc::AF_INET,
+    Inet6 => libc::AF_INET6,
+    Ipx => libc::AF_IPX,
+    Netlink => libc::AF_NETLINK,
+    X25 => libc::AF_X25,
+    AX25 => libc::AF_AX25,
+    Atmpvc => libc::AF_ATMPVC,
+    Appletalk => libc::AF_APPLETALK,
+    Packet => libc::AF_PACKET,
+    Alg => libc::AF_ALG
+);
+
 /// Values for `nl_family` in `NlSocket`
 impl_var!(NlFamily, libc::c_int,
     Route => libc::NETLINK_ROUTE,

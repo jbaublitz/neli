@@ -22,7 +22,7 @@ use tokio::prelude::{Async,Stream};
 
 use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
-use consts::{self,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
+use consts::{self,AddrFamily,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
 use genl::Genlmsghdr;
 use nlattr::Nlattr;
 use nl::Nlmsghdr;
@@ -49,7 +49,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     #[cfg(feature = "evented")]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
-            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
+            libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into())
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
@@ -64,7 +64,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     #[cfg(not(feature = "evented"))]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
-            libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, proto.into())
+            libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into())
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
@@ -104,7 +104,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     /// man pages for more information on netlink IDs and groups.
     pub fn bind(&mut self, pid: Option<u32>, groups: Vec<u32>) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
-        nladdr.nl_family = libc::AF_NETLINK as u16;
+        nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
         nladdr.nl_groups = groups.into_iter().fold(0, |acc, next| {
             acc | (1 << (next - 1))
