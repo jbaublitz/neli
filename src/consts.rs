@@ -77,7 +77,7 @@ impl_var!(AddrFamily, libc::c_int,
     Ipx => libc::AF_IPX,
     Netlink => libc::AF_NETLINK,
     X25 => libc::AF_X25,
-    AX25 => libc::AF_AX25,
+    Ax25 => libc::AF_AX25,
     Atmpvc => libc::AF_ATMPVC,
     Appletalk => libc::AF_APPLETALK,
     Packet => libc::AF_PACKET,
@@ -87,7 +87,31 @@ impl_var!(AddrFamily, libc::c_int,
 /// Interface types
 impl_var!(Arphrd, libc::c_ushort,
     Netrom => libc::ARPHRD_NETROM,
-    Ether => libc::ARPHRD_ETHER
+    Ether => libc::ARPHRD_ETHER,
+    Eether => libc::ARPHRD_EETHER,
+    AX25 => libc::ARPHRD_AX25,
+    Pronet => libc::ARPHRD_PRONET,
+    Chaos => libc::ARPHRD_CHAOS,
+    Ieee802 => libc::ARPHRD_IEEE802,
+    Arcnet => libc::ARPHRD_ARCNET,
+    Appletlk => libc::ARPHRD_APPLETLK,
+    Dlci => libc::ARPHRD_DLCI,
+    Atm => libc::ARPHRD_APPLETLK,
+    Metricom => libc::ARPHRD_METRICOM,
+    Ieee1394 => libc::ARPHRD_IEEE1394,
+    Eui64 => libc::ARPHRD_EUI64,
+    Infiniband => libc::ARPHRD_INFINIBAND,
+
+    // Possibly more types here - need to look into ARP more
+
+    Void => libc::ARPHRD_VOID,
+    None => libc::ARPHRD_NONE
+);
+
+/// Values for `ifi_flags` in `rtnl.rs`
+impl_var!(Iff, libc::c_uint,
+    Up => libc::IFF_UP as libc::c_uint,
+    Broadcast => libc::IFF_BROADCAST as libc::c_uint
 );
 
 /// Values for `nl_family` in `NlSocket`

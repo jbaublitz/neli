@@ -10,7 +10,11 @@ pub struct Ifinfomsg {
     /// Interface address family
     pub ifi_family: AddrFamily,
     /// Interface type
-    pub ifi_type: Arphrd
+    pub ifi_type: Arphrd,
+    /// Interface index
+    pub ifi_index: libc::c_int,
+    /// Interface flags
+    pub ifi_flags: libc::c_uint,
 }
 
 /// Struct representing route netlink attributes
