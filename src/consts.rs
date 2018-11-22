@@ -42,6 +42,16 @@ macro_rules! impl_var {
             }
         }
 
+        impl<'a> From<&'a $name> for $ty {
+            fn from(v: &'a $name) -> Self {
+                match *v {
+                    $name::$var_def => $val_def,
+                    $( $name::$var => $val, )*
+                    $name::UnrecognizedVariant(i) => i,
+                }
+            }
+        }
+
         impl Nl for $name {
             type SerIn = ();
             type DeIn = ();
@@ -111,7 +121,26 @@ impl_var!(Arphrd, libc::c_ushort,
 /// Values for `ifi_flags` in `rtnl.rs`
 impl_var!(Iff, libc::c_uint,
     Up => libc::IFF_UP as libc::c_uint,
-    Broadcast => libc::IFF_BROADCAST as libc::c_uint
+    Broadcast => libc::IFF_BROADCAST as libc::c_uint,
+    Debug => libc::IFF_DEBUG as libc::c_uint,
+    Loopback => libc::IFF_LOOPBACK as libc::c_uint,
+    Pointopoint => libc::IFF_POINTOPOINT as libc::c_uint,
+    Running => libc::IFF_RUNNING as libc::c_uint,
+    Noarp => libc::IFF_NOARP as libc::c_uint,
+    Promisc => libc::IFF_PROMISC as libc::c_uint,
+    Notrailers => libc::IFF_NOTRAILERS as libc::c_uint,
+    Allmulti => libc::IFF_ALLMULTI as libc::c_uint,
+    Master => libc::IFF_MASTER as libc::c_uint,
+    Slave => libc::IFF_SLAVE as libc::c_uint,
+    Multicast => libc::IFF_MULTICAST as libc::c_uint,
+    Portsel => libc::IFF_PORTSEL as libc::c_uint,
+    Automedia => libc::IFF_AUTOMEDIA as libc::c_uint,
+    Dynamic => libc::IFF_DYNAMIC as libc::c_uint,
+    LowerUp => libc::IFF_LOWER_UP as libc::c_uint,
+    Dormant => libc::IFF_DORMANT as libc::c_uint,
+    Echo => libc::IFF_ECHO as libc::c_uint
+
+    // Possibly more types here - need to look into private flags for interfaces
 );
 
 /// Values for `nl_family` in `NlSocket`
