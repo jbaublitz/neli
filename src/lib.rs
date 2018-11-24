@@ -11,7 +11,6 @@
 extern crate buffering;
 extern crate byteorder;
 extern crate libc;
-#[cfg(feature = "evented")]
 extern crate mio;
 #[cfg(feature = "stream")]
 extern crate tokio;

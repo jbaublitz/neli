@@ -5,5 +5,4 @@ rust:
 script:
   - cargo build
   - cargo build --features=stream
-  - cargo build --features=evented
   - cargo test

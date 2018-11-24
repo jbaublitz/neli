@@ -13,7 +13,6 @@ use std::mem::{zeroed,size_of};
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc::{self,c_int,c_void};
-#[cfg(feature = "evented")]
 use mio::{self,Evented};
 #[cfg(feature = "stream")]
 use tokio::io::AsyncRead;
@@ -28,7 +27,6 @@ use nlattr::Nlattr;
 use nl::Nlmsghdr;
 
 /// Handle for the socket file descriptor
-#[cfg(feature = "evented")]
 pub struct NlSocket<T, P> {
     fd: c_int,
     poll: mio::Poll,
@@ -36,17 +34,8 @@ pub struct NlSocket<T, P> {
     data_payload: PhantomData<P>,
 }
 
-/// Handle for the socket file descriptor
-#[cfg(not(feature = "evented"))]
-pub struct NlSocket<T, P> {
-    fd: c_int,
-    data_type: PhantomData<T>,
-    data_payload: PhantomData<P>,
-}
-
 impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    #[cfg(feature = "evented")]
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
             libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into())
@@ -58,18 +47,6 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         let socket = NlSocket { fd, poll, data_type: PhantomData, data_payload: PhantomData };
         socket.register(&socket.poll, mio::Token(0), mio::Ready::readable(), mio::PollOpt::edge())?;
         Ok(socket)
-    }
-
-    /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    #[cfg(not(feature = "evented"))]
-    pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
-        let fd = match unsafe {
-            libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into())
-        } {
-            i if i >= 0 => Ok(i),
-            _ => Err(io::Error::last_os_error()),
-        }?;
-        Ok(NlSocket { fd, data_type: PhantomData, data_payload: PhantomData })
     }
 
     /// Set underlying socket file descriptor to be blocking
@@ -120,8 +97,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
     /// (`neli::nl::Nlmsghdr`)
-    pub fn send<B>(&mut self, buf: StreamReadBuffer<B>, flags: i32) -> Result<isize, io::Error>
-            where B: AsRef<[u8]> {
+    pub fn send<B>(&mut self, buf: B, flags: i32) -> Result<libc::ssize_t, io::Error> where B: AsRef<[u8]> {
         match unsafe {
             libc::send(self.fd, buf.as_ref() as *const _ as *const c_void, buf.as_ref().len(), flags)
         } {
@@ -134,38 +110,36 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
     pub fn send_nl(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
         msg.serialize(&mut mem)?;
-        self.send(StreamReadBuffer::new(mem), 0)?;
+        self.send(mem, 0)?;
         Ok(())
     }
 
     /// Receive message encoded as byte slice from the netlink socket
-    pub fn recv<'a>(&mut self, mut buf: StreamWriteBuffer<'a>, flags: i32)
-            -> Result<StreamReadBuffer<StreamWriteBuffer<'a>>, io::Error> {
+    pub fn recv<'a, B>(&mut self, mut buf: B, flags: i32) -> Result<libc::ssize_t, io::Error> where B: AsMut<[u8]> {
         match unsafe {
             libc::recv(self.fd, buf.as_mut() as *mut _ as *mut c_void, buf.as_mut().len(), flags)
         } {
-            i if i >= 0 => {
-                buf.set_bytes_written(i as usize)?;
-                Ok(StreamReadBuffer::new(buf))
-            },
+            i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
         }
     }
 
     /// Convenience function to receive an `Nlmsghdr` struct
     pub fn recv_nl(&mut self, buf_sz: Option<usize>) -> Result<Nlmsghdr<T, P>, NlError> {
-        let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
-        let mut mem_read = self.recv(mem_write, 0)?;
-        Ok(Nlmsghdr::<T, P>::deserialize(&mut mem_read)?)
+        let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
+        let mem_read = self.recv(&mut mem, 0)?;
+        mem.truncate(mem_read as usize);
+        Ok(Nlmsghdr::<T, P>::deserialize(&mut StreamReadBuffer::new(mem))?)
     }
 
     /// Convenience function to receive an `Nlmsghdr` struct with function type parameters
     /// that determine deserialization type
     pub fn recv_nl_typed<TT, PP>(&mut self, buf_sz: Option<usize>)
             -> Result<Nlmsghdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
-        let mem_write = StreamWriteBuffer::new_growable(buf_sz.or(Some(MAX_NL_LENGTH)));
-        let mut mem_read = self.recv(mem_write, 0)?;
-        Ok(Nlmsghdr::<TT, PP>::deserialize(&mut mem_read)?)
+        let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
+        let mem_read = self.recv(&mut mem, 0)?;
+        mem.truncate(mem_read as usize);
+        Ok(Nlmsghdr::<TT, PP>::deserialize(&mut StreamReadBuffer::new(mem))?)
     }
 
     /// Consume an ACK and return an error if an ACK is not found
@@ -265,33 +239,29 @@ impl<T, P> AsyncRead for NlSocket<T, P> where T: Nl, P: Nl { }
 #[cfg(feature = "stream")]
 impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
     type Item = Nlmsghdr<T, P>;
-    type Error = ();
+    type Error = io::Error;
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        if !self.is_blocking().map_err(|_| ())? {
-            return Err(());
+        if self.is_blocking()? {
+            self.nonblock()?;
         }
-        let mut mem = StreamWriteBuffer::new_growable(Some(MAX_NL_LENGTH));
-        let bytes_written = match self.poll_read(mem.as_mut()) {
+        let mut mem = vec![0; MAX_NL_LENGTH];
+        let bytes_written = match self.poll_read(mem.as_mut_slice()) {
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
             Ok(Async::Ready(i)) => i,
-            Err(_) => return Err(()),
+            Err(e) => return Err(e),
         };
-        match mem.set_bytes_written(bytes_written) {
-            Ok(()) => (),
-            Err(_) => return Err(()),
-        };
+        mem.truncate(bytes_written);
         let mut mem_read = StreamReadBuffer::new(mem);
         let hdr = match Nlmsghdr::<T, P>::deserialize(&mut mem_read) {
             Ok(h) => h,
-            Err(_) => return Err(()),
+            Err(_) => return Err(io::Error::from(io::ErrorKind::Other)),
         };
         Ok(Async::Ready(Some(hdr)))
     }
 }
 
-#[cfg(feature = "evented")]
 impl<T, P> Evented for NlSocket<T, P> {
     fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
                 opts: mio::PollOpt) -> io::Result<()> {
