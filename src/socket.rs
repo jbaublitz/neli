@@ -1,7 +1,7 @@
 //! # Socket code around `libc`
-//! 
+//!
 //! ## Notes
-//! 
+//!
 //! This module provides a low level one-to-one mapping between `libc` system call wrappers
 //! with defaults specific to netlink sockets as well as a higher level API for simplification
 //! of netlink code.
@@ -13,11 +13,6 @@ use std::mem::{zeroed,size_of};
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc::{self,c_int,c_void};
-use mio::{self,Evented};
-#[cfg(feature = "stream")]
-use tokio::io::AsyncRead;
-#[cfg(feature = "stream")]
-use tokio::prelude::{Async,Stream};
 
 use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
@@ -29,12 +24,11 @@ use nl::Nlmsghdr;
 /// Handle for the socket file descriptor
 pub struct NlSocket<T, P> {
     fd: c_int,
-    poll: mio::Poll,
     data_type: PhantomData<T>,
     data_payload: PhantomData<P>,
 }
 
-impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
+impl<T, P> NlSocket<T, P> {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
@@ -43,10 +37,7 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
         }?;
-        let poll = mio::Poll::new()?;
-        let socket = NlSocket { fd, poll, data_type: PhantomData, data_payload: PhantomData };
-        socket.register(&socket.poll, mio::Token(0), mio::Ready::readable(), mio::PollOpt::edge())?;
-        Ok(socket)
+        Ok(NlSocket { fd, data_type: PhantomData, data_payload: PhantomData })
     }
 
     /// Set underlying socket file descriptor to be blocking
@@ -106,14 +97,6 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         }
     }
 
-    /// Convenience function to send an `Nlmsghdr` struct
-    pub fn send_nl(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> {
-        let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
-        msg.serialize(&mut mem)?;
-        self.send(mem, 0)?;
-        Ok(())
-    }
-
     /// Receive message encoded as byte slice from the netlink socket
     pub fn recv<'a, B>(&mut self, mut buf: B, flags: i32) -> Result<libc::ssize_t, io::Error> where B: AsMut<[u8]> {
         match unsafe {
@@ -122,6 +105,24 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
         }
+    }
+
+    /// Equivalent of `socket` and `bind` calls.
+    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Vec<u32>)
+                   -> Result<Self, io::Error> {
+        let mut s = try!(NlSocket::new(proto));
+        try!(s.bind(pid, groups));
+        Ok(s)
+    }
+}
+
+impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
+    /// Convenience function to send an `Nlmsghdr` struct
+    pub fn send_nl(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> {
+        let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
+        msg.serialize(&mut mem)?;
+        self.send(mem, 0)?;
+        Ok(())
     }
 
     /// Convenience function to receive an `Nlmsghdr` struct
@@ -150,14 +151,6 @@ impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
         } else {
             Err(NlError::NoAck)
         }
-    }
-
-    /// Equivalent of `socket` and `bind` calls.
-    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Vec<u32>)
-                   -> Result<Self, io::Error> {
-        let mut s = try!(NlSocket::new(proto));
-        try!(s.bind(pid, groups));
-        Ok(s)
     }
 }
 
@@ -222,7 +215,7 @@ impl<T, P> IntoRawFd for NlSocket<T, P> {
     }
 }
 
-impl<T, P> io::Read for NlSocket<T, P> where T: Nl, P: Nl {
+impl<T, P> io::Read for NlSocket<T, P> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match unsafe {
             libc::recv(self.fd, buf as *mut _ as *mut c_void, buf.len(), 0)
@@ -233,48 +226,76 @@ impl<T, P> io::Read for NlSocket<T, P> where T: Nl, P: Nl {
     }
 }
 
+/// Tokio-specific features for neli
 #[cfg(feature = "stream")]
-impl<T, P> AsyncRead for NlSocket<T, P> where T: Nl, P: Nl { }
+pub mod tokio {
+    use super::*;
 
-#[cfg(feature = "stream")]
-impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
-    type Item = Nlmsghdr<T, P>;
-    type Error = io::Error;
+    use std::io::{ErrorKind,Read};
 
-    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        if self.is_blocking()? {
-            self.nonblock()?;
+    use mio::{self,Evented,Ready};
+    use tokio::prelude::{Async,Stream};
+    use tokio::reactor::PollEvented2;
+
+    /// Tokio-enabled Netlink socket struct
+    pub struct NlSocket<T, P>(PollEvented2<super::NlSocket<T, P>>);
+
+    impl<T, P> NlSocket<T, P> {
+        /// Setup NlSocket for use with tokio - set to nonblocking state and wrap in polling mechanism
+        pub fn new(mut sock: super::NlSocket<T, P>) -> io::Result<Self> {
+            if sock.is_blocking()? {
+                sock.nonblock()?;
+            }
+            Ok(NlSocket(PollEvented2::new(sock)))
         }
-        let mut mem = vec![0; MAX_NL_LENGTH];
-        let bytes_written = match self.poll_read(mem.as_mut_slice()) {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
-            Ok(Async::Ready(i)) => i,
-            Err(e) => return Err(e),
-        };
-        mem.truncate(bytes_written);
-        let mut mem_read = StreamReadBuffer::new(mem);
-        let hdr = match Nlmsghdr::<T, P>::deserialize(&mut mem_read) {
-            Ok(h) => h,
-            Err(_) => return Err(io::Error::from(io::ErrorKind::Other)),
-        };
-        Ok(Async::Ready(Some(hdr)))
-    }
-}
-
-impl<T, P> Evented for NlSocket<T, P> {
-    fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
-                opts: mio::PollOpt) -> io::Result<()> {
-        poll.register(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
     }
 
-    fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
-                  opts: mio::PollOpt) -> io::Result<()> {
-        poll.reregister(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
+    impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
+        type Item = Nlmsghdr<T, P>;
+        type Error = io::Error;
+
+        fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+            self.0.poll_read_ready(Ready::readable())?;
+
+            let mut mem = vec![0; MAX_NL_LENGTH];
+            let bytes_written = match self.0.read(mem.as_mut_slice()) {
+                Ok(i) if i > 0 => i,
+                Ok(i) if i == 0 => return Ok(Async::Ready(None)),
+                Ok(_) => {
+                    match io::Error::last_os_error().kind() {
+                        ErrorKind::WouldBlock => {
+                            self.0.clear_read_ready(Ready::readable())?;
+                            return Ok(Async::NotReady);
+                        },
+                        e => return Err(io::Error::from(e)),
+                    }
+                },
+                Err(e) => return Err(e),
+            };
+            mem.truncate(bytes_written);
+            let mut mem_read = StreamReadBuffer::new(mem);
+            let hdr = match Nlmsghdr::<T, P>::deserialize(&mut mem_read) {
+                Ok(h) => h,
+                Err(_) => return Err(io::Error::from(io::ErrorKind::Other)),
+            };
+            Ok(Async::Ready(Some(hdr)))
+        }
     }
 
-    fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
-        poll.deregister(&mio::unix::EventedFd(&self.as_raw_fd()))
+    impl<T, P> Evented for super::NlSocket<T, P> {
+        fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
+                    opts: mio::PollOpt) -> io::Result<()> {
+            poll.register(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
+        }
+
+        fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
+                      opts: mio::PollOpt) -> io::Result<()> {
+            poll.reregister(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
+        }
+
+        fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
+            poll.deregister(&mio::unix::EventedFd(&self.as_raw_fd()))
+        }
     }
 }
 
