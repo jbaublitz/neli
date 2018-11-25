@@ -234,7 +234,7 @@ pub mod tokio {
     use std::io::{ErrorKind,Read};
 
     use mio::{self,Evented,Ready};
-    use tokio::prelude::{Async,Stream};
+    use tokio::prelude::{Async,AsyncRead,Stream};
     use tokio::reactor::PollEvented2;
 
     /// Tokio-enabled Netlink socket struct
@@ -250,27 +250,37 @@ pub mod tokio {
         }
     }
 
+    impl<T, P> Read for NlSocket<T, P> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.get_mut().read(buf)
+        }
+    }
+
+    impl<T, P> AsyncRead for NlSocket<T, P> {}
+
     impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
         type Item = Nlmsghdr<T, P>;
         type Error = io::Error;
 
         fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-            self.0.poll_read_ready(Ready::readable())?;
+            let readiness = self.0.poll_read_ready(Ready::readable())?;
+            match readiness {
+                Async::NotReady => return Ok(Async::NotReady),
+                Async::Ready(_) => (),
+            }
 
             let mut mem = vec![0; MAX_NL_LENGTH];
-            let bytes_written = match self.0.read(mem.as_mut_slice()) {
-                Ok(i) if i > 0 => i,
-                Ok(i) if i == 0 => return Ok(Async::Ready(None)),
-                Ok(_) => {
-                    match io::Error::last_os_error().kind() {
-                        ErrorKind::WouldBlock => {
-                            self.0.clear_read_ready(Ready::readable())?;
-                            return Ok(Async::NotReady);
-                        },
-                        e => return Err(io::Error::from(e)),
+            let bytes_written = match self.read(mem.as_mut_slice()) {
+                Ok(0) => return Ok(Async::Ready(None)),
+                Ok(i) => i,
+                Err(e) => {
+                    if e.kind() == ErrorKind::WouldBlock {
+                        self.0.clear_read_ready(Ready::readable())?;
+                        return Ok(Async::NotReady);
+                    } else {
+                        return Err(e);
                     }
-                },
-                Err(e) => return Err(e),
+                }
             };
             mem.truncate(bytes_written);
             let mut mem_read = StreamReadBuffer::new(mem);
