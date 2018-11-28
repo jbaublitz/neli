@@ -326,18 +326,4 @@ mod test {
     fn test_socket_creation() {
        NlSocket::<Nlmsg, Genlmsghdr<CtrlCmd>>::connect(NlFamily::Generic, None, Vec::new()).unwrap();
     }
-
-    #[ignore]
-    #[test]
-    fn test_genl_family_resolve() {
-        let mut sock = NlSocket::new_genl().unwrap();
-        assert_eq!(19, sock.resolve_genl_family("nl80211").unwrap());
-    }
-
-    #[ignore]
-    #[test]
-    fn test_nl_mcast_group_resolve() {
-        let mut sock = NlSocket::new_genl().unwrap();
-        assert_eq!(5, sock.resolve_nl_mcast_group("nl80211", "mlme").unwrap());
-    }
 }

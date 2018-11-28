@@ -43,6 +43,26 @@ impl Nl for Ifinfomsg {
         Ok(())
     }
 
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+        Ok(Ifinfomsg {
+            ifi_family: AddrFamily::deserialize(buf)?,
+            ifi_type: Arphrd::deserialize(buf)?,
+            ifi_index: libc::c_int::deserialize(buf)?,
+            ifi_flags: {
+                let flags = libc::c_uint::deserialize(buf)?;
+                let mut nl_flags = Vec::new();
+                for i in 0..mem::size_of::<libc::c_int>() * 8 {
+                    let bit = 1 << i;
+                    if bit & flags == bit {
+                        nl_flags.push(bit.into());
+                    }
+                }
+                nl_flags
+            },
+            ifi_change: 0xffffffff,
+        })
+    }
+
     fn size(&self) -> usize {
         self.ifi_family.size() + self.ifi_type.size() + self.ifi_index.size() + mem::size_of::<libc::c_uint>()
     }

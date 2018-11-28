@@ -53,7 +53,7 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: Nl, P: Nl {
         self.nl_len.serialize(mem)?;
         self.nl_type.serialize(mem)?;
         let val = self.nl_flags.iter().fold(0, |acc: u16, val| {
-            let v: u16 = val.clone().into();
+            let v: u16 = val.into();
             acc | v
         });
         val.serialize(mem)?;
