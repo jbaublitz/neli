@@ -4,7 +4,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::{Arphrd,AddrFamily,Iff};
+use consts::{Af,Arphrd,AddrFamily,Iff};
 use err::{SerError,DeError};
 
 /// Struct representing interface information messages
@@ -65,6 +65,49 @@ impl Nl for Ifinfomsg {
 
     fn size(&self) -> usize {
         self.ifi_family.size() + self.ifi_type.size() + self.ifi_index.size() + mem::size_of::<libc::c_uint>()
+    }
+}
+
+/// Struct representing interface address messages
+pub struct Ifaddrmsg {
+    /// Interface address family
+    pub ifa_family: Af,
+    /// Interface address prefix length 
+    pub ifa_prefixlen: libc::c_uchar,
+    /// Interface address flags
+    pub ifa_flags: libc::c_uchar,
+    /// Interface address scope
+    pub ifa_scope: libc::c_uchar,
+    /// Interface address index
+    pub ifa_index: libc::c_int,
+}
+
+impl Nl for Ifaddrmsg {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.ifa_family.serialize(buf)?;
+        self.ifa_prefixlen.serialize(buf)?;
+        self.ifa_flags.serialize(buf)?;
+        self.ifa_scope.serialize(buf)?;
+        self.ifa_index.serialize(buf)?;
+        Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+        Ok(Ifaddrmsg {
+            ifa_family: Af::deserialize(buf)?,
+            ifa_prefixlen: libc::c_uchar::deserialize(buf)?,
+            ifa_flags: libc::c_uchar::deserialize(buf)?,
+            ifa_scope: libc::c_uchar::deserialize(buf)?,
+            ifa_index: libc::c_int::deserialize(buf)?,
+        })
+    }
+
+    fn size(&self) -> usize {
+        self.ifa_family.size() + self.ifa_prefixlen.size() + self.ifa_flags.size()
+            + self.ifa_scope.size() + self.ifa_index.size()
     }
 }
 

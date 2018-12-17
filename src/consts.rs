@@ -79,6 +79,11 @@ pub fn alignto(len: usize) -> usize {
     (len + libc::NLA_ALIGNTO as usize - 1) & !(libc::NLA_ALIGNTO as usize - 1)
 }
 
+impl_var!(Af, libc::c_uchar,
+    Inet => libc::AF_INET as libc::c_uchar,
+    Inet6 => libc::AF_INET6 as libc::c_uchar
+);
+
 /// Address families for sockets
 impl_var!(AddrFamily, libc::c_int,
     UnixOrLocal => libc::AF_UNIX,

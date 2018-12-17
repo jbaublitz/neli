@@ -13,7 +13,6 @@ include = [
 ]
 
 [dependencies]
-buffering = { git = "https://github.com/jbaublitz/buffering", version = "0.3.0" }
 byteorder = "1.2"
 libc = "0.2.43"
 mio = "0.6"
@@ -21,6 +20,10 @@ mio = "0.6"
 [dependencies.tokio]
 version = "0.1"
 optional = true
+
+[dependencies.buffering]
+version = "0.3.0"
+features = ["copy"]
 
 [features]
 default = []
