@@ -99,6 +99,24 @@ impl_var!(AddrFamily, libc::c_int,
     Alg => libc::AF_ALG
 );
 
+impl_var!(IfaF, u32,
+    Secondary => libc::IFA_F_SECONDARY,
+    Temporary => libc::IFA_F_TEMPORARY,
+    Nodad => libc::IFA_F_NODAD,
+    Optimistic => libc::IFA_F_OPTIMISTIC,
+    Dadfailed => libc::IFA_F_DADFAILED,
+    Homeaddress => libc::IFA_F_HOMEADDRESS,
+    Deprecated => libc::IFA_F_DEPRECATED,
+    Tentative => libc::IFA_F_TENTATIVE,
+    Permanent => libc::IFA_F_PERMANENT
+);
+
+impl_var!(RtmF, libc::c_uint,
+    Notify => libc::RTM_F_NOTIFY,
+    Cloned => libc::RTM_F_CLONED,
+    Equalize => libc::RTM_F_EQUALIZE
+);
+
 /// Interface types
 impl_var!(Arphrd, libc::c_ushort,
     Netrom => libc::ARPHRD_NETROM,
