@@ -16,7 +16,7 @@ use libc::{self,c_int,c_void};
 
 use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
-use consts::{self,AddrFamily,NlFamily,GenlId,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,NlmF};
+use consts::{self,AddrFamily,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,GenlId,NlmF,NlFamily,NlType};
 use genl::Genlmsghdr;
 use nlattr::Nlattr;
 use nl::Nlmsghdr;
@@ -28,7 +28,7 @@ pub struct NlSocket<T, P> {
     data_payload: PhantomData<P>,
 }
 
-impl<T, P> NlSocket<T, P> {
+impl<T, P> NlSocket<T, P> where T: NlType {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd = match unsafe {
@@ -116,7 +116,7 @@ impl<T, P> NlSocket<T, P> {
     }
 }
 
-impl<T, P> NlSocket<T, P> where T: Nl, P: Nl {
+impl<T, P> NlSocket<T, P> where T: Nl + NlType, P: Nl {
     /// Convenience function to send an `Nlmsghdr` struct
     pub fn send_nl(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));

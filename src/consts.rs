@@ -6,6 +6,7 @@ use libc;
 use Nl;
 use err::{SerError,DeError};
 
+#[macro_export]
 macro_rules! impl_var {
     ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
       $( $var:ident => $val:expr ),* ) => (
@@ -74,11 +75,34 @@ macro_rules! impl_var {
     );
 }
 
+#[macro_export]
+macro_rules! impl_trait {
+    ( $trait_name:ident ) => (
+        #[allow(missing_docs)]
+        pub trait $trait_name {}
+    );
+    ( $trait_name:ident, $addditional_traits:ty ) => (
+        #[allow(missing_docs)]
+        pub trait $trait_name: From<$addditional_traits> + Into<$addditional_traits> {}
+    );
+}
+
+#[macro_export]
+macro_rules! impl_var_trait {
+    ( $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
+      $( $var:ident => $val:expr ),* ) => (
+        impl_var!( $name, $ty, $var_def => $val_def, $( $var => $val ),* );
+
+        impl $impl_name for $name {}
+    );
+}
+
 /// Reimplementation of alignto macro in C
 pub fn alignto(len: usize) -> usize {
     (len + libc::NLA_ALIGNTO as usize - 1) & !(libc::NLA_ALIGNTO as usize - 1)
 }
 
+/// Address families
 impl_var!(Af, libc::c_uchar,
     Inet => libc::AF_INET as libc::c_uchar,
     Inet6 => libc::AF_INET6 as libc::c_uchar
@@ -117,7 +141,10 @@ impl_var!(RtmF, libc::c_uint,
     Equalize => libc::RTM_F_EQUALIZE
 );
 
-impl_var!(Ifla, libc::c_ushort,
+impl_trait!(RtaType, libc::c_ushort);
+
+/// Enum for use with `RtAttr.rta_type`
+impl_var_trait!(Ifla, libc::c_ushort, RtaType,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
     Broadcast => libc::IFLA_BROADCAST,
@@ -202,12 +229,22 @@ impl_var!(NlFamily, libc::c_int,
     Crypto => libc::NETLINK_CRYPTO
 );
 
-/// Values for `nl_type` in `NlHdr`
-impl_var!(Nlmsg, u16,
+/// Trait marking constants valid for use in `Nlmsghdr.nl_type`
+impl_trait!(NlType, u16);
+
+/// Values for `nl_type` in `Nlmsghdr`
+impl_var_trait!(Nlmsg, u16, NlType,
     Noop => libc::NLMSG_NOOP as u16,
     Error => libc::NLMSG_ERROR as u16,
     Done => libc::NLMSG_DONE as u16,
     Overrun => libc::NLMSG_OVERRUN as u16
+);
+
+/// Values for `nl_type` in `Nlmsghdr`
+impl_var_trait!(GenlId, u16, NlType,
+    Ctrl => libc::GENL_ID_CTRL as u16,
+    VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
+    Pmcraid => libc::GENL_ID_PMCRAID as u16 
 );
 
 /// Values for `nl_flags` in `NlHdr`
@@ -226,12 +263,6 @@ impl_var!(NlmF, u16,
     Excl => libc::NLM_F_EXCL as u16,
     Create => libc::NLM_F_CREATE as u16,
     Append => libc::NLM_F_APPEND as u16
-);
-
-impl_var!(GenlId, u16,
-    Ctrl => libc::GENL_ID_CTRL as u16,
-    VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
-    Pmcraid => libc::GENL_ID_PMCRAID as u16 
 );
 
 /// Values for `cmd` in `GenlHdr`

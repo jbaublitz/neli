@@ -4,7 +4,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,RtmF};
+use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,RtaType,RtmF};
 use err::{SerError,DeError};
 
 /// Struct representing interface information messages
@@ -181,7 +181,7 @@ pub struct RtAttr<T> {
     pub rta_type: T,
 }
 
-impl<T> Nl for RtAttr<T> where T: Nl + Into<libc::c_ushort> {
+impl<T> Nl for RtAttr<T> where T: Nl + RtaType {
     type SerIn = ();
     type DeIn = ();
 
