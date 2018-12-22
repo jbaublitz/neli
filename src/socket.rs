@@ -240,7 +240,7 @@ pub mod tokio {
     /// Tokio-enabled Netlink socket struct
     pub struct NlSocket<T, P>(PollEvented2<super::NlSocket<T, P>>);
 
-    impl<T, P> NlSocket<T, P> {
+    impl<T, P> NlSocket<T, P> where T: NlType {
         /// Setup NlSocket for use with tokio - set to nonblocking state and wrap in polling mechanism
         pub fn new(mut sock: super::NlSocket<T, P>) -> io::Result<Self> {
             if sock.is_blocking()? {
