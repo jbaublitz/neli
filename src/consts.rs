@@ -117,6 +117,17 @@ impl_var!(RtmF, libc::c_uint,
     Equalize => libc::RTM_F_EQUALIZE
 );
 
+impl_var!(Ifla, libc::c_ushort,
+    Unspec => libc::IFLA_UNSPEC,
+    Address => libc::IFLA_ADDRESS,
+    Broadcast => libc::IFLA_BROADCAST,
+    Ifname => libc::IFLA_IFNAME,
+    Mtu => libc::IFLA_MTU,
+    Link => libc::IFLA_LINK,
+    Qdisc => libc::IFLA_QDISC,
+    Stats => libc::IFLA_STATS
+);
+
 /// Interface types
 impl_var!(Arphrd, libc::c_ushort,
     Netrom => libc::ARPHRD_NETROM,

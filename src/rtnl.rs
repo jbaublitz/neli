@@ -174,14 +174,14 @@ impl Nl for Rtmsg {
 }
 
 /// Struct representing route netlink attributes
-pub struct RtAttr {
+pub struct RtAttr<T> {
     /// Length of the attribute
     pub rta_len: libc::c_ushort,
     /// Type of the attribute
-    pub rta_type: libc::c_ushort,
+    pub rta_type: T,
 }
 
-impl Nl for RtAttr {
+impl<T> Nl for RtAttr<T> where T: Nl + Into<libc::c_ushort> {
     type SerIn = ();
     type DeIn = ();
 
@@ -194,7 +194,7 @@ impl Nl for RtAttr {
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         Ok(RtAttr {
             rta_len: libc::c_ushort::deserialize(buf)?,
-            rta_type: libc::c_ushort::deserialize(buf)?,
+            rta_type: T::deserialize(buf)?,
         })
     }
 
