@@ -136,7 +136,7 @@ impl<T, P> NlSocket<T, P> where T: Nl + NlType, P: Nl {
     /// Convenience function to receive an `Nlmsghdr` struct with function type parameters
     /// that determine deserialization type
     pub fn recv_nl_typed<TT, PP>(&mut self, buf_sz: Option<usize>)
-            -> Result<Nlmsghdr<TT, PP>, NlError> where TT: Nl + Into<u16> + From<u16>, PP: Nl {
+            -> Result<Nlmsghdr<TT, PP>, NlError> where TT: NlType, PP: Nl {
         let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
         let mem_read = self.recv(&mut mem, 0)?;
         mem.truncate(mem_read as usize);
@@ -258,7 +258,7 @@ pub mod tokio {
 
     impl<T, P> AsyncRead for NlSocket<T, P> {}
 
-    impl<T, P> Stream for NlSocket<T, P> where T: Nl, P: Nl {
+    impl<T, P> Stream for NlSocket<T, P> where T: NlType, P: Nl {
         type Item = Nlmsghdr<T, P>;
         type Error = io::Error;
 

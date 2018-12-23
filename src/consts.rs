@@ -79,11 +79,11 @@ macro_rules! impl_var {
 macro_rules! impl_trait {
     ( $trait_name:ident ) => (
         #[allow(missing_docs)]
-        pub trait $trait_name {}
+        pub trait $trait_name: Nl {}
     );
-    ( $trait_name:ident, $addditional_traits:ty ) => (
+    ( $trait_name:ident, $to_from_ty:ty ) => (
         #[allow(missing_docs)]
-        pub trait $trait_name: From<$addditional_traits> + Into<$addditional_traits> {}
+        pub trait $trait_name: Nl + From<$to_from_ty> + Into<$to_from_ty> {}
     );
 }
 

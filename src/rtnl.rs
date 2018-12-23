@@ -181,7 +181,7 @@ pub struct RtAttr<T> {
     pub rta_type: T,
 }
 
-impl<T> Nl for RtAttr<T> where T: Nl + RtaType {
+impl<T> Nl for RtAttr<T> where T: RtaType {
     type SerIn = ();
     type DeIn = ();
 

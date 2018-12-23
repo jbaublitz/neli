@@ -11,6 +11,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use Nl;
 use nl::{Nlmsghdr,NlEmpty};
+use consts::NlType;
 
 macro_rules! try_err_compat {
     ( $err_name:ident, $( $from_err_name:path ),* ) => {
@@ -32,7 +33,7 @@ pub struct Nlmsgerr<T> {
     pub nlmsg: Nlmsghdr<T, NlEmpty>,
 }
 
-impl<T> Nl for Nlmsgerr<T> where T: Into<u16> + From<u16> + Nl {
+impl<T> Nl for Nlmsgerr<T> where T: NlType {
     type SerIn = ();
     type DeIn = ();
 

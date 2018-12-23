@@ -9,7 +9,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use Nl;
 use err::{SerError,DeError};
-use consts::NlmF;
+use consts::{NlmF,NlType};
 
 /// Top level netlink header and payload
 #[derive(Debug,PartialEq)]
@@ -28,7 +28,7 @@ pub struct Nlmsghdr<T, P> {
     pub nl_payload: P,
 }
 
-impl<T, P> Nlmsghdr<T, P> where T: Nl + Into<u16> + From<u16>, P: Nl {
+impl<T, P> Nlmsghdr<T, P> where T: NlType, P: Nl {
     /// Create a new top level netlink packet with a payload
     pub fn new(nl_len: Option<u32>, nl_type: T, nl_flags: Vec<NlmF>,
            nl_seq: Option<u32>, nl_pid: Option<u32>, nl_payload: P) -> Self {
@@ -45,7 +45,7 @@ impl<T, P> Nlmsghdr<T, P> where T: Nl + Into<u16> + From<u16>, P: Nl {
     }
 }
 
-impl<T, P> Nl for Nlmsghdr<T, P> where T: Nl, P: Nl {
+impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
     type SerIn = ();
     type DeIn = ();
 
@@ -86,7 +86,7 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: Nl, P: Nl {
     }
 
     fn size(&self) -> usize {
-        self.nl_len.size() + self.nl_type.size() + mem::size_of::<u16>()
+        self.nl_len.size() + <T as Nl>::size(&self.nl_type) + mem::size_of::<u16>()
             + self.nl_seq.size() + self.nl_pid.size() + self.nl_payload.size()
     }
 }
