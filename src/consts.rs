@@ -1,3 +1,45 @@
+//! # High level notes
+//!
+//! There are a few important things to note in this module.
+//!
+//! * The macros are exported - you can use them too!
+//!   * `impl_var` is for naming a new enum, passing in what type it serializes to and deserializes
+//!     from, and providing a mapping from variants to expressions (such as libc consts) that
+//!     will ultimately be used in the serialization/deserialization step when sending the netlink
+//!     message over the wire.
+//!   * `impl_var_trait` is for flagging a new enum as usable in a field that is a generic type.
+//!     This way, the type can be constrained when the impl is provided to only accept enums that
+//!     implement the marker trait that corresponds to the given marker trait. The current
+//!     convention is to use `impl_trait` to create the trait with the name of the field that
+//!     is the generic type and then use `impl_var_trait` to flag the new enum as usable in
+//!     this field. See the examples below for more details.
+//!   * `impl_trait` is for implementing a marker trait with the appropriate trait constraints
+//!     on the newly implemented trait. It accepts a name and a type for serialization and
+//!     deserialization conversions.
+//!
+//! # Design decisions
+//!
+//! * Macros are exported so that these conventions are extensible and usable for data types
+//!   implemented by the user in the case of new netlink families (which is supported by the
+//!   protocol). In this case, there is no way in which I can support every custom netlink family
+//!   but my aim is to make this library as flexible as possible so that it is painless to hook
+//!   your custom netlink data type into the existing library support.
+//! * Enums are used so that:
+//!   * Values can be checked based on a finite number of inputs as opposed to the range of
+//!     whatever integer data type C defines as the struct member type. This hopefully makes it
+//!     easier to catch garbage responses and corruption when an invalid netlink message is sent to
+//!     the kernel.
+//!   * Only the enum or an enum implementing a marker trait in the case of generics can be used
+//!     in the appropriate places when constructing netlink messages. This takes guess work out
+//!     of which constants can be used where. Netlink documentation is not always complete
+//!     and sometimes takes a bit of trial and error actually sending messages to the kernel
+//!     to figure out if you are using the correct constants. This setup should let you know at
+//!     compile time if you are doing something you should not be doing.
+//! * `UnrecognizedVariant` is included in each enum because completeness cannot be guaranteed for
+//!   every constant for every protocol. This allows you to inspect the integer value returned
+//!   and if you are sure that it is correct, you can use it. If it is a garbage value, this can
+//!   also be useful for error reporting.
+
 use std::mem;
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
@@ -77,10 +119,6 @@ macro_rules! impl_var {
 
 #[macro_export]
 macro_rules! impl_trait {
-    ( $trait_name:ident ) => (
-        #[allow(missing_docs)]
-        pub trait $trait_name: Nl {}
-    );
     ( $trait_name:ident, $to_from_ty:ty ) => (
         #[allow(missing_docs)]
         pub trait $trait_name: Nl + From<$to_from_ty> + Into<$to_from_ty> {}
@@ -265,7 +303,7 @@ impl_var_trait!(Nlmsg, u16, NlType,
 impl_var_trait!(GenlId, u16, NlType,
     Ctrl => libc::GENL_ID_CTRL as u16,
     VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
-    Pmcraid => libc::GENL_ID_PMCRAID as u16 
+    Pmcraid => libc::GENL_ID_PMCRAID as u16
 );
 
 /// Values for `nl_flags` in `NlHdr`
