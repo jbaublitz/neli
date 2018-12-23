@@ -132,15 +132,23 @@ impl_var!(IfaF, u32,
     Homeaddress => libc::IFA_F_HOMEADDRESS,
     Deprecated => libc::IFA_F_DEPRECATED,
     Tentative => libc::IFA_F_TENTATIVE,
-    Permanent => libc::IFA_F_PERMANENT
+    Permanent => libc::IFA_F_PERMANENT,
+    Managetempaddr => libc::IFA_F_MANAGETEMPADDR,
+    Noprefixroute => libc::IFA_F_NOPREFIXROUTE,
+    Mcautojoin => libc::IFA_F_MCAUTOJOIN,
+    StablePrivacy => libc::IFA_F_STABLE_PRIVACY
 );
 
 impl_var!(RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,
-    Equalize => libc::RTM_F_EQUALIZE
+    Equalize => libc::RTM_F_EQUALIZE,
+    Prefix => libc::RTM_F_PREFIX,
+    LookupTable => libc::RTM_F_LOOKUP_TABLE,
+    FibMatch => libc::RTM_F_FIB_MATCH
 );
 
+/// Marker trait for `RtAttr.rta_type` field
 impl_trait!(RtaType, libc::c_ushort);
 
 /// Enum for use with `RtAttr.rta_type`
@@ -153,6 +161,19 @@ impl_var_trait!(Ifla, libc::c_ushort, RtaType,
     Link => libc::IFLA_LINK,
     Qdisc => libc::IFLA_QDISC,
     Stats => libc::IFLA_STATS
+);
+
+/// Enum for use with `RtAttr.rta_type`
+impl_var_trait!(Ifa, libc::c_ushort, RtaType,
+    Unspec => libc::IFA_UNSPEC,
+    Address => libc::IFA_ADDRESS,
+    Local => libc::IFA_LOCAL,
+    Label => libc::IFA_LABEL,
+    Broadcast => libc::IFA_BROADCAST,
+    Anycast => libc::IFA_ANYCAST,
+    Cacheinfo => libc::IFA_CACHEINFO,
+    Multicast => libc::IFA_MULTICAST,
+    Flags => libc::IFA_FLAGS
 );
 
 /// Interface types

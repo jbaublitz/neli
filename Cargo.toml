@@ -18,7 +18,7 @@ mio = "0.6"
 
 [dependencies.libc]
 git = "https://github.com/jbaublitz/libc"
-branch = "if_addr_pr"
+branch = "nl_consts_pr"
 version = "0.2.43"
 
 [dependencies.tokio]
