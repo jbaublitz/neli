@@ -177,6 +177,37 @@ impl_var!(IfaF, u32,
     StablePrivacy => libc::IFA_F_STABLE_PRIVACY
 );
 
+impl_var!(Rtn, libc::c_uchar,
+    Unspec => libc::RTN_UNSPEC,
+    Unicast => libc::RTN_UNICAST,
+    Local => libc::RTN_LOCAL,
+    Broadcast => libc::RTN_BROADCAST,
+    Anycast => libc::RTN_ANYCAST,
+    Multicast => libc::RTN_MULTICAST,
+    Blackhole => libc::RTN_BLACKHOLE,
+    Unreachable => libc::RTN_UNREACHABLE,
+    Prohibit => libc::RTN_PROHIBIT,
+    Throw => libc::RTN_THROW,
+    Nat => libc::RTN_NAT,
+    Xresolve => libc::RTN_XRESOLVE
+);
+
+impl_var!(Rtprot, libc::c_uchar,
+    Unspec => libc::RTPROT_UNSPEC,
+    Redirect => libc::RTPROT_REDIRECT,
+    Kernel => libc::RTPROT_KERNEL,
+    Boot => libc::RTPROT_BOOT,
+    Static => libc::RTPROT_STATIC
+);
+
+impl_var!(RtScope, libc::c_uchar,
+    Universe => libc::RT_SCOPE_UNIVERSE,
+    Site => libc::RT_SCOPE_SITE,
+    Link => libc::RT_SCOPE_LINK,
+    Host => libc::RT_SCOPE_HOST,
+    Nowhere => libc::RT_SCOPE_NOWHERE
+);
+
 impl_var!(RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,

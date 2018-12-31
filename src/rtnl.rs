@@ -4,7 +4,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,RtaType,RtmF};
+use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,RtaType,RtmF,Rtn,Rtprot,RtScope};
 use err::{SerError,DeError};
 
 /// Struct representing interface information messages
@@ -137,11 +137,11 @@ pub struct Rtmsg {
     /// Routing table ID
     pub rtm_table: libc::c_uchar,
     /// Routing protocol
-    pub rtm_protocol: libc::c_uchar,
+    pub rtm_protocol: Rtprot,
     /// Routing scope
-    pub rtm_scope: libc::c_uchar,
+    pub rtm_scope: RtScope,
     /// Routing type
-    pub rtm_type: libc::c_uchar,
+    pub rtm_type: Rtn,
     /// Routing flags
     pub rtm_flags: Vec<RtmF>,
 }
