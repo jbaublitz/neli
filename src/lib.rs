@@ -44,7 +44,10 @@ use err::{SerError,DeError};
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
 
-/// Trait defining basic actions required for netlink communication
+/// Trait defining basic actions required for netlink communication.
+/// Implementations for basic and `neli`'s types are provided (see below). Create new
+/// implementations if you have to work with a Netlink API that uses
+/// values of more unusual types.
 pub trait Nl: Sized {
     /// Serialization input type for stateful serialization - set to `()` for stateless
     /// serialization
