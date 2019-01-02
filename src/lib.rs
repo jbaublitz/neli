@@ -44,7 +44,10 @@ use err::{SerError,DeError};
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
 
-/// Trait defining basic actions required for netlink communication
+/// Trait defining basic actions required for netlink communication.
+/// Implementations for basic and `neli`'s types are provided (see below). Create new
+/// implementations if you have to work with a Netlink API that uses
+/// values of more unusual types.
 pub trait Nl: Sized {
     /// Serialization input type for stateful serialization - set to `()` for stateless
     /// serialization
@@ -147,6 +150,24 @@ impl Nl for i32 {
 
     fn size(&self) -> usize {
         mem::size_of::<i32>()
+    }
+}
+
+impl Nl for u64 {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        mem.write_u64::<NativeEndian>(*self)?;
+        Ok(())
+    }
+
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+        Ok(mem.read_u64::<NativeEndian>()?)
+    }
+
+    fn size(&self) -> usize {
+        mem::size_of::<u64>()
     }
 }
 
@@ -363,6 +384,33 @@ mod test {
             u32::deserialize(&mut mem).unwrap()
         };
         assert_eq!(v, 600000)
+    }
+
+    #[test]
+    fn test_nl_u64() {
+        let test_int: u64 = 12345678901234;
+        let expected_serial: &mut [u8] = &mut [0; 8];
+        {
+            let mut c = Cursor::new(&mut *expected_serial);
+            c.write_u64::<NativeEndian>(test_int).unwrap();
+        }
+        let test_serial = &mut [0; 8];
+        {
+            let mut mem = StreamWriteBuffer::new_sized(test_serial);
+            test_int.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(expected_serial, test_serial);
+
+        let buffer: &mut [u8] = &mut [0; 8];
+        {
+            let mut c = Cursor::new(&mut *buffer);
+            c.write_u64::<NativeEndian>(test_int).unwrap();
+        }
+        let deserialed_int = {
+            let mut mem = StreamReadBuffer::new(&*buffer);
+            u64::deserialize(&mut mem).unwrap()
+        };
+        assert_eq!(test_int, deserialed_int);
     }
 
     #[test]
