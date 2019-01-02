@@ -208,6 +208,14 @@ impl_var!(RtScope, libc::c_uchar,
     Nowhere => libc::RT_SCOPE_NOWHERE
 );
 
+impl_var!(RtTable, libc::c_uchar,
+    Unspec => libc::RT_TABLE_UNSPEC,
+    Compat => libc::RT_TABLE_COMPAT,
+    Default => libc::RT_TABLE_DEFAULT,
+    Main => libc::RT_TABLE_MAIN,
+    Local => libc::RT_TABLE_LOCAL
+);
+
 impl_var!(RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,
@@ -243,6 +251,37 @@ impl_var_trait!(Ifa, libc::c_ushort, RtaType,
     Cacheinfo => libc::IFA_CACHEINFO,
     Multicast => libc::IFA_MULTICAST,
     Flags => libc::IFA_FLAGS
+);
+
+/// Enum for use with `RtAttr.rta_type`
+impl_var_trait!(Rta, libc::c_ushort, RtaType,
+    Unspec => libc::RTA_UNSPEC,
+    Dst => libc::RTA_DST,
+    Src => libc::RTA_SRC,
+    Iif => libc::RTA_IIF,
+    Oif => libc::RTA_OIF,
+    Gateway => libc::RTA_GATEWAY,
+    Priority => libc::RTA_PRIORITY,
+    Prefsrc => libc::RTA_PREFSRC,
+    Metrics => libc::RTA_METRICS,
+    Multipath => libc::RTA_MULTIPATH,
+    Protoinfo => libc::RTA_PROTOINFO,
+    Flow => libc::RTA_FLOW,
+    Cacheinfo => libc::RTA_CACHEINFO,
+    Session => libc::RTA_SESSION,
+    MpAlgo => libc::RTA_MP_ALGO,
+    Table => libc::RTA_TABLE,
+    Mark => libc::RTA_MARK,
+    MfcStats => libc::RTA_MFC_STATS,
+    Via => libc::RTA_VIA,
+    Newdst => libc::RTA_NEWDST,
+    Pref => libc::RTA_PREF,
+    EncapType => libc::RTA_ENCAP_TYPE,
+    Encap => libc::RTA_ENCAP,
+    Expires => libc::RTA_EXPIRES,
+    Pad => libc::RTA_PAD,
+    Uid => libc::RTA_UID,
+    TtlPropagate => libc::RTA_TTL_PROPAGATE
 );
 
 /// Interface types
