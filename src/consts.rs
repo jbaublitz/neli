@@ -225,6 +225,28 @@ impl_var!(RtmF, libc::c_uint,
     FibMatch => libc::RTM_F_FIB_MATCH
 );
 
+impl_var!(Nud, u16,
+    None => libc::NUD_NONE,
+    Incomplete => libc::NUD_INCOMPLETE,
+    Reachable => libc::NUD_REACHABLE,
+    Stale => libc::NUD_STALE,
+    Delay => libc::NUD_DELAY,
+    Probe => libc::NUD_PROBE,
+    Failed => libc::NUD_FAILED,
+    Noarp => libc::NUD_NOARP,
+    Permanent => libc::NUD_PERMANENT
+);
+
+impl_var!(Ntf, u8,
+    Use => libc::NTF_USE,
+    Self_ => libc::NTF_SELF,
+    Master => libc::NTF_MASTER,
+    Proxy => libc::NTF_PROXY,
+    ExtLearned => libc::NTF_EXT_LEARNED,
+    Offloaded => libc::NTF_OFFLOADED,
+    Router => libc::NTF_ROUTER
+);
+
 /// Marker trait for `RtAttr.rta_type` field
 impl_trait!(RtaType, libc::c_ushort);
 

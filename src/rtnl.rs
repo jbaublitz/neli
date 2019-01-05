@@ -4,7 +4,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
+use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,Ntf,Nud,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
 use err::{SerError,DeError};
 
 /// Struct representing interface information messages
@@ -171,6 +171,20 @@ impl Nl for Rtmsg {
             + self.rtm_tos.size() + self.rtm_table.size() + self.rtm_protocol.size()
             + self.rtm_scope.size() + self.rtm_type.size() + mem::size_of::<libc::c_uint>()
     }
+}
+
+/// Represents an ARP (neighbor table) entry
+pub struct Ndmsg {
+    /// Address family of entry
+    pub ndm_family: Af,
+    /// Index of entry
+    pub ndm_index: libc::c_int,
+    /// State of entry
+    pub ndm_state: Vec<Nud>,
+    /// Flags for entry
+    pub ndm_flags: Vec<Ntf>,
+    /// Type of entry
+    pub ndm_type: Rtn,
 }
 
 /// Struct representing route netlink attributes
