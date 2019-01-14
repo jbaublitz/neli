@@ -105,7 +105,7 @@ macro_rules! impl_var_base {
 /// # Usage
 ///  Create an `enum` named "MyNetlinkProtoAttrs" that can be serialized into `u16`s to use with Netlink.
 ///  Possibly represents the fields on a message you recieved from Netlink.
-///  ```
+///  ```ignore
 ///  impl_var!(MyNetlinkProtoAttrs, u16,
 ///     Id => 16 as u16,
 ///     Name => 17 as u16,
@@ -113,7 +113,7 @@ macro_rules! impl_var_base {
 ///  );
 /// ```
 /// Or, with doc comments (if you're developing a library)
-/// ```
+/// ```ignore
 ///  impl_var!(
 ///     /// These are the attributes returned
 ///     /// by a fake netlink protocol.
