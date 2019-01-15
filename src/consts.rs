@@ -40,6 +40,8 @@ use Nl;
 
 // This is to facillitate the two different ways to call
 // `impl_var`: one with doc comments and one without.
+#[macro_export]
+#[doc(hidden)]
 macro_rules! impl_var_base {
     ($name:ident, $ty:ty, $var_def:ident => $val_def:expr,
       $( $var:ident => $val:expr ),* ) => {
