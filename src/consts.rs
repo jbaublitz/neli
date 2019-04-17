@@ -218,14 +218,14 @@ pub fn alignto(len: usize) -> usize {
 }
 
 impl_var!(
-    /// Address families 
+    /// Internet address families 
     ( Af, libc::c_uchar,
     Inet => libc::AF_INET as libc::c_uchar,
     Inet6 => libc::AF_INET6 as libc::c_uchar )
 );
 
 impl_var!(
-    /// Address families for sockets
+    /// General address families for sockets
     (  AddrFamily, libc::c_int,
     UnixOrLocal => libc::AF_UNIX,
     Inet => libc::AF_INET,
@@ -241,7 +241,7 @@ impl_var!(
 );
 
 impl_var!(
-    /// Interface address flags.
+    /// Interface address flags
     ( IfaF, u32,
     Secondary => libc::IFA_F_SECONDARY,
     Temporary => libc::IFA_F_TEMPORARY,
@@ -311,7 +311,7 @@ impl_var!(
 
 impl_var!(
     /// `rtm_flags`
-    /// Flags for rnetlink messages
+    /// Flags for rtnetlink messages
     ( RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,
@@ -336,7 +336,7 @@ impl_var!(
 );
 
 impl_var!(
-    /// Arg neighbor cache entry flags
+    /// Arp neighbor cache entry flags
     ( Ntf, u8,
     Use => libc::NTF_USE,
     Self_ => libc::NTF_SELF,
@@ -564,3 +564,17 @@ impl_var!(
     Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,
     Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16 )
 );
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_documented_conversions() {
+        let unspec: u8 = CtrlCmd::Unspec.into();
+        assert_eq!(unspec, libc::CTRL_CMD_UNSPEC as u8);
+
+        let unspec_variant = CtrlCmd::from(libc::CTRL_CMD_UNSPEC as u8);
+        assert_eq!(unspec_variant, CtrlCmd::Unspec);
+    }
+}
