@@ -31,9 +31,10 @@
 //!   and if you are sure that it is correct, you can use it. If it is a garbage value, this can
 //!   also be useful for error reporting.
 
+use std::mem;
+
 use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
 use libc;
-use std::mem;
 
 use err::{DeError, SerError};
 use Nl;
@@ -106,7 +107,7 @@ macro_rules! impl_var_base {
 ///
 /// # Usage
 ///  Create an `enum` named "MyNetlinkProtoAttrs" that can be serialized into `u16`s to use with Netlink.
-///  Possibly represents the fields on a message you recieved from Netlink.
+///  Possibly represents the fields on a message you received from Netlink.
 ///  ```ignore
 ///  impl_var!(MyNetlinkProtoAttrs, u16,
 ///     Id => 16 as u16,
@@ -169,7 +170,8 @@ macro_rules! impl_var {
 }
 
 #[macro_export]
-/// For flagging a new enum as usable in a field that is a generic type.
+/// For generating a marker trait that flags a new enum as usable in a field that accepts a generic
+/// type.
 /// This way, the type can be constrained when the impl is provided to only accept enums that
 /// implement the marker trait that corresponds to the given marker trait. The current
 /// convention is to use `impl_trait` to create the trait with the name of the field that
@@ -188,9 +190,10 @@ macro_rules! impl_trait {
 }
 
 #[macro_export]
-/// For implementing a marker trait with the appropriate trait constraints
-/// on the newly implemented trait. It accepts a name and a type for serialization and
-/// deserialization conversions.
+/// For defining a new enum implementing the provided marker trait.
+/// It accepts a name for the enum and the target type for serialization and
+/// deserialization conversions, as well as value conversions
+/// for serialization and deserialization.
 macro_rules! impl_var_trait {
     ( $(#[$outer:meta])*
     ( $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
