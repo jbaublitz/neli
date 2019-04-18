@@ -202,6 +202,18 @@ pub struct Ndmsg {
     pub ndm_type: Rtn,
 }
 
+/// Struct representing ARP cache info
+pub struct NdaCacheinfo {
+    /// Confirmed
+    pub ndm_confirmed: u32,
+    /// Used
+    pub ndm_used: u32,
+    /// Updated 
+    pub ndm_updated: u32,
+    /// Reference count
+    pub ndm_refcnt: u32,
+}
+
 /// Struct representing route netlink attributes
 pub struct RtAttr<T> {
     /// Length of the attribute
