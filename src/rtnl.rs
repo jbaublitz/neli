@@ -202,6 +202,31 @@ pub struct Ndmsg {
     pub ndm_type: Rtn,
 }
 
+impl Nl for Ndmsg {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.ndm_family.serialize(buf)?;
+        self.ndm_index.serialize(buf)?;
+        self.ndm_state.iter().fold(0, |acc: u16, next| {
+            let next_uint: u16 = next.into();
+            acc | next_uint
+        }).serialize(buf)?;
+        self.ndm_flags.iter().fold(0, |acc: u8, next| {
+            let next_uint: u8 = next.into();
+            acc | next_uint
+        }).serialize(buf)?;
+        self.ndm_type.serialize(buf)?;
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        self.ndm_family.size() + self.ndm_index.size() + mem::size_of::<u16>() +
+            mem::size_of::<u8>() + self.ndm_type.size()
+    }
+}
+
 /// Struct representing ARP cache info
 pub struct NdaCacheinfo {
     /// Confirmed
@@ -214,18 +239,39 @@ pub struct NdaCacheinfo {
     pub ndm_refcnt: u32,
 }
 
+impl Nl for NdaCacheinfo {
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.ndm_confirmed.serialize(buf)?;
+        self.ndm_used.serialize(buf)?;
+        self.ndm_updated.serialize(buf)?;
+        self.ndm_refcnt.serialize(buf)?;
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        self.ndm_confirmed.size() + self.ndm_used.size() + self.ndm_updated.size() +
+            self.ndm_refcnt.size()
+    }
+}
+
 /// Struct representing route netlink attributes
-pub struct RtAttr<T> {
+pub struct RtAttr<T, P> {
     /// Length of the attribute
     pub rta_len: libc::c_ushort,
     /// Type of the attribute
     pub rta_type: T,
+    /// Payload of the attribute
+    pub rta_payload: P,
 }
 
-impl<T> Nl for RtAttr<T> where T: RtaType {
+impl<T, P> Nl for RtAttr<T, P> where T: RtaType, P: Nl {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rta_len.serialize(buf)?;
         self.rta_type.serialize(buf)?;
+        self.rta_payload.serialize(buf)?;
         Ok(())
     }
 
@@ -233,10 +279,11 @@ impl<T> Nl for RtAttr<T> where T: RtaType {
         Ok(RtAttr {
             rta_len: libc::c_ushort::deserialize(buf)?,
             rta_type: T::deserialize(buf)?,
+            rta_payload: P::deserialize(buf)?,
         })
     }
 
     fn size(&self) -> usize {
-        self.rta_len.size() + self.rta_type.size()
+        self.rta_len.size() + self.rta_type.size() + self.rta_payload.size()
     }
 }
