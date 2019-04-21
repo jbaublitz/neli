@@ -33,7 +33,7 @@
 
 use std::mem;
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use err::{DeError, SerError};
@@ -128,9 +128,9 @@ macro_rules! impl_var_base {
 /// ```
 ///
 macro_rules! impl_var {
-    (  $(#[$outer:meta])*
-      ($name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* )) => ( // with comments
+    ( $( #[$outer:meta] )*
+      $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
+      $( $var:ident => $val:expr ),* ) => ( // with comments
         $(#[$outer])*
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
@@ -148,7 +148,7 @@ macro_rules! impl_var {
             $( $var => $val),*
         );
     );
-    ($name:ident, $ty:ty, $var_def:ident => $val_def:expr,
+    ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
       $( $var:ident => $val:expr ),* ) => ( // without comments
         #[allow(missing_docs)]
         #[derive(Clone,Debug,Eq,PartialEq)]
@@ -178,8 +178,7 @@ macro_rules! impl_var {
 /// is the generic type and then use `impl_var_trait` to flag the new enum as usable in
 /// this field. See the examples below for more details.
 macro_rules! impl_trait {
-    ( $(#[$outer:meta])*
-    ( $trait_name:ident, $to_from_ty:ty )) => { // with comments
+    ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => { // with comments
         $(#[$outer])*
         pub trait $trait_name: Nl + From<$to_from_ty> + Into<$to_from_ty> {}
     };
@@ -195,11 +194,10 @@ macro_rules! impl_trait {
 /// deserialization conversions, as well as value conversions
 /// for serialization and deserialization.
 macro_rules! impl_var_trait {
-    ( $(#[$outer:meta])*
-    ( $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* )) => ( // with comments
+    ( $( #[$outer:meta] )* $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
+      $( $var:ident => $val:expr ),* ) => ( // with comments
         impl_var!( $(#[$outer])*
-            ($name, $ty, $var_def => $val_def, $( $var => $val ),* )
+            $name, $ty, $var_def => $val_def, $( $var => $val ),* 
         );
 
         impl $impl_name for $name {}
@@ -219,14 +217,14 @@ pub fn alignto(len: usize) -> usize {
 
 impl_var!(
     /// Internet address families 
-    ( Af, libc::c_uchar,
+    Af, libc::c_uchar,
     Inet => libc::AF_INET as libc::c_uchar,
-    Inet6 => libc::AF_INET6 as libc::c_uchar )
+    Inet6 => libc::AF_INET6 as libc::c_uchar
 );
 
 impl_var!(
     /// General address families for sockets
-    (  AddrFamily, libc::c_int,
+    AddrFamily, libc::c_int,
     UnixOrLocal => libc::AF_UNIX,
     Inet => libc::AF_INET,
     Inet6 => libc::AF_INET6,
@@ -237,12 +235,12 @@ impl_var!(
     Atmpvc => libc::AF_ATMPVC,
     Appletalk => libc::AF_APPLETALK,
     Packet => libc::AF_PACKET,
-    Alg => libc::AF_ALG )
+    Alg => libc::AF_ALG
 );
 
 impl_var!(
     /// Interface address flags
-    ( IfaF, u32,
+    IfaF, u32,
     Secondary => libc::IFA_F_SECONDARY,
     Temporary => libc::IFA_F_TEMPORARY,
     Nodad => libc::IFA_F_NODAD,
@@ -255,13 +253,13 @@ impl_var!(
     Managetempaddr => libc::IFA_F_MANAGETEMPADDR,
     Noprefixroute => libc::IFA_F_NOPREFIXROUTE,
     Mcautojoin => libc::IFA_F_MCAUTOJOIN,
-    StablePrivacy => libc::IFA_F_STABLE_PRIVACY )
+    StablePrivacy => libc::IFA_F_STABLE_PRIVACY
 );
 
 impl_var!(
     /// `rtm_type`
     /// The results of a lookup from a route table
-    ( Rtn, libc::c_uchar,
+    Rtn, libc::c_uchar,
     Unspec => libc::RTN_UNSPEC,
     Unicast => libc::RTN_UNICAST,
     Local => libc::RTN_LOCAL,
@@ -273,57 +271,57 @@ impl_var!(
     Prohibit => libc::RTN_PROHIBIT,
     Throw => libc::RTN_THROW,
     Nat => libc::RTN_NAT,
-    Xresolve => libc::RTN_XRESOLVE)
+    Xresolve => libc::RTN_XRESOLVE
 );
 
 impl_var!(
     /// `rtm_protocol`
     /// The origins of routes that are defined in the kernel
-    ( Rtprot, libc::c_uchar,
+    Rtprot, libc::c_uchar,
     Unspec => libc::RTPROT_UNSPEC,
     Redirect => libc::RTPROT_REDIRECT,
     Kernel => libc::RTPROT_KERNEL,
     Boot => libc::RTPROT_BOOT,
-    Static => libc::RTPROT_STATIC )
+    Static => libc::RTPROT_STATIC
 );
 
 impl_var!(
     /// `rtm_scope`
     /// The distance between destinations
-    ( RtScope, libc::c_uchar,
+    RtScope, libc::c_uchar,
     Universe => libc::RT_SCOPE_UNIVERSE,
     Site => libc::RT_SCOPE_SITE,
     Link => libc::RT_SCOPE_LINK,
     Host => libc::RT_SCOPE_HOST,
-    Nowhere => libc::RT_SCOPE_NOWHERE )
+    Nowhere => libc::RT_SCOPE_NOWHERE
 );
 
 impl_var!(
     /// `rt_class_t`
     /// Reserved route table identifiers
-    ( RtTable, libc::c_uchar,
+    RtTable, libc::c_uchar,
     Unspec => libc::RT_TABLE_UNSPEC,
     Compat => libc::RT_TABLE_COMPAT,
     Default => libc::RT_TABLE_DEFAULT,
     Main => libc::RT_TABLE_MAIN,
-    Local => libc::RT_TABLE_LOCAL )
+    Local => libc::RT_TABLE_LOCAL
 );
 
 impl_var!(
     /// `rtm_flags`
     /// Flags for rtnetlink messages
-    ( RtmF, libc::c_uint,
+    RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,
     Equalize => libc::RTM_F_EQUALIZE,
     Prefix => libc::RTM_F_PREFIX,
     LookupTable => libc::RTM_F_LOOKUP_TABLE,
-    FibMatch => libc::RTM_F_FIB_MATCH )
+    FibMatch => libc::RTM_F_FIB_MATCH
 );
 
 impl_var!(
     /// Arp neighbor cache entry states
-    ( Nud, u16,
+    Nud, u16,
     None => libc::NUD_NONE,
     Incomplete => libc::NUD_INCOMPLETE,
     Reachable => libc::NUD_REACHABLE,
@@ -332,27 +330,29 @@ impl_var!(
     Probe => libc::NUD_PROBE,
     Failed => libc::NUD_FAILED,
     Noarp => libc::NUD_NOARP,
-    Permanent => libc::NUD_PERMANENT )
+    Permanent => libc::NUD_PERMANENT
 );
 
 impl_var!(
     /// Arp neighbor cache entry flags
-    ( Ntf, u8,
+    Ntf, u8,
     Use => libc::NTF_USE,
     Self_ => libc::NTF_SELF,
     Master => libc::NTF_MASTER,
     Proxy => libc::NTF_PROXY,
     ExtLearned => libc::NTF_EXT_LEARNED,
     Offloaded => libc::NTF_OFFLOADED,
-    Router => libc::NTF_ROUTER )
+    Router => libc::NTF_ROUTER
 );
 
-impl_trait!(/// Marker trait for `RtAttr.rta_type` field
-(RtaType, libc::c_ushort));
+impl_trait!(
+    /// Marker trait for `RtAttr.rta_type` field
+    RtaType, libc::c_ushort
+);
 
 impl_var_trait!(
     /// Enum for use with `RtAttr.rta_type`
-    ( Ifla, libc::c_ushort, RtaType,
+    Ifla, libc::c_ushort, RtaType,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
     Broadcast => libc::IFLA_BROADCAST,
@@ -360,12 +360,12 @@ impl_var_trait!(
     Mtu => libc::IFLA_MTU,
     Link => libc::IFLA_LINK,
     Qdisc => libc::IFLA_QDISC,
-    Stats => libc::IFLA_STATS )
+    Stats => libc::IFLA_STATS
 );
 
 impl_var_trait!(
     /// Enum for use with `RtAttr.rta_type`
-    ( Ifa, libc::c_ushort, RtaType,
+    Ifa, libc::c_ushort, RtaType,
     Unspec => libc::IFA_UNSPEC,
     Address => libc::IFA_ADDRESS,
     Local => libc::IFA_LOCAL,
@@ -374,13 +374,13 @@ impl_var_trait!(
     Anycast => libc::IFA_ANYCAST,
     Cacheinfo => libc::IFA_CACHEINFO,
     Multicast => libc::IFA_MULTICAST,
-    Flags => libc::IFA_FLAGS )
+    Flags => libc::IFA_FLAGS
 );
 
 impl_var_trait!(
     /// Enum for use with `RtAttr.rta_type`. 
     /// Values are routing message attributes
-    ( Rta, libc::c_ushort, RtaType,
+    Rta, libc::c_ushort, RtaType,
     Unspec => libc::RTA_UNSPEC,
     Dst => libc::RTA_DST,
     Src => libc::RTA_SRC,
@@ -407,12 +407,12 @@ impl_var_trait!(
     Expires => libc::RTA_EXPIRES,
     Pad => libc::RTA_PAD,
     Uid => libc::RTA_UID,
-    TtlPropagate => libc::RTA_TTL_PROPAGATE)
+    TtlPropagate => libc::RTA_TTL_PROPAGATE
 );
 
 impl_var!(
     /// Interface types
-    ( Arphrd, libc::c_ushort,
+    Arphrd, libc::c_ushort,
     Netrom => libc::ARPHRD_NETROM,
     Ether => libc::ARPHRD_ETHER,
     Eether => libc::ARPHRD_EETHER,
@@ -433,11 +433,11 @@ impl_var!(
 
     Void => libc::ARPHRD_VOID,
     None => libc::ARPHRD_NONE
-));
+);
 
 impl_var!(
     /// Values for `ifi_flags` in `rtnl.rs`
-    ( Iff, libc::c_uint,
+    Iff, libc::c_uint,
     Up => libc::IFF_UP as libc::c_uint,
     Broadcast => libc::IFF_BROADCAST as libc::c_uint,
     Debug => libc::IFF_DEBUG as libc::c_uint,
@@ -459,12 +459,11 @@ impl_var!(
     Echo => libc::IFF_ECHO as libc::c_uint
 
     // Possibly more types here - need to look into private flags for interfaces
-    )
 );
 
 impl_var!(
     /// Values for `nl_family` in `NlSocket`
-    ( NlFamily, libc::c_int,
+    NlFamily, libc::c_int,
     Route => libc::NETLINK_ROUTE,
     Unused => libc::NETLINK_UNUSED,
     Usersock => libc::NETLINK_USERSOCK,
@@ -485,34 +484,34 @@ impl_var!(
     Scsitransport => libc::NETLINK_SCSITRANSPORT,
     Ecryptfs => libc::NETLINK_ECRYPTFS,
     Rdma => libc::NETLINK_RDMA,
-    Crypto => libc::NETLINK_CRYPTO )
+    Crypto => libc::NETLINK_CRYPTO
 );
 
 impl_trait!(
     /// Trait marking constants valid for use in `Nlmsghdr.nl_type`
-    (NlType, u16)
+    NlType, u16
 );
 
 impl_var_trait!(
     /// Values for `nl_type` in `Nlmsghdr`
-    ( Nlmsg, u16, NlType,
+    Nlmsg, u16, NlType,
     Noop => libc::NLMSG_NOOP as u16,
     Error => libc::NLMSG_ERROR as u16,
     Done => libc::NLMSG_DONE as u16,
-    Overrun => libc::NLMSG_OVERRUN as u16)
+    Overrun => libc::NLMSG_OVERRUN as u16
 );
 
 impl_var_trait!(
     /// Values for `nl_type` in `Nlmsghdr`
-    ( GenlId, u16, NlType,
+    GenlId, u16, NlType,
     Ctrl => libc::GENL_ID_CTRL as u16,
     VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
-    Pmcraid => libc::GENL_ID_PMCRAID as u16 )
+    Pmcraid => libc::GENL_ID_PMCRAID as u16
 );
 
 impl_var!(
     /// Values for `nl_flags` in `NlHdr`
-    ( NlmF, u16,
+    NlmF, u16,
     Request => libc::NLM_F_REQUEST as u16,
     Multi => libc::NLM_F_MULTI as u16,
     Ack => libc::NLM_F_ACK as u16,
@@ -526,12 +525,12 @@ impl_var!(
     Replace => libc::NLM_F_REPLACE as u16,
     Excl => libc::NLM_F_EXCL as u16,
     Create => libc::NLM_F_CREATE as u16,
-    Append => libc::NLM_F_APPEND as u16 )
+    Append => libc::NLM_F_APPEND as u16
 );
 
 impl_var!(
     /// Values for `cmd` in `GenlHdr`
-    ( CtrlCmd, u8,
+    CtrlCmd, u8,
     Unspec => libc::CTRL_CMD_UNSPEC as u8,
     Newfamily => libc::CTRL_CMD_NEWFAMILY as u8,
     Delfamily => libc::CTRL_CMD_DELFAMILY as u8,
@@ -541,12 +540,12 @@ impl_var!(
     Getops => libc::CTRL_CMD_GETOPS as u8,
     NewmcastGrp => libc::CTRL_CMD_NEWMCAST_GRP as u8,
     DelmcastGrp => libc::CTRL_CMD_DELMCAST_GRP as u8,
-    GetmcastGrp => libc::CTRL_CMD_GETMCAST_GRP as u8 )
+    GetmcastGrp => libc::CTRL_CMD_GETMCAST_GRP as u8
 );
 
 impl_var!(
     /// Values for `nla_type` in `NlaAttrHdr`
-    ( CtrlAttr, u16,
+    CtrlAttr, u16,
     Unspec => libc::CTRL_ATTR_UNSPEC as u16,
     FamilyId => libc::CTRL_ATTR_FAMILY_ID as u16,
     FamilyName => libc::CTRL_ATTR_FAMILY_NAME as u16,
@@ -554,15 +553,15 @@ impl_var!(
     Hdrsize => libc::CTRL_ATTR_HDRSIZE as u16,
     Maxattr => libc::CTRL_ATTR_MAXATTR as u16,
     Ops => libc::CTRL_ATTR_OPS as u16,
-    McastGroups => libc::CTRL_ATTR_MCAST_GROUPS as u16 )
+    McastGroups => libc::CTRL_ATTR_MCAST_GROUPS as u16
 );
 
 impl_var!(
     /// Values for `nla_type` in `NlaAttrHdr`
-    ( CtrlAttrMcastGrp, u16,
+    CtrlAttrMcastGrp, u16,
     Unspec => libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16,
     Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,
-    Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16 )
+    Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16
 );
 
 #[cfg(test)]
