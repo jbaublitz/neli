@@ -287,21 +287,36 @@ pub mod tokio {
     use tokio::reactor::PollEvented2;
 
     /// Tokio-enabled Netlink socket struct
-    pub struct NlSocket<T, P>(PollEvented2<super::NlSocket<T, P>>);
+    pub struct NlSocket<T, P> {
+        socket: PollEvented2<super::NlSocket>,
+        buffer: Option<StreamReadBuffer<Vec<u8>>>,
+        type_data: PhantomData<T>,
+        payload_data: PhantomData<P>,
+    }
 
     impl<T, P> NlSocket<T, P> where T: NlType {
         /// Setup NlSocket for use with tokio - set to nonblocking state and wrap in polling mechanism
-        pub fn new(mut sock: super::NlSocket<T, P>) -> io::Result<Self> {
+        pub fn new(mut sock: super::NlSocket) -> io::Result<Self> {
             if sock.is_blocking()? {
                 sock.nonblock()?;
             }
-            Ok(NlSocket(PollEvented2::new(sock)))
+            Ok(NlSocket { socket: PollEvented2::new(sock), buffer: None,
+                    type_data: PhantomData, payload_data: PhantomData, })
+        }
+
+        /// Check if underlying received message buffer is empty
+        pub fn empty(&self) -> bool {
+            if let Some(ref buf) = self.buffer {
+                buf.at_end()
+            } else {
+                true
+            }
         }
     }
 
     impl<T, P> Read for NlSocket<T, P> {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.0.get_mut().read(buf)
+            self.socket.get_mut().read(buf)
         }
     }
 
@@ -312,36 +327,41 @@ pub mod tokio {
         type Error = io::Error;
 
         fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-            let readiness = self.0.poll_read_ready(Ready::readable())?;
-            match readiness {
-                Async::NotReady => return Ok(Async::NotReady),
-                Async::Ready(_) => (),
+            if self.empty() {
+                let readiness = self.socket.poll_read_ready(Ready::readable())?;
+                match readiness {
+                    Async::NotReady => return Ok(Async::NotReady),
+                    Async::Ready(_) => (),
+                }
+                let mut mem = vec![0; MAX_NL_LENGTH];
+                let bytes_written = match self.read(mem.as_mut_slice()) {
+                    Ok(0) => return Ok(Async::Ready(None)),
+                    Ok(i) => i,
+                    Err(e) => {
+                        if e.kind() == ErrorKind::WouldBlock {
+                            self.socket.clear_read_ready(Ready::readable())?;
+                            return Ok(Async::NotReady);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                };
+                mem.truncate(bytes_written);
+                self.buffer = Some(StreamReadBuffer::new(mem));
             }
 
-            let mut mem = vec![0; MAX_NL_LENGTH];
-            let bytes_written = match self.read(mem.as_mut_slice()) {
-                Ok(0) => return Ok(Async::Ready(None)),
-                Ok(i) => i,
-                Err(e) => {
-                    if e.kind() == ErrorKind::WouldBlock {
-                        self.0.clear_read_ready(Ready::readable())?;
-                        return Ok(Async::NotReady);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            };
-            mem.truncate(bytes_written);
-            let mut mem_read = StreamReadBuffer::new(mem);
-            let hdr = match Nlmsghdr::<T, P>::deserialize(&mut mem_read) {
-                Ok(h) => h,
-                Err(_) => return Err(io::Error::from(io::ErrorKind::Other)),
-            };
-            Ok(Async::Ready(Some(hdr)))
+            match self.buffer {
+                Some(ref mut buf) => Ok(
+                    Async::Ready(Some(Nlmsghdr::<T, P>::deserialize(buf).map_err(|_| {
+                        io::ErrorKind::InvalidData
+                    })?))
+                ),
+                None => Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            }
         }
     }
 
-    impl<T, P> Evented for super::NlSocket<T, P> {
+    impl Evented for super::NlSocket {
         fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready,
                     opts: mio::PollOpt) -> io::Result<()> {
             poll.register(&mio::unix::EventedFd(&self.as_raw_fd()), token, interest, opts)
@@ -373,6 +393,6 @@ mod test {
 
     #[test]
     fn test_socket_creation() {
-       NlSocket::<Nlmsg, Genlmsghdr<CtrlCmd>>::connect(NlFamily::Generic, None, Vec::new()).unwrap();
+       NlSocket::connect(NlFamily::Generic, None, Vec::new()).unwrap();
     }
 }
