@@ -43,7 +43,10 @@ impl<T, P, B> NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B: AsRef<[u8]>
         let msg = Nlmsghdr::<T, P>::deserialize(&mut self.recv_buffer);
         let msg_ret = match msg {
             Ok(m) => m,
-            Err(e) => return Some(Err(NlError::Msg(e.to_string()))),
+            Err(e) => {
+                self.recv_buffer.set_at_end();
+                return Some(Err(NlError::Msg(e.to_string())));
+            },
         };
         Some(Ok(msg_ret))
     }
@@ -58,7 +61,10 @@ impl<T, P, B> NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B: AsRef<[u8]>
         let msg = Nlmsghdr::<TT, PP>::deserialize(&mut self.recv_buffer);
         let msg_ret = match msg {
             Ok(m) => m,
-            Err(e) => return Some(Err(NlError::Msg(e.to_string()))),
+            Err(e) => {
+                self.recv_buffer.rewind();
+                return Some(Err(NlError::Msg(e.to_string())));
+            },
         };
         Some(Ok(msg_ret))
     }
@@ -69,6 +75,7 @@ impl<T, P, B> NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B: AsRef<[u8]>
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
                 Ok(())
             } else {
+                self.recv_buffer.rewind();
                 Err(NlError::NoAck)
             }
         } else {
@@ -388,8 +395,6 @@ impl Drop for NlSocket {
 #[cfg(test)]
 mod test {
     use super::*;
-    use consts::{CtrlCmd,Nlmsg};
-    use genl::Genlmsghdr;
 
     #[test]
     fn test_socket_creation() {

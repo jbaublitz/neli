@@ -1,6 +1,5 @@
 extern crate neli;
 
-use neli::consts::*;
 use neli::genl::*;
 use neli::socket::*;
 
