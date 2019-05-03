@@ -28,8 +28,6 @@ optional = true
 [dependencies.buffering]
 version = "0.3.2"
 features = ["copy"]
-git = "https://github.com/jbaublitz/buffering"
-branch = "discard-feature"
 
 [features]
 default = []

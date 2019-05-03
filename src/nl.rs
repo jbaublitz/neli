@@ -61,23 +61,33 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
     }
 
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        let nl = Nlmsghdr::<T, P> {
-            nl_len: u32::deserialize(mem)?,
-            nl_type: T::deserialize(mem)?,
-            nl_flags: {
-                let flags = u16::deserialize(mem)?;
-                let mut nl_flags = Vec::new();
-                for i in 0..mem::size_of::<u16>() * 8 {
-                    let bit = 1 << i;
-                    if bit & flags == bit {
-                        nl_flags.push(bit.into());
-                    }
+        let nl_len = u32::deserialize(mem)?;
+        let nl_type = T::deserialize(mem)?;
+        let nl_flags = {
+            let flags = u16::deserialize(mem)?;
+            let mut nl_flags = Vec::new();
+            for i in 0..mem::size_of::<u16>() * 8 {
+                let bit = 1 << i;
+                if bit & flags == bit {
+                    nl_flags.push(bit.into());
                 }
-                nl_flags
-            },
-            nl_seq: u32::deserialize(mem)?,
-            nl_pid: u32::deserialize(mem)?,
-            nl_payload: P::deserialize(mem)?,
+            }
+            nl_flags
+        };
+        let nl_seq = u32::deserialize(mem)?;
+        let nl_pid = u32::deserialize(mem)?;
+        let nl_payload = {
+            mem.set_size_hint(nl_len as usize - (nl_len.size() + nl_type.size() + 0u16.size() +
+                                                 nl_seq.size() + nl_pid.size()));
+            P::deserialize(mem)?
+        };
+        let nl = Nlmsghdr::<T, P> {
+            nl_len,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload,
         };
         Ok(nl)
     }

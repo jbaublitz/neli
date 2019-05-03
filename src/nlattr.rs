@@ -21,7 +21,6 @@
 //! ```
 
 use std::io::{Read,Write};
-use std::marker::PhantomData;
 use std::slice;
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};

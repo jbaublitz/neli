@@ -50,11 +50,20 @@ impl<C> Nl for Genlmsghdr<C> where C: Cmd {
     }
 
     fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+        let cmd = C::deserialize(mem)?;
+        let version = u8::deserialize(mem)?;
+        let reserved = u16::deserialize(mem)?;
+        let size_hint = mem.take_size_hint().map(|sh| sh - (cmd.size() + version.size() +
+                                                            reserved.size()));
+        if let Some(sh) = size_hint {
+            mem.set_size_hint(sh);
+        }
+        let attrs = Vec::<u8>::deserialize(mem)?;
         Ok(Genlmsghdr {
-            cmd: C::deserialize(mem)?,
-            version: u8::deserialize(mem)?,
-            reserved: u16::deserialize(mem)?,
-            attrs: Vec::<u8>::deserialize(mem)?,
+            cmd,
+            version,
+            reserved,
+            attrs,
         })
     }
 
