@@ -28,9 +28,6 @@ impl Ifinfomsg {
 }
 
 impl Nl for Ifinfomsg {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifi_family.serialize(buf)?;
         self.ifi_type.serialize(buf)?;
@@ -83,9 +80,6 @@ pub struct Ifaddrmsg {
 }
 
 impl Nl for Ifaddrmsg {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifa_family.serialize(buf)?;
         self.ifa_prefixlen.serialize(buf)?;
@@ -147,9 +141,6 @@ pub struct Rtmsg {
 }
 
 impl Nl for Rtmsg {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rtm_family.serialize(buf)?;
         self.rtm_dst_len.serialize(buf)?;
@@ -164,6 +155,30 @@ impl Nl for Rtmsg {
             acc | next_uint
         }).serialize(buf)?;
         Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+        Ok(Rtmsg {
+            rtm_family: libc::c_uchar::deserialize(buf)?,
+            rtm_dst_len: libc::c_uchar::deserialize(buf)?,
+            rtm_src_len: libc::c_uchar::deserialize(buf)?,
+            rtm_tos: libc::c_uchar::deserialize(buf)?,
+            rtm_table: RtTable::deserialize(buf)?,
+            rtm_protocol: Rtprot::deserialize(buf)?,
+            rtm_scope: RtScope::deserialize(buf)?,
+            rtm_type: Rtn::deserialize(buf)?,
+            rtm_flags: {
+                let flags = libc::c_int::deserialize(buf)?;
+                let mut rtm_flags = Vec::new();
+                for i in 0..mem::size_of::<libc::c_uint>() * 8 {
+                    let bit = 1 << i;
+                    if bit & flags == bit {
+                        rtm_flags.push((bit as libc::c_uint).into());
+                    }
+                }
+                rtm_flags
+            },
+        })
     }
 
     fn size(&self) -> usize {
@@ -196,9 +211,6 @@ pub struct RtAttr<T> {
 }
 
 impl<T> Nl for RtAttr<T> where T: RtaType {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rta_len.serialize(buf)?;
         self.rta_type.serialize(buf)?;

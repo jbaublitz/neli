@@ -4,7 +4,7 @@
 //! ```no_run
 //! // This was received from the socket
 //! let nlmsg = neli::nl::Nlmsghdr::new(None, neli::consts::GenlId::Ctrl, Vec::new(), None, None,
-//!         neli::genl::Genlmsghdr::new::<u16>(0u8, 2, Vec::new()).unwrap());
+//!         neli::genl::Genlmsghdr::new::<u16>(neli::consts::CtrlCmd::Unspec, 2, Vec::new()).unwrap());
 //!
 //! // Get parsing handler for the attributes in this message where the next call
 //! // to either get_nested_attributes() or get_payload_with() will expect a u16 type
@@ -17,10 +17,11 @@
 //!
 //! // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
 //! // the payload of this attribute as a u32
-//! let thirty_two_bit_integer = next.get_payload_with::<u32>(1, None).unwrap();
+//! let thirty_two_bit_integer = next.get_payload::<u32>(1, None).unwrap();
 //! ```
 
-use std::io::Read;
+use std::io::{Read,Write};
+use std::marker::PhantomData;
 use std::slice;
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
@@ -28,7 +29,7 @@ use libc;
 
 use Nl;
 use err::{SerError,DeError};
-use consts::alignto;
+use consts::{alignto,NlAttrType};
 
 /// Struct representing netlink attributes and payloads
 #[derive(Debug,PartialEq)]
@@ -41,7 +42,7 @@ pub struct Nlattr<T> {
     pub payload: Vec<u8>,
 }
 
-impl<T> Nlattr<T> where T: Nl + Into<u16> + From<u16> {
+impl<T> Nlattr<T> where T: NlAttrType {
     /// Create new netlink attribute with a payload
     pub fn new_binary_payload(nla_len: Option<u16>, nla_type: T, payload: Vec<u8>)
             -> Self {
@@ -70,7 +71,7 @@ impl<T> Nlattr<T> where T: Nl + Into<u16> + From<u16> {
 
     /// Create new netlink attribute with a nested payload
     pub fn new_nested<P>(nla_len: Option<u16>, nla_type: T, mut payload: Vec<Nlattr<P>>)
-            -> Result<Self, SerError> where P: Nl + Into<u16> + From<u16> {
+            -> Result<Self, SerError> where P: NlAttrType {
         let mut nla = Nlattr {
             nla_type,
             payload: {
@@ -122,32 +123,33 @@ impl<T> Nlattr<T> where T: Nl + Into<u16> + From<u16> {
     }
 
     /// Get handle for attribute parsing and traversal
-    pub fn get_attr_handle<'a, P>(&'a self) -> AttrHandle<'a, P> {
+    pub fn get_attr_handle<'a, P>(&'a self) -> AttrHandle<'a, P> where P: NlAttrType {
         AttrHandle::Bin(self.payload.as_slice())
     }
 }
 
-impl<T> Nl for Nlattr<T> where T: Nl + Into<u16> + From<u16> {
-    type SerIn = ();
-    type DeIn = ();
-
+impl<T> Nl for Nlattr<T> where T: NlAttrType {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nla_len.serialize(mem)?;
         self.nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
+        let padding_len = alignto(self.nla_len as usize) - self.nla_len as usize;
+        mem.write(&mut [0u8; 4][0..padding_len])?;
         Ok(())
     }
 
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        let mut nla = Nlattr {
-            nla_len: u16::deserialize(mem)?,
-            nla_type: T::deserialize(mem)?,
-            payload: Vec::new(),
+        let nla_len = u16::deserialize(mem)?;
+        let nla_type = T::deserialize(mem)?;
+        let payload = Vec::<u8>::deserialize(mem)?;
+        let padding_len = alignto(nla_len as usize) - nla_len as usize;
+        let padding = &mut [0u8; libc::NLA_ALIGNTO as usize][0..padding_len];
+        let _ = mem.read_exact(padding)?;
+        let nla = Nlattr {
+            nla_len,
+            nla_type,
+            payload,
         };
-        nla.payload = Vec::<u8>::deserialize_with(mem, nla.nla_len as usize -
-                                                  (nla.nla_len.size() + nla.nla_type.size()))?;
-        let padding = &mut [0u8; 4][0..alignto(nla.nla_len as usize) - nla.nla_len as usize];
-        let _ = mem.read_exact(padding);
         Ok(nla)
     }
 
@@ -157,14 +159,14 @@ impl<T> Nl for Nlattr<T> where T: Nl + Into<u16> + From<u16> {
 }
 
 /// Handle returned by `Genlmsghdr` for traversing nested attribute structures
-pub enum AttrHandle<'a, P> {
+pub enum AttrHandle<'a, P> where P: NlAttrType {
     /// Binary internal representation of attributes
     Bin(&'a [u8]),
     /// Rust representation of attributes
     Parsed(Vec<Nlattr<P>>),
 }
 
-impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
+impl<'a, P> AttrHandle<'a, P> where P: NlAttrType {
     /// Get length if attribute handle has been parsed
     pub fn len(&self) -> Option<usize> {
         match *self {
@@ -184,7 +186,7 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
     /// Parse a binary payload into nested attributes
     pub fn parse_nested_attributes(&mut self) -> Result<&mut AttrHandle<'a, P>, DeError> {
         let opt_v = match *self {
-            AttrHandle::Bin(ref v) => {
+            AttrHandle::Bin(v) => {
                 let mut len = v.asize();
                 let mut attrs = Vec::new();
                 let mut mem = StreamReadBuffer::new(v);
@@ -205,7 +207,8 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
     }
 
     /// Get the payload of an attribute as a handle for parsing nested attributes
-    pub fn get_nested_attributes<S>(&mut self, payload: P) -> Result<AttrHandle<S>, DeError> {
+    pub fn get_nested_attributes<S>(&mut self, payload: P) -> Result<AttrHandle<S>, DeError>
+            where S: NlAttrType {
         let nested = self.parse_nested_attributes()?.get_attribute(payload);
         match nested {
             Some(a) => Ok(AttrHandle::Bin(a.payload.as_slice())),
@@ -245,16 +248,15 @@ impl<'a, P> AttrHandle<'a, P> where P: PartialEq + Nl + Into<u16> + From<u16> {
 
     /// Parse binary payload as a type that implements `Nl` using `deserialize_with` if `with` is
     /// not `None`
-    pub fn get_payload_with<R>(&mut self, attr: P, with: Option<R::DeIn>) -> Result<R, DeError>
+    pub fn get_payload<R>(&mut self, attr: P, size_hint: Option<usize>) -> Result<R, DeError>
             where R: Nl {
         match self.parse_nested_attributes()?.get_attribute(attr) {
             Some(ref a) => {
-                let mut state = StreamReadBuffer::new(&a.payload);
-                if let Some(w) = with {
-                    R::deserialize_with(&mut state, w)
-                } else {
-                    R::deserialize(&mut state)
+                let mut mem = StreamReadBuffer::new(&a.payload);
+                if let Some(w) = size_hint {
+                    mem.set_size_hint(w);
                 }
+                R::deserialize(&mut mem)
             },
             _ => Err(DeError::new("Failed to find specified attribute")),
         }

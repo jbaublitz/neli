@@ -78,9 +78,6 @@ macro_rules! impl_var_base {
         }
 
         impl Nl for $name {
-            type SerIn = ();
-            type DeIn = ();
-
             fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
                 let v: $ty = self.clone().into();
                 v.serialize(mem)
@@ -180,11 +177,11 @@ macro_rules! impl_var {
 macro_rules! impl_trait {
     ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => { // with comments
         $(#[$outer])*
-        pub trait $trait_name: Nl + From<$to_from_ty> + Into<$to_from_ty> {}
+        pub trait $trait_name: Nl + PartialEq + From<$to_from_ty> + Into<$to_from_ty> {}
     };
     ( $trait_name:ident, $to_from_ty:ty ) => { // without comments
         #[allow(missing_docs)]
-        pub trait $trait_name: Nl + From<$to_from_ty> + Into<$to_from_ty> {}
+        pub trait $trait_name: Nl + PartialEq + From<$to_from_ty> + Into<$to_from_ty> {}
     };
 }
 
@@ -510,7 +507,7 @@ impl_var_trait!(
 );
 
 impl_var!(
-    /// Values for `nl_flags` in `NlHdr`
+    /// Values for `nl_flags` in `Nlmsghdr`
     NlmF, u16,
     Request => libc::NLM_F_REQUEST as u16,
     Multi => libc::NLM_F_MULTI as u16,
@@ -528,9 +525,14 @@ impl_var!(
     Append => libc::NLM_F_APPEND as u16
 );
 
-impl_var!(
-    /// Values for `cmd` in `GenlHdr`
-    CtrlCmd, u8,
+impl_trait!(
+    /// Trait marking constants valid for use in `Genlmsghdr.cmd`
+    Cmd, u8
+);
+
+impl_var_trait!(
+    /// Values for `cmd` in `Genlmsghdr`
+    CtrlCmd, u8, Cmd,
     Unspec => libc::CTRL_CMD_UNSPEC as u8,
     Newfamily => libc::CTRL_CMD_NEWFAMILY as u8,
     Delfamily => libc::CTRL_CMD_DELFAMILY as u8,
@@ -543,9 +545,16 @@ impl_var!(
     GetmcastGrp => libc::CTRL_CMD_GETMCAST_GRP as u8
 );
 
-impl_var!(
+impl_trait!(
+    /// Marker trait for types usable in `NlaAttrHdr.nla_type`
+    NlAttrType, u16
+);
+
+impl NlAttrType for u16 {}
+
+impl_var_trait!(
     /// Values for `nla_type` in `NlaAttrHdr`
-    CtrlAttr, u16,
+    CtrlAttr, u16, NlAttrType,
     Unspec => libc::CTRL_ATTR_UNSPEC as u16,
     FamilyId => libc::CTRL_ATTR_FAMILY_ID as u16,
     FamilyName => libc::CTRL_ATTR_FAMILY_NAME as u16,
@@ -556,9 +565,9 @@ impl_var!(
     McastGroups => libc::CTRL_ATTR_MCAST_GROUPS as u16
 );
 
-impl_var!(
+impl_var_trait!(
     /// Values for `nla_type` in `NlaAttrHdr`
-    CtrlAttrMcastGrp, u16,
+    CtrlAttrMcastGrp, u16, NlAttrType,
     Unspec => libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16,
     Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,
     Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16

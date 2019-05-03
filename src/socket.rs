@@ -214,7 +214,7 @@ impl NlSocket {
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
         let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
-        Ok(handle.get_payload_with::<u16>(CtrlAttr::FamilyId, None)?)
+        Ok(handle.get_payload::<u16>(CtrlAttr::FamilyId, None)?)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a
@@ -223,17 +223,17 @@ impl NlSocket {
             -> Result<u32, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
         let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
-        let mut mcast_groups = handle.get_nested_attributes::<u16>(CtrlAttr::McastGroups)?;
+        let mut mcast_groups = handle.get_nested_attributes::<CtrlAttrMcastGrp>(CtrlAttr::McastGroups)?;
         mcast_groups.parse_nested_attributes()?;
         let mut id = None;
         if let Some(iter) = mcast_groups.iter() {
             for attribute in iter {
                 let attribute_len = attribute.nla_len;
                 let mut handle = attribute.get_attr_handle();
-                let string = handle.get_payload_with::<String>(CtrlAttrMcastGrp::Name,
+                let string = handle.get_payload::<String>(CtrlAttrMcastGrp::Name,
                     Some(attribute_len as usize))?;
                 if string.as_str() == mcast_name {
-                    id = handle.get_payload_with::<u32>(CtrlAttrMcastGrp::Id, None).ok();
+                    id = handle.get_payload::<u32>(CtrlAttrMcastGrp::Id, None).ok();
                 }
             }
         }

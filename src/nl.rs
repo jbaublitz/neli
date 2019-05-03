@@ -46,9 +46,6 @@ impl<T, P> Nlmsghdr<T, P> where T: NlType, P: Nl {
 }
 
 impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nl_len.serialize(mem)?;
         self.nl_type.serialize(mem)?;
@@ -96,9 +93,6 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
 pub struct NlEmpty;
 
 impl Nl for NlEmpty {
-    type SerIn = ();
-    type DeIn = ();
-
     #[inline]
     fn serialize(&self, _cur: &mut StreamWriteBuffer) -> Result<(), SerError> {
         Ok(())

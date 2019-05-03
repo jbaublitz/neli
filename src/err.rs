@@ -2,7 +2,6 @@ use std;
 use std::error::Error;
 use std::fmt::{self,Display};
 use std::io;
-use std::mem;
 use std::str;
 use std::string;
 
@@ -34,9 +33,6 @@ pub struct Nlmsgerr<T> {
 }
 
 impl<T> Nl for Nlmsgerr<T> where T: NlType {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.error.serialize(mem)?;
         self.nlmsg.serialize(mem)?;
@@ -51,7 +47,7 @@ impl<T> Nl for Nlmsgerr<T> where T: NlType {
     }
 
     fn size(&self) -> usize {
-        mem::size_of::<libc::c_int>() + self.nlmsg.size()
+        self.error.size() + self.nlmsg.size()
     }
 }
 

@@ -49,42 +49,30 @@ pub const MAX_NL_LENGTH: usize = 32768;
 /// implementations if you have to work with a Netlink API that uses
 /// values of more unusual types.
 pub trait Nl: Sized {
-    /// Serialization input type for stateful serialization - set to `()` for stateless
-    /// serialization
-    type SerIn;
-    /// Deserialization input type for stateful deserialization - set to `()` for stateless
-    /// deserialization
-    type DeIn;
+    /// Serialization method
+    fn serialize(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError>;
 
-    /// Serialization method
-    fn serialize(&self, _m: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        unimplemented!()
-    }
-    /// Serialization method
-    fn serialize_with(&self, _m: &mut StreamWriteBuffer, _in: Self::SerIn) -> Result<(), SerError> {
-        unimplemented!()
-    }
     /// Stateless deserialization method
-    fn deserialize<T>(_m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
-        unimplemented!()
-    }
-    /// Stateful deserialization method
-    fn deserialize_with<T>(_m: &mut StreamReadBuffer<T>, _in: Self::DeIn) -> Result<Self, DeError>
-            where T: AsRef<[u8]> {
-        unimplemented!()
-    }
+    fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]>;
+
     /// The size of the binary representation of a struct - not aligned to word size
     fn size(&self) -> usize;
+
     /// The size of the binary representation of a struct - aligned to word size
     fn asize(&self) -> usize {
         alignto(self.size())
     }
 }
 
-impl Nl for u8 {
-    type SerIn = ();
-    type DeIn = ();
+/// Deserialize trait that allows a buffer to be passed in so that references with appropriate
+/// lifetimes can be returned
+pub trait NlBuf<'a>: Sized {
+    /// Deserialization method
+    fn deserialize_buf<T>(m: &mut StreamReadBuffer<T>, b: &'a mut [u8]) -> Result<Self, DeError>
+            where T: AsRef<[u8]>;
+}
 
+impl Nl for u8 {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         mem.write_u8(*self)?;
         Ok(())
@@ -100,9 +88,6 @@ impl Nl for u8 {
 }
 
 impl Nl for u16 {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         mem.write_u16::<NativeEndian>(*self)?;
         Ok(())
@@ -118,9 +103,6 @@ impl Nl for u16 {
 }
 
 impl Nl for u32 {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         mem.write_u32::<NativeEndian>(*self)?;
         Ok(())
@@ -136,9 +118,6 @@ impl Nl for u32 {
 }
 
 impl Nl for i32 {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         mem.write_i32::<NativeEndian>(*self)?;
         Ok(())
@@ -154,9 +133,6 @@ impl Nl for i32 {
 }
 
 impl Nl for u64 {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         mem.write_u64::<NativeEndian>(*self)?;
         Ok(())
@@ -172,9 +148,6 @@ impl Nl for u64 {
 }
 
 impl<'a> Nl for &'a [u8] {
-    type SerIn = ();
-    type DeIn = &'a mut [u8];
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let num_bytes = mem.write(self)?;
         if alignto(self.len()) - num_bytes > 0 {
@@ -184,42 +157,50 @@ impl<'a> Nl for &'a [u8] {
         Ok(())
     }
 
-    fn deserialize_with<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8]) -> Result<Self, DeError>
+    fn deserialize<T>(_m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+        unimplemented!()
+    }
+
+    fn size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a> NlBuf<'a> for &'a [u8] {
+    fn deserialize_buf<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8]) -> Result<Self, DeError>
             where T: AsRef<[u8]> {
         mem.read_exact(input)?;
         Ok(input)
     }
-
-    fn size(&self) -> usize {
-        self.len()
-    }
 }
 
 impl Nl for Vec<u8> {
-    type SerIn = usize;
-    type DeIn = usize;
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        let _ = mem.write(&self)?;
-        Ok(())
-    }
-
-    fn serialize_with(&self, mem: &mut StreamWriteBuffer, input: usize) -> Result<(), SerError> {
-        let bytes: Vec<u8> = self.iter().take(input).map(|u| *u).collect();
-        let _ = mem.write(&bytes)?;
+        match mem.take_size_hint() {
+            Some(sh) => {
+                let bytes: Vec<u8> = self.iter().take(sh).map(|u| *u).collect();
+                let _ = mem.write(&bytes)?;
+            },
+            None => {
+                let _ = mem.write(&self)?;
+            },
+        };
         Ok(())
     }
 
     fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
-        let mut v = Vec::new();
-        let _ = mem.read_to_end(&mut v)?;
-        Ok(v)
-    }
-
-    fn deserialize_with<T>(mem: &mut StreamReadBuffer<T>, input: usize) -> Result<Self, DeError>
-            where T: AsRef<[u8]> {
-        let mut v = vec![0; input];
-        let _ = mem.read(v.as_mut_slice())?;
+        let v = match mem.take_size_hint() {
+            Some(sh) => {
+                let mut v = vec![0; sh];
+                let _ = mem.read(v.as_mut_slice())?;
+                v
+            },
+            None => {
+                let mut v = Vec::new();
+                let _ = mem.read_to_end(&mut v)?;
+                v
+            },
+        };
         Ok(v)
     }
 
@@ -228,76 +209,41 @@ impl Nl for Vec<u8> {
     }
 }
 
-impl<'a> Nl for &'a str {
-    type SerIn = usize;
-    type DeIn = &'a mut [u8];
-
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
-            SerError::new("Unable to serialize string containing null byte")
-        }));
-        let bytes = c_str.as_bytes_with_nul();
-        let _ = mem.write(bytes)?;
-        Ok(())
-    }
-
-    fn serialize_with(&self, mem: &mut StreamWriteBuffer, input: usize) -> Result<(), SerError> {
-        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
-            SerError::new("Unable to serialize string containing null byte")
-        }));
-        let bytes = c_str.as_bytes_with_nul();
-        let num_bytes = mem.write(bytes)?;
-        if input - num_bytes > 0 {
-            mem.write(&vec![0; input - num_bytes])?;
-        }
-        Ok(())
-    }
-
-    fn deserialize_with<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8]) -> Result<Self, DeError>
-            where T: AsRef<[u8]> {
+impl<'a> NlBuf<'a> for &'a str {
+    fn deserialize_buf<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8])
+        -> Result<Self, DeError> where T: AsRef<[u8]> {
         mem.read_exact(input)?;
         let idx = input.iter().position(|elem| *elem == 0);
-        let mut new_input: (&[u8], &[u8]) = (&[], &[]);
-        if let Some(i) = idx {
-            new_input = input.split_at(i);
-        }
-        let (beginning, _) = new_input;
-        Ok(str::from_utf8(beginning)?)
-    }
-
-    fn size(&self) -> usize {
-        self.len()
+        let slice_ref = if let Some(i) = idx {
+            &input[..(i as usize)] 
+        } else {
+            input
+        };
+        Ok(str::from_utf8(slice_ref)?)
     }
 }
 
 impl Nl for String {
-    type SerIn = usize;
-    type DeIn = usize;
-
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
-            SerError::new("Unable to serialize string containing null byte")
-        }));
-        let bytes = c_str.as_bytes_with_nul();
-        let _ = mem.write(bytes)?;
-        Ok(())
-    }
-
-    fn serialize_with(&self, mem: &mut StreamWriteBuffer, input: usize) -> Result<(), SerError> {
+        let size_hint = mem.take_size_hint().unwrap_or(0);
         let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
             SerError::new("Unable to serialize string containing null byte")
         }));
         let bytes = c_str.as_bytes_with_nul();
         let num_bytes = mem.write(bytes)?;
-        if input - num_bytes > 0 {
-            mem.write(&vec![0; input - num_bytes])?;
+        if size_hint > num_bytes {
+            mem.write(&vec![0; size_hint - num_bytes])?;
         }
         Ok(())
     }
 
-    fn deserialize_with<T>(mem: &mut StreamReadBuffer<T>, input: usize) -> Result<Self, DeError>
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
             where T: AsRef<[u8]> {
-        let mut v = vec![0; input];
+        let size_hint = match mem.take_size_hint() {
+            Some(sh) => sh,
+            None => return Err(DeError::new("Size hint required to deserialize strings")),
+        };
+        let mut v = vec![0; size_hint];
         let _ = mem.read(v.as_mut_slice())?;
         let idx = v.iter().position(|elem| *elem == 0);
         if let Some(i) = idx {
@@ -424,11 +370,16 @@ mod test {
         assert_eq!(v, s.to_vec());
 
         let s = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
+        let mut mem = StreamReadBuffer::new(s);
         let v = {
-            let mut mem = StreamReadBuffer::new(s);
-            Vec::<u8>::deserialize_with(&mut mem, 9).unwrap()
+            mem.set_size_hint(8);
+            Vec::<u8>::deserialize(&mut mem).unwrap()
         };
-        assert_eq!(v.as_slice(), &[1, 2, 3, 4, 5, 6, 7, 8, 9])
+        assert_eq!(v.as_slice(), &[1, 2, 3, 4, 5, 6, 7, 8]);
+        let v = {
+            Vec::<u8>::deserialize(&mut mem).unwrap()
+        };
+        assert_eq!(v.as_slice(), &[9, 0, 0, 0])
     }
 
     #[test]
@@ -441,14 +392,10 @@ mod test {
         }
         assert_eq!(&[65, 65, 65, 65, 65, 0], sl);
 
-        let s = &[65, 65, 65, 65, 65, 65, 65, 0];
-        let mut mem = StreamReadBuffer::new(s);
-        let string = String::deserialize_with(&mut mem, 8).unwrap();
-        assert_eq!(string, "AAAAAAA".to_string());
-
         let s = &[65, 65, 65, 65, 65, 65, 0, 0];
         let mut mem = StreamReadBuffer::new(s);
-        let string = String::deserialize_with(&mut mem, 7).unwrap();
+        mem.set_size_hint(8);
+        let string = String::deserialize(&mut mem).unwrap();
         assert_eq!(string, "AAAAAA".to_string())
     }
 }

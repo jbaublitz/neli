@@ -1,6 +1,7 @@
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use {Nl,SerError,DeError};
+use consts::{Cmd,NlAttrType};
 use nlattr::{Nlattr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
@@ -15,10 +16,10 @@ pub struct Genlmsghdr<C> {
     attrs: Vec<u8>,
 }
 
-impl<C> Genlmsghdr<C> where C: From<u8> + Into<u8> {
+impl<C> Genlmsghdr<C> where C: Cmd {
     /// Create new generic netlink packet
     pub fn new<T>(cmd: C, version: u8, mut attrs: Vec<Nlattr<T>>)
-            -> Result<Self, SerError> where T: Nl + Into<u16> + From<u16> {
+            -> Result<Self, SerError> where T: NlAttrType {
         let mut mem = StreamWriteBuffer::new_growable(Some(attrs.iter().fold(0, |acc, item| {
             acc + item.asize()
         })));
@@ -34,15 +35,12 @@ impl<C> Genlmsghdr<C> where C: From<u8> + Into<u8> {
     }
 
     /// Get handle for attribute parsing and traversal
-    pub fn get_attr_handle<T>(&self) -> AttrHandle<T> where T: Nl + Into<u16> + From<u16> {
+    pub fn get_attr_handle<T>(&self) -> AttrHandle<T> where T: NlAttrType {
         AttrHandle::Bin(self.attrs.as_slice())
     }
 }
 
-impl<C> Nl for Genlmsghdr<C> where C: Nl + From<u8> + Into<u8> {
-    type SerIn = ();
-    type DeIn = ();
-
+impl<C> Nl for Genlmsghdr<C> where C: Cmd {
     fn serialize(&self, cur: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.cmd.serialize(cur)?;
         self.version.serialize(cur)?;
@@ -118,4 +116,40 @@ mod test {
         let genl = Genlmsghdr::deserialize(&mut mem).unwrap();
         assert_eq!(genl, genl_mock)
     }
+
+    //#[test]
+    //pub fn test_deserialize_multiple_messages() {
+    //    let genl_mock = Genlmsghdr::new(CtrlCmd::Getops, 2,
+    //                                 vec![Nlattr::new_str_payload(None,
+    //                                        CtrlAttr::FamilyId, "AAAAAAA"
+    //                                    ).unwrap()]
+    //                                 ).unwrap();
+    //    let genl_second_mock = Genlmsghdr::new(CtrlCmd::Newops, 2,
+    //                                 vec![Nlattr::new_str_payload(None,
+    //                                        CtrlAttr::FamilyId, "BBBB"
+    //                                    ).unwrap()]
+    //                                 ).unwrap();
+    //    let v = Vec::new();
+    //    let v_final = {
+    //        let mut c = Cursor::new(v);
+    //        c.write_u8(CtrlCmd::Getops.into()).unwrap();
+    //        c.write_u8(2).unwrap();
+    //        c.write_u16::<NativeEndian>(0).unwrap();
+    //        c.write_u16::<NativeEndian>(12).unwrap();
+    //        c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into()).unwrap();
+    //        c.write(&vec![65, 65, 65, 65, 65, 65, 65, 0]).unwrap();
+    //        c.write_u8(CtrlCmd::Setops.into()).unwrap();
+    //        c.write_u8(2).unwrap();
+    //        c.write_u16::<NativeEndian>(0).unwrap();
+    //        c.write_u16::<NativeEndian>(12).unwrap();
+    //        c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into()).unwrap();
+    //        c.write(&vec![66, 66, 66, 66, 0]).unwrap();
+    //        c.into_inner()
+    //    };
+    //    let mut mem = StreamReadBuffer::new(&v_final);
+    //    let genl = Genlmsghdr::deserialize_with(&mut mem).unwrap();
+    //    let genl_second = Genlmsghdr::deserialize_with(&mut mem).unwrap();
+    //    assert_eq!(genl, genl_mock);
+    //    assert_eq!(genl_second, genl_second_mock)
+    //}
 }
