@@ -288,7 +288,7 @@ impl io::Read for NlSocket {
 pub mod tokio {
     use super::*;
 
-    use std::io::{ErrorKind,Read};
+    use std::io::Read;
 
     use mio::{self,Evented,Ready};
     use tokio::prelude::{Async,AsyncRead,Stream};
@@ -342,17 +342,11 @@ pub mod tokio {
                     Async::Ready(_) => (),
                 }
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_written = match self.read(mem.as_mut_slice()) {
-                    Ok(0) => return Ok(Async::Ready(None)),
-                    Ok(i) => i,
-                    Err(e) => {
-                        if e.kind() == ErrorKind::WouldBlock {
-                            self.socket.clear_read_ready(Ready::readable())?;
-                            return Ok(Async::NotReady);
-                        } else {
-                            return Err(e);
-                        }
-                    }
+                let bytes_written = match self.poll_read(mem.as_mut_slice()) {
+                    Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
+                    Ok(Async::Ready(i)) => i,
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(e) => return Err(e),
                 };
                 mem.truncate(bytes_written);
                 self.buffer = Some(StreamReadBuffer::new(mem));

@@ -145,8 +145,8 @@ impl<T> Nl for Nlattr<T> where T: NlAttrType {
         mem.set_size_hint(nla_len as usize - (nla_len.size() + nla_type.size()));
         let payload = Vec::<u8>::deserialize(mem)?;
         let padding_len = alignto(nla_len as usize) - nla_len as usize;
-        let padding = &mut [0u8; libc::NLA_ALIGNTO as usize][0..padding_len];
         if padding_len > 0 {
+            let padding = &mut [0u8; libc::NLA_ALIGNTO as usize][0..padding_len];
             let _ = mem.read_exact(padding)?;
         }
         let nla = Nlattr {
