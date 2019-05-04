@@ -140,6 +140,7 @@ impl<T> Nl for Nlattr<T> where T: NlAttrType {
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let nla_len = u16::deserialize(mem)?;
         let nla_type = T::deserialize(mem)?;
+        mem.set_size_hint(nla_len as usize - (nla_len.size() + nla_type.size()));
         let payload = Vec::<u8>::deserialize(mem)?;
         let padding_len = alignto(nla_len as usize) - nla_len as usize;
         let padding = &mut [0u8; libc::NLA_ALIGNTO as usize][0..padding_len];

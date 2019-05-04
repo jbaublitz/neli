@@ -79,6 +79,7 @@ mod test {
     use byteorder::{NativeEndian,WriteBytesExt};
     use std::io::{Cursor,Write};
     use consts::{CtrlAttr,CtrlCmd};
+    use socket::NlSocket;
 
     #[test]
     pub fn test_serialize() {
@@ -124,6 +125,22 @@ mod test {
         let mut mem = StreamReadBuffer::new(&v_final);
         let genl = Genlmsghdr::deserialize(&mut mem).unwrap();
         assert_eq!(genl, genl_mock)
+    }
+
+    #[test]
+    #[ignore]
+    pub fn test_resolve_genl_family() {
+        let mut s = NlSocket::new_genl().unwrap();
+        let id = s.resolve_genl_family("acpi_event").unwrap();
+        assert_eq!(1, id)
+    }
+
+    #[test]
+    #[ignore]
+    pub fn test_resolve_mcast_group() {
+        let mut s = NlSocket::new_genl().unwrap();
+        let id = s.resolve_nl_mcast_group("acpi_event", "acpi_mc_group").unwrap();
+        assert_eq!(1, id)
     }
 
     //#[test]
