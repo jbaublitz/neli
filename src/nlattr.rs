@@ -133,7 +133,9 @@ impl<T> Nl for Nlattr<T> where T: NlAttrType {
         self.nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
         let padding_len = alignto(self.nla_len as usize) - self.nla_len as usize;
-        mem.write(&mut [0u8; 4][0..padding_len])?;
+        if padding_len > 0 {
+            mem.write(&mut [0u8; 4][0..padding_len])?;
+        }
         Ok(())
     }
 
@@ -144,7 +146,9 @@ impl<T> Nl for Nlattr<T> where T: NlAttrType {
         let payload = Vec::<u8>::deserialize(mem)?;
         let padding_len = alignto(nla_len as usize) - nla_len as usize;
         let padding = &mut [0u8; libc::NLA_ALIGNTO as usize][0..padding_len];
-        let _ = mem.read_exact(padding)?;
+        if padding_len > 0 {
+            let _ = mem.read_exact(padding)?;
+        }
         let nla = Nlattr {
             nla_len,
             nla_type,
