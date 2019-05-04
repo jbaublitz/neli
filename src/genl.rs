@@ -132,7 +132,7 @@ mod test {
     pub fn test_resolve_genl_family() {
         let mut s = NlSocket::new_genl().unwrap();
         let id = s.resolve_genl_family("acpi_event").unwrap();
-        assert_eq!(1, id)
+        assert_eq!(23, id)
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod test {
     pub fn test_resolve_mcast_group() {
         let mut s = NlSocket::new_genl().unwrap();
         let id = s.resolve_nl_mcast_group("acpi_event", "acpi_mc_group").unwrap();
-        assert_eq!(1, id)
+        assert_eq!(2, id)
     }
 
     //#[test]

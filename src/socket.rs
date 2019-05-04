@@ -231,7 +231,8 @@ impl NlSocket {
                 let attribute_len = attribute.nla_len;
                 let mut handle = attribute.get_attr_handle();
                 let string = handle.get_payload::<String>(CtrlAttrMcastGrp::Name,
-                    Some(attribute_len as usize))?;
+                    Some(attribute_len as usize - (attribute.nla_len.size() +
+                                                   attribute.nla_type.size())))?;
                 if string.as_str() == mcast_name {
                     id = handle.get_payload::<u32>(CtrlAttrMcastGrp::Id, None).ok();
                 }

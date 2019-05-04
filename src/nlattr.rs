@@ -246,8 +246,8 @@ impl<'a, P> AttrHandle<'a, P> where P: NlAttrType {
         }
     }
 
-    /// Parse binary payload as a type that implements `Nl` using `deserialize_with` if `with` is
-    /// not `None`
+    /// Parse binary payload as a type that implements `Nl` using `deserialize` with an option size
+    /// hint
     pub fn get_payload<R>(&mut self, attr: P, size_hint: Option<usize>) -> Result<R, DeError>
             where R: Nl {
         match self.parse_nested_attributes()?.get_attribute(attr) {
