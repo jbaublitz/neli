@@ -342,13 +342,13 @@ pub mod tokio {
                     Async::Ready(_) => (),
                 }
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_written = match self.poll_read(mem.as_mut_slice()) {
+                let bytes_read = match self.poll_read(mem.as_mut_slice()) {
                     Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
                     Ok(Async::Ready(i)) => i,
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(e) => return Err(e),
                 };
-                mem.truncate(bytes_written);
+                mem.truncate(bytes_read);
                 self.buffer = Some(StreamReadBuffer::new(mem));
             }
 

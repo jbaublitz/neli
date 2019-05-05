@@ -489,6 +489,8 @@ impl_trait!(
     NlType, u16
 );
 
+impl NlType for u16 {}
+
 impl_var_trait!(
     /// Values for `nl_type` in `Nlmsghdr`
     Nlmsg, u16, NlType,
