@@ -1,18 +1,19 @@
 extern crate neli;
 
+use neli::consts::NlFamily;
 use neli::genl::*;
 use neli::socket::*;
 
 fn main() {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
-    let mut sock = NlSocket::new_genl().unwrap();
+    let mut sock = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
     let _id = sock.resolve_genl_family(family_name).unwrap();
 
     // Resolve generic netlink multicast group ID
     let family_name = "your_family_name_here";
     let group_name = "your_group_name_here";
-    let mut sock = NlSocket::new_genl().unwrap();
+    let mut sock = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
     let _id = sock.resolve_nl_mcast_group(family_name, group_name).unwrap();
 
     // The following outlines how to parse netlink attributes

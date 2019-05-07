@@ -78,7 +78,7 @@ mod test {
     use super::*;
     use byteorder::{NativeEndian,WriteBytesExt};
     use std::io::{Cursor,Write};
-    use consts::{CtrlAttr,CtrlCmd};
+    use consts::{CtrlAttr,CtrlCmd,NlFamily};
     use socket::NlSocket;
 
     #[test]
@@ -130,7 +130,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_genl_family() {
-        let mut s = NlSocket::new_genl().unwrap();
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
         let id = s.resolve_genl_family("acpi_event").unwrap();
         assert_eq!(23, id)
     }
@@ -138,7 +138,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_mcast_group() {
-        let mut s = NlSocket::new_genl().unwrap();
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
         let id = s.resolve_nl_mcast_group("acpi_event", "acpi_mc_group").unwrap();
         assert_eq!(2, id)
     }
