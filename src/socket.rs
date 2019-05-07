@@ -22,76 +22,27 @@ use nlattr::Nlattr;
 use nl::Nlmsghdr;
 
 /// Iterator over messages returned from a `recv_nl` call
-pub struct NlMessageIter<T, P, B> {
-    recv_buffer: StreamReadBuffer<B>,
+pub struct NlMessageIter<'a, T, P> {
+    socket_ref: &'a mut NlSocket,
     data_type: PhantomData<T>,
     data_payload: PhantomData<P>,
 }
 
-impl<T, P, B> NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B: AsRef<[u8]> {
+impl<'a, T, P> NlMessageIter<'a, T, P> where T: Nl + NlType, P: Nl {
     /// Construct a new iterator that yields `Nlmsghdr` structs from the provided buffer
-    pub fn new(mem: B) -> Self {
-        NlMessageIter { recv_buffer: StreamReadBuffer::new(mem), data_type: PhantomData,
-                        data_payload: PhantomData, }
-    }
-
-    /// Extract and parse the next message in the buffer stream
-    pub fn nl_next(&mut self) -> Option<Result<Nlmsghdr<T, P>, NlError>> {
-        if self.recv_buffer.at_end() {
-            return None;
-        }
-        let msg = Nlmsghdr::<T, P>::deserialize(&mut self.recv_buffer);
-        let msg_ret = match msg {
-            Ok(m) => m,
-            Err(e) => {
-                self.recv_buffer.set_at_end();
-                return Some(Err(NlError::Msg(e.to_string())));
-            },
-        };
-        Some(Ok(msg_ret))
-    }
-
-    /// Extract and parse the next message in the buffer stream, overriding the provided struct generic
-    /// types with other types
-    pub fn nl_next_override<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError>>
-            where TT: Nl + NlType, PP: Nl{
-        if self.recv_buffer.at_end() {
-            return None;
-        }
-        let msg = Nlmsghdr::<TT, PP>::deserialize(&mut self.recv_buffer);
-        let msg_ret = match msg {
-            Ok(m) => m,
-            Err(e) => {
-                self.recv_buffer.rewind();
-                return Some(Err(NlError::Msg(e.to_string())));
-            },
-        };
-        Some(Ok(msg_ret))
-    }
-
-    /// Consume an ACK and return an error if an ACK is not found
-    pub fn recv_ack(&mut self) -> Result<(), NlError> {
-        if let Some(Ok(ack)) = self.nl_next_override::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>() {
-            if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
-                Ok(())
-            } else {
-                self.recv_buffer.rewind();
-                Err(NlError::NoAck)
-            }
-        } else {
-            Err(NlError::NoAck)
-        }
+    pub fn new(socket_ref: &'a mut NlSocket) -> Self {
+        NlMessageIter { socket_ref, data_type: PhantomData, data_payload: PhantomData, }
     }
 }
 
-impl<T, P, B> Iterator for NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B: AsRef<[u8]> {
-    type Item = Nlmsghdr<T, P>;
 
-    fn next(&mut self) -> Option<Nlmsghdr<T, P>> {
-        if let Some(Ok(msg)) = self.nl_next() {
-            Some(msg)
-        } else {
-            None
+impl<'a, T, P> Iterator for NlMessageIter<'a, T, P> where T: Nl + NlType, P: Nl {
+    type Item = Result<Nlmsghdr<T, P>, NlError>;
+
+    fn next(&mut self) -> Option<Result<Nlmsghdr<T, P>, NlError>> {
+        match self.socket_ref.recv_nl(None) {
+            Ok(rn) => Some(Ok(rn)),
+            Err(e) => return Some(Err(e)),
         }
     }
 }
@@ -99,18 +50,26 @@ impl<T, P, B> Iterator for NlMessageIter<T, P, B> where T: Nl + NlType, P: Nl, B
 /// Handle for the socket file descriptor
 pub struct NlSocket {
     fd: c_int,
+    buffer: Option<StreamReadBuffer<Vec<u8>>>,
+    pid: Option<u32>,
+    seq: Option<u32>,
 }
 
 impl NlSocket {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
+    pub fn new(proto: NlFamily, track_seq: bool) -> Result<Self, io::Error> {
         let fd = match unsafe {
             libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into())
         } {
             i if i >= 0 => Ok(i),
             _ => Err(io::Error::last_os_error()),
         }?;
-        Ok(NlSocket { fd })
+        Ok(NlSocket { fd, buffer: None, pid: None, seq: if track_seq { Some(0) } else { None }, })
+    }
+
+    /// Manually increment sequence number
+    pub fn increment_seq(&mut self) {
+        self.seq.map(|seq| seq + 1);
     }
 
     /// Set underlying socket file descriptor to be blocking
@@ -143,19 +102,35 @@ impl NlSocket {
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
     /// man pages for more information on netlink IDs and groups.
-    pub fn bind(&mut self, pid: Option<u32>, groups: Vec<u32>) -> Result<(), io::Error> {
+    pub fn bind(&mut self, pid: Option<u32>, groups: Option<Vec<u32>>) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
-        nladdr.nl_groups = groups.into_iter().fold(0, |acc, next| {
-            acc | (1 << (next - 1))
-        });
+        nladdr.nl_groups = 0;
         match unsafe {
             libc::bind(self.fd, &nladdr as *const _ as *const libc::sockaddr,
                        size_of::<libc::sockaddr_nl>() as u32)
         } {
-            i if i >= 0 => Ok(()),
-            _ => Err(io::Error::last_os_error()),
+            i if i >= 0 => (),
+            _ => return Err(io::Error::last_os_error()),
+        };
+        if let Some(grps) = groups {
+            self.set_mcast_groups(grps)?;
+        }
+        Ok(())
+    }
+
+    /// Set multicast groups for socket
+    pub fn set_mcast_groups(&mut self, groups: Vec<u32>) -> Result<(), io::Error> {
+        let grps = groups.into_iter().fold(0, |acc, next| { acc | (1 << (next - 1)) });
+        match unsafe {
+            libc::setsockopt(self.fd, libc::SOL_NETLINK,
+                             libc::NETLINK_ADD_MEMBERSHIP,
+                             &grps as *const _ as *const libc::c_void,
+                             size_of::<u32>() as libc::socklen_t)
+        } {
+            i if i == 0 => Ok(()),
+            _ => return Err(io::Error::last_os_error()),
         }
     }
 
@@ -181,16 +156,11 @@ impl NlSocket {
     }
 
     /// Equivalent of `socket` and `bind` calls.
-    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Vec<u32>)
+    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Option<Vec<u32>>, track_seq: bool)
                    -> Result<Self, io::Error> {
-        let mut s = try!(NlSocket::new(proto));
+        let mut s = try!(NlSocket::new(proto, track_seq));
         try!(s.bind(pid, groups));
         Ok(s)
-    }
-
-    /// Create generic netlink resolution socket
-    pub fn new_genl() -> Result<NlSocket, io::Error> {
-        Self::connect(NlFamily::Generic, None, Vec::new())
     }
 
     fn get_genl_family(&mut self, family_name: &str)
@@ -198,15 +168,12 @@ impl NlSocket {
         let attrs = vec![Nlattr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
         let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl,
-                               vec![NlmF::Request], None, None, genlhdr);
+                               vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
         self.send_nl(nlhdr)?;
 
-        let mut iter = self.recv_nl(Some(4096))?;
-        if let Some(msg) = iter.nl_next() {
-            msg
-        } else {
-            Err(NlError::new("No genetlink message received in response to request"))
-        }
+        let msg = self.recv_nl(None)?;
+        self.recv_ack()?;
+        Ok(msg)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a
@@ -242,9 +209,12 @@ impl NlSocket {
     }
 
     /// Convenience function to send an `Nlmsghdr` struct
-    pub fn send_nl<T, P>(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError> where T: Nl + NlType,
-            P: Nl {
+    pub fn send_nl<T, P>(&mut self, mut msg: Nlmsghdr<T, P>) -> Result<(), NlError>
+            where T: Nl + NlType, P: Nl {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
+        if let Some(seq) = self.seq {
+            msg.nl_seq = seq;
+        }
         msg.serialize(&mut mem)?;
         self.send(mem, 0)?;
         Ok(())
@@ -252,11 +222,46 @@ impl NlSocket {
 
     /// Convenience function to begin receiving a stream of `Nlmsghdr` structs
     pub fn recv_nl<T, P>(&mut self, buf_sz: Option<usize>)
-            -> Result<NlMessageIter<T, P, Vec<u8>>, NlError> where T: Nl + NlType, P: Nl {
-        let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
-        let mem_read = self.recv(&mut mem, 0)?;
-        mem.truncate(mem_read as usize);
-        Ok(NlMessageIter::new(mem))
+            -> Result<Nlmsghdr<T, P>, NlError> where T: Nl + NlType, P: Nl {
+        if self.buffer.is_none() {
+            let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
+            let mem_read = self.recv(&mut mem, 0)?;
+            if mem_read == 0 {
+                return Err(NlError::new("No data could be read from the socket"));
+            }
+            mem.truncate(mem_read as usize);
+            self.buffer = Some(StreamReadBuffer::new(mem));
+        }
+        let msg = match self.buffer {
+            Some(ref mut b) => Nlmsghdr::deserialize(b)?,
+            None => unreachable!(),
+        };
+        if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
+            self.buffer = None;
+        }
+        Ok(msg)
+    }
+
+    /// Consume an ACK and return an error if an ACK is not found
+    pub fn recv_ack(&mut self) -> Result<(), NlError> {
+        if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(None) {
+            if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
+                if self.pid.is_none() {
+                    self.pid = Some(ack.nl_pid);
+                }
+                Ok(())
+            } else {
+                self.buffer.as_mut().map(|b| b.rewind());
+                Err(NlError::NoAck)
+            }
+        } else {
+            Err(NlError::NoAck)
+        }
+    }
+
+    /// Return an iterator object
+    pub fn iter<'a, T, P>(&'a mut self) -> NlMessageIter<'a, T, P> where T: NlType, P: Nl {
+        NlMessageIter::new(self)
     }
 }
 
@@ -274,12 +279,7 @@ impl IntoRawFd for NlSocket {
 
 impl io::Read for NlSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match unsafe {
-            libc::recv(self.fd, buf as *mut _ as *mut c_void, buf.len(), 0)
-        } {
-            i if i >= 0 => Ok(i as usize),
-            _ => Err(io::Error::last_os_error()),
-        }
+        self.recv(buf, 0).map(|i| i as usize)
     }
 }
 
@@ -288,9 +288,7 @@ impl io::Read for NlSocket {
 pub mod tokio {
     use super::*;
 
-    use std::io::Read;
-
-    use mio::{self,Evented,Ready};
+    use mio::{self,Evented};
     use tokio::prelude::{Async,AsyncRead,Stream};
     use tokio::reactor::PollEvented2;
 
@@ -322,27 +320,14 @@ pub mod tokio {
         }
     }
 
-    impl<T, P> Read for NlSocket<T, P> {
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.socket.get_mut().read(buf)
-        }
-    }
-
-    impl<T, P> AsyncRead for NlSocket<T, P> {}
-
     impl<T, P> Stream for NlSocket<T, P> where T: NlType, P: Nl {
         type Item = Nlmsghdr<T, P>;
         type Error = io::Error;
 
         fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
             if self.empty() {
-                let readiness = self.socket.poll_read_ready(Ready::readable())?;
-                match readiness {
-                    Async::NotReady => return Ok(Async::NotReady),
-                    Async::Ready(_) => (),
-                }
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_read = match self.poll_read(mem.as_mut_slice()) {
+                let bytes_read = match self.socket.poll_read(mem.as_mut_slice()) {
                     Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
                     Ok(Async::Ready(i)) => i,
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
@@ -389,10 +374,29 @@ impl Drop for NlSocket {
 
 #[cfg(test)]
 mod test {
+    extern crate tokio;
+
     use super::*;
 
+    use std::io::Read;
+
+    use tokio::prelude::Stream;
+
     #[test]
-    fn test_socket_creation() {
-       NlSocket::connect(NlFamily::Generic, None, Vec::new()).unwrap();
+    fn test_socket_nonblock() {
+        let mut s = NlSocket::connect(NlFamily::Generic, None, Vec::new()).unwrap();
+        s.nonblock().unwrap();
+        assert_eq!(s.is_blocking().unwrap(), false);
+        let buf = &mut [0; 4];
+        match s.read(buf) {
+            Err(e) => {
+                if e.kind() != io::ErrorKind::WouldBlock {
+                    panic!("Error: {}", e);
+                }
+            },
+            Ok(_) => {
+                panic!("Should not return data");
+            }
+        }
     }
 }

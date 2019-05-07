@@ -532,6 +532,8 @@ impl_trait!(
     Cmd, u8
 );
 
+impl Cmd for u8 {}
+
 impl_var_trait!(
     /// Values for `cmd` in `Genlmsghdr`
     CtrlCmd, u8, Cmd,

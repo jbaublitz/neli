@@ -12,9 +12,16 @@ include = [
     "LICENSE",
 ]
 
+[lib]
+name = "neli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "acpi_stream"
+path = "src/acpi_stream.rs"
+
 [dependencies]
 byteorder = "1.2"
-mio = "0.6"
 
 [dependencies.libc]
 git = "https://github.com/jbaublitz/libc"
@@ -25,10 +32,14 @@ version = "0.2.43"
 version = "0.1"
 optional = true
 
+[dependencies.mio]
+version = "0.6"
+optional = true
+
 [dependencies.buffering]
 version = "0.3.2"
 features = ["copy"]
 
 [features]
 default = []
-stream = ["tokio"]
+stream = ["tokio", "mio"]
