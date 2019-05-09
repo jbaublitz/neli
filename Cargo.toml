@@ -17,8 +17,8 @@ name = "neli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "acpi_stream"
-path = "src/acpi_stream.rs"
+name = "genl_stream"
+path = "src/genl_stream.rs"
 
 [dependencies]
 byteorder = "1.2"
