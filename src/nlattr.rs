@@ -30,6 +30,35 @@ use Nl;
 use err::{SerError,DeError};
 use consts::{alignto,NlAttrType};
 
+impl<T> Nl for Vec<Nlattr<T>> where T: NlAttrType {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        for item in self.iter() {
+            item.serialize(mem)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        let mut vec = Vec::new();
+        let mut size_hint = mem.take_size_hint().unwrap_or(0);
+        while size_hint > 0 || !mem.at_end() {
+            let next = Nlattr::<T>::deserialize(mem)?;
+            if size_hint > 0 {
+                size_hint -= next.asize();
+            }
+            vec.push(next);
+        }
+        Ok(vec)
+    }
+
+    fn size(&self) -> usize {
+        self.iter().fold(0, |acc, next| {
+            acc + alignto(next.size())
+        })
+    }
+}
+
 /// Struct representing netlink attributes and payloads
 #[derive(Debug,PartialEq)]
 pub struct Nlattr<T> {
@@ -58,7 +87,12 @@ impl<T> Nlattr<T> where T: NlAttrType {
     pub fn new_nl_payload<P>(nla_len: Option<u16>, nla_type: T, payload: P)
             -> Result<Self, SerError> where P: Nl {
         let mut mem = StreamWriteBuffer::new_growable(Some(payload.asize()));
+        mem.set_size_hint(payload.size());
         payload.serialize(&mut mem)?;
+        let align_diff = payload.asize() - payload.size();
+        if align_diff != 0 {
+            mem.write(&[0u8; libc::NLA_ALIGNTO as usize][0..align_diff])?;
+        }
         let mut nla = Nlattr {
             nla_type,
             payload: mem.as_ref().to_vec(),
@@ -66,59 +100,6 @@ impl<T> Nlattr<T> where T: NlAttrType {
         };
         nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
         Ok(nla)
-    }
-
-    /// Create new netlink attribute with a nested payload
-    pub fn new_nested<P>(nla_len: Option<u16>, nla_type: T, mut payload: Vec<Nlattr<P>>)
-            -> Result<Self, SerError> where P: NlAttrType {
-        let mut nla = Nlattr {
-            nla_type,
-            payload: {
-                let mut mem = StreamWriteBuffer::new_growable(Some(payload.iter().fold(0, |acc, item| {
-                    acc + item.asize()
-                })));
-                for item in payload.iter_mut() {
-                    item.serialize(&mut mem)?;
-                    if item.payload.asize() != item.payload.size() {
-                        [0u8; libc::NLA_ALIGNTO as usize]
-                            [0..item.payload.asize() - item.payload.size()]
-                            .as_ref().serialize(&mut mem)?;
-                    }
-                }
-                mem.as_ref().to_vec()
-            },
-            nla_len: 0,
-        };
-        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
-        Ok(nla)
-    }
-
-    /// Create new netlink attribute payload from string, handling null byte termination
-    pub fn new_string_payload(nla_len: Option<u16>, nla_type: T, string_payload: String)
-            -> Result<Self, SerError> {
-        let nla = Nlattr {
-            nla_len: nla_len.unwrap_or((0u16.size() + nla_type.size() + string_payload.size())
-                                       as u16),
-            nla_type,
-            payload: {
-                let mut mem = StreamWriteBuffer::new_growable(Some(string_payload.asize()));
-                string_payload.serialize(&mut mem)?;
-                if string_payload.asize() != string_payload.size() {
-                    [0u8; libc::NLA_ALIGNTO as usize]
-                        [0..string_payload.asize() - string_payload.size()]
-                        .as_ref().serialize(&mut mem)?;
-                }
-                mem.as_ref().to_vec()
-            },
-        };
-        Ok(nla)
-    }
-
-    /// Create new netlink attribute payload from string, handling null byte termination
-    pub fn new_str_payload(nla_len: Option<u16>, nla_type: T, str_payload: &str)
-            -> Result<Self, SerError> {
-        let string_payload = str_payload.to_string();
-        Self::new_string_payload(nla_len, nla_type, string_payload)
     }
 
     /// Get handle for attribute parsing and traversal

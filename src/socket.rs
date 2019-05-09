@@ -165,7 +165,7 @@ impl NlSocket {
 
     fn get_genl_family(&mut self, family_name: &str)
             -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd>>, NlError> {
-        let attrs = vec![Nlattr::new_str_payload(None, CtrlAttr::FamilyName, family_name)?];
+        let attrs = vec![Nlattr::new_nl_payload(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
         let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl,
                                vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);

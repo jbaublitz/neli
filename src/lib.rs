@@ -177,19 +177,17 @@ impl<'a> NlBuf<'a> for &'a [u8] {
 
 impl Nl for Vec<u8> {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        match mem.take_size_hint() {
-            Some(sh) => {
-                let bytes: Vec<u8> = self.iter().take(sh).map(|u| *u).collect();
-                let _ = mem.write(&bytes)?;
-            },
-            None => {
-                let _ = mem.write(&self)?;
-            },
+        let size_hint = mem.take_size_hint();
+        let slice: &[u8] = &self.as_ref();
+        let slice_hinted = match size_hint {
+            Some(sh) => &slice[0..sh],
+            None => slice,
         };
+        let _ = mem.write(slice_hinted)?;
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let v = match mem.take_size_hint() {
             Some(sh) => {
                 let mut v = vec![0; sh];
@@ -207,6 +205,28 @@ impl Nl for Vec<u8> {
 
     fn size(&self) -> usize {
         self.len()
+    }
+}
+
+impl<'a> Nl for &'a str {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        let str_bytes = self.as_bytes();
+        let nul = &[0u8];
+        let bytes = match mem.take_size_hint() {
+            Some(sh) => [&str_bytes[..sh - 1], nul],
+            None => [str_bytes, nul],
+        };
+        let _ = mem.write(bytes.concat().as_slice())?;
+        Ok(())
+    }
+
+    fn deserialize<B>(_: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        unimplemented!()
+    }
+
+    fn size(&self) -> usize {
+        self.len() + 1
     }
 }
 

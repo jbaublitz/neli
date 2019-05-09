@@ -107,7 +107,7 @@ mod test {
     #[test]
     pub fn test_deserialize() {
         let genl_mock = Genlmsghdr::new(CtrlCmd::Getops, 2,
-                                     vec![Nlattr::new_str_payload(None,
+                                     vec![Nlattr::new_nl_payload(None,
                                             CtrlAttr::FamilyId, "AAAAAAA"
                                         ).unwrap()]
                                      ).unwrap();
