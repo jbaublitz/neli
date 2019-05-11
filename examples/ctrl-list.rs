@@ -30,17 +30,14 @@ fn main() -> Result<(), NlError> {
     socket.send_nl(nlhdr)?;
 
     loop {
-        let response = socket.recv_nl::<GenlId, Genlmsghdr<CtrlCmd>>(None)?;
-
-        if let GenlId::UnrecognizedVariant(id) = response.nl_type {
-            match Nlmsg::from(id) {
-                // This example could be improved by reinterpreting the payload as an Nlmsgerr
-                // struct and printing the specific error encountered.
-                Nlmsg::Error => panic!("An error occurred while retrieving available families."),
-                Nlmsg::Done => break,
-                _ => {}
-            }
-        }
+        let response = socket.recv_nl::<Nlmsg, Genlmsghdr<CtrlCmd>>(None)?;
+        match response.nl_type {
+            // This example could be improved by reinterpreting the payload as an Nlmsgerr struct
+            // and printing the specific error encountered.
+            Nlmsg::Error => panic!("An error occurred while retrieving available families."),
+            Nlmsg::Done => break,
+            _ => (),
+        };
 
         let mut handle = response.nl_payload.get_attr_handle::<CtrlAttr>();
         handle.parse_nested_attributes()?;
