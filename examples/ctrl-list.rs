@@ -29,8 +29,8 @@ fn main() -> Result<(), NlError> {
     };
     socket.send_nl(nlhdr)?;
 
-    loop {
-        let response = socket.recv_nl::<Nlmsg, Genlmsghdr<CtrlCmd>>(None)?;
+    let mut iter = socket.iter::<Nlmsg, Genlmsghdr<CtrlCmd>>();
+    while let Some(Ok(response)) = iter.next() {
         match response.nl_type {
             // This example could be improved by reinterpreting the payload as an Nlmsgerr struct
             // and printing the specific error encountered.
