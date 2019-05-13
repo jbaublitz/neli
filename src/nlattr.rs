@@ -243,3 +243,55 @@ impl<'a, P> AttrHandle<'a, P> where P: NlAttrType {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    extern crate byteorder;
+
+    use std::io::Cursor;
+
+    use byteorder::{ByteOrder,WriteBytesExt,NativeEndian};
+
+    use consts::CtrlAttr;
+
+    #[test]
+    fn test_padding_size_calculation() {
+        let nlattr = Nlattr::new_nl_payload(None, CtrlAttr::Unspec, 4u16).unwrap();
+        let mut vec = vec![0; 2];
+        NativeEndian::write_u16(vec.as_mut_slice(), 4);
+        assert_eq!(nlattr, Nlattr { nla_len: 6, nla_type: CtrlAttr::Unspec, payload: vec });
+    }
+
+    #[test]
+    fn test_nl_nlattr() {
+        let nlattr = Nlattr::new_nl_payload(None, CtrlAttr::Unspec, 4u16).unwrap();
+        let mut nlattr_serialized = StreamWriteBuffer::new_growable(Some(nlattr.asize()));
+        nlattr.serialize(&mut nlattr_serialized).unwrap();
+
+        let mut nlattr_desired_serialized = Cursor::new(vec![0; nlattr.size()]);
+        nlattr_desired_serialized.write_u16::<NativeEndian>(6).unwrap();
+        nlattr_desired_serialized.write_u16::<NativeEndian>(CtrlAttr::Unspec.into()).unwrap();
+        nlattr_desired_serialized.write_u16::<NativeEndian>(4).unwrap();
+        nlattr_desired_serialized.write(&[0, 0]).unwrap();
+
+        assert_eq!(nlattr_serialized.as_ref(), nlattr_desired_serialized.into_inner().as_slice());
+
+        let mut vec = vec![0; 2];
+        NativeEndian::write_u16(vec.as_mut_slice(), 4);
+        let nlattr_desired_deserialized = Nlattr { nla_len: 6, nla_type: CtrlAttr::Unspec,
+                                                   payload: vec };
+
+        let mut nlattr_deserialize_buffer = Cursor::new(
+            vec![0; nlattr_desired_deserialized.asize()]
+        );
+        nlattr_deserialize_buffer.write_u16::<NativeEndian>(6).unwrap();
+        nlattr_deserialize_buffer.write_u16::<NativeEndian>(CtrlAttr::Unspec.into()).unwrap();
+        nlattr_deserialize_buffer.write_u16::<NativeEndian>(4).unwrap();
+        nlattr_deserialize_buffer.write(&[0, 0]).unwrap();
+        let mut reader = StreamReadBuffer::new(nlattr_deserialize_buffer.into_inner());
+        let nlattr_deserialized = Nlattr::<CtrlAttr>::deserialize(&mut reader).unwrap();
+        assert_eq!(nlattr_deserialized, nlattr_desired_deserialized);
+    }
+}
