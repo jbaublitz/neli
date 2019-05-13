@@ -89,10 +89,6 @@ impl<T> Nlattr<T> where T: NlAttrType {
         let mut mem = StreamWriteBuffer::new_growable(Some(payload.asize()));
         mem.set_size_hint(payload.size());
         payload.serialize(&mut mem)?;
-        let align_diff = payload.asize() - payload.size();
-        if align_diff != 0 {
-            mem.write(&[0u8; libc::NLA_ALIGNTO as usize][0..align_diff])?;
-        }
         let mut nla = Nlattr {
             nla_type,
             payload: mem.as_ref().to_vec(),
