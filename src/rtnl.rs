@@ -203,9 +203,6 @@ pub struct Ndmsg {
 }
 
 impl Nl for Ndmsg {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ndm_family.serialize(buf)?;
         self.ndm_index.serialize(buf)?;
@@ -219,6 +216,37 @@ impl Nl for Ndmsg {
         }).serialize(buf)?;
         self.ndm_type.serialize(buf)?;
         Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        Ok(Ndmsg {
+            ndm_family: Af::deserialize(buf)?,
+            ndm_index: libc::c_int::deserialize(buf)?,
+            ndm_state: {
+                let state = u16::deserialize(buf)?;
+                let mut ndm_state = Vec::new();
+                for i in 0..mem::size_of::<u16>() * 8 {
+                    let bit = 1 << i;
+                    if bit & state == bit {
+                        ndm_state.push((bit as u16).into());
+                    }
+                }
+                ndm_state
+            },
+            ndm_flags: {
+                let flags = u8::deserialize(buf)?;
+                let mut ndm_flags = Vec::new();
+                for i in 0..mem::size_of::<u16>() * 8 {
+                    let bit = 1 << i;
+                    if bit & flags == bit {
+                        ndm_flags.push((bit as u8).into());
+                    }
+                }
+                ndm_flags
+            },
+            ndm_type: Rtn::deserialize(buf)?,
+        })
     }
 
     fn size(&self) -> usize {
@@ -240,15 +268,22 @@ pub struct NdaCacheinfo {
 }
 
 impl Nl for NdaCacheinfo {
-    type SerIn = ();
-    type DeIn = ();
-
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ndm_confirmed.serialize(buf)?;
         self.ndm_used.serialize(buf)?;
         self.ndm_updated.serialize(buf)?;
         self.ndm_refcnt.serialize(buf)?;
         Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        Ok(NdaCacheinfo {
+            ndm_confirmed: u32::deserialize(buf)?,
+            ndm_used: u32::deserialize(buf)?,
+            ndm_updated: u32::deserialize(buf)?,
+            ndm_refcnt: u32::deserialize(buf)?,
+        })
     }
 
     fn size(&self) -> usize {
