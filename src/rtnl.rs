@@ -7,8 +7,37 @@ use Nl;
 use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,Ntf,Nud,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
 use err::{SerError,DeError};
 
+impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        for item in self.iter() {
+            item.serialize(buf)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        let mut size_hint = buf.take_size_hint().ok_or(
+            DeError::new("Vec of Rtattr requires a size hint to deserialize")
+        )?;
+        let mut vec = Vec::new();
+        while size_hint > 0 {
+            let attr = Rtattr::deserialize(buf)?;
+            size_hint -= attr.asize();
+            vec.push(attr);
+        }
+        Ok(vec)
+    }
+
+    fn size(&self) -> usize {
+        self.iter().fold(0, |acc, item| {
+            acc + item.asize()
+        })
+    }
+}
+
 /// Struct representing interface information messages
-pub struct Ifinfomsg {
+pub struct Ifinfomsg<T> {
     /// Interface address family
     pub ifi_family: AddrFamily,
     /// Interface type
@@ -18,16 +47,20 @@ pub struct Ifinfomsg {
     /// Interface flags
     pub ifi_flags: Vec<Iff>,
     ifi_change: libc::c_uint,
+    /// Payload of `Rtattr`s
+    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
 }
 
-impl Ifinfomsg {
+impl<T> Ifinfomsg<T> where T: RtaType {
     /// Create a fully initialized interface info struct
-    pub fn new(ifi_family: AddrFamily, ifi_type: Arphrd, ifi_index: libc::c_int, ifi_flags: Vec<Iff>) -> Self {
-        Ifinfomsg { ifi_family, ifi_type, ifi_index, ifi_flags, ifi_change: 0xffffffff }
+    pub fn new(ifi_family: AddrFamily, ifi_type: Arphrd, ifi_index: libc::c_int,
+               ifi_flags: Vec<Iff>, rtattrs: Vec<Rtattr<T, Vec<u8>>>) -> Self {
+        Ifinfomsg { ifi_family, ifi_type, ifi_index, ifi_flags, ifi_change: 0xffffffff,
+                    rtattrs, }
     }
 }
 
-impl Nl for Ifinfomsg {
+impl<T> Nl for Ifinfomsg<T> where T: RtaType {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifi_family.serialize(buf)?;
         self.ifi_type.serialize(buf)?;
@@ -37,6 +70,7 @@ impl Nl for Ifinfomsg {
             acc | next_uint
         }).serialize(buf)?;
         self.ifi_change.serialize(buf)?;
+        self.rtattrs.serialize(buf)?;
         Ok(())
     }
 
@@ -57,6 +91,7 @@ impl Nl for Ifinfomsg {
                 nl_flags
             },
             ifi_change: 0xffffffff,
+            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
         })
     }
 
@@ -237,7 +272,7 @@ impl Nl for Ndmsg {
             ndm_flags: {
                 let flags = u8::deserialize(buf)?;
                 let mut ndm_flags = Vec::new();
-                for i in 0..mem::size_of::<u16>() * 8 {
+                for i in 0..mem::size_of::<u8>() * 8 {
                     let bit = 1 << i;
                     if bit & flags == bit {
                         ndm_flags.push((bit as u8).into());
@@ -293,7 +328,7 @@ impl Nl for NdaCacheinfo {
 }
 
 /// Struct representing route netlink attributes
-pub struct RtAttr<T, P> {
+pub struct Rtattr<T, P> {
     /// Length of the attribute
     pub rta_len: libc::c_ushort,
     /// Type of the attribute
@@ -302,7 +337,14 @@ pub struct RtAttr<T, P> {
     pub rta_payload: P,
 }
 
-impl<T, P> Nl for RtAttr<T, P> where T: RtaType, P: Nl {
+impl<T, P> Rtattr<T, P> where T: RtaType, P: Nl {
+    /// Get the size of the payload only
+    pub fn payload_size(&self) -> usize {
+        self.rta_payload.size()
+    }
+}
+
+impl<T, P> Nl for Rtattr<T, P> where T: RtaType, P: Nl {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rta_len.serialize(buf)?;
         self.rta_type.serialize(buf)?;
@@ -311,14 +353,59 @@ impl<T, P> Nl for RtAttr<T, P> where T: RtaType, P: Nl {
     }
 
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        Ok(RtAttr {
-            rta_len: libc::c_ushort::deserialize(buf)?,
-            rta_type: T::deserialize(buf)?,
-            rta_payload: P::deserialize(buf)?,
+        let rta_len = libc::c_ushort::deserialize(buf)?;
+        let rta_type = T::deserialize(buf)?;
+        buf.set_size_hint(rta_len as usize);
+        let rta_payload = P::deserialize(buf)?;
+        Ok(Rtattr {
+            rta_len,
+            rta_type, 
+            rta_payload,
         })
     }
 
     fn size(&self) -> usize {
         self.rta_len.size() + self.rta_type.size() + self.rta_payload.size()
+    }
+}
+
+/// Message in response to queuing discipline operations
+pub struct Tcmsg {
+    /// Family
+    pub tcm_family: libc::c_uchar,
+    /// Interface index
+    pub tcm_ifindex: libc::c_int,
+    /// Queuing discipline handle
+    pub tcm_handle: u32,
+    /// Parent queuing discipline
+    pub tcm_parent: u32,
+    /// Info
+    pub tcm_info: u32,
+}
+
+impl Nl for Tcmsg {
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.tcm_family.serialize(buf)?;
+        self.tcm_ifindex.serialize(buf)?;
+        self.tcm_handle.serialize(buf)?;
+        self.tcm_parent.serialize(buf)?;
+        self.tcm_info.serialize(buf)?;
+        Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        Ok(Tcmsg {
+            tcm_family: libc::c_uchar::deserialize(buf)?,
+            tcm_ifindex: libc::c_int::deserialize(buf)?,
+            tcm_handle: u32::deserialize(buf)?,
+            tcm_parent: u32::deserialize(buf)?,
+            tcm_info: u32::deserialize(buf)?,
+        })
+    }
+
+    fn size(&self) -> usize {
+        self.tcm_family.size() + self.tcm_ifindex.size() + self.tcm_handle.size() +
+            self.tcm_parent.size() + self.tcm_info.size()
     }
 }

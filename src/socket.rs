@@ -16,7 +16,8 @@ use libc::{self,c_int,c_void};
 
 use {Nl,MAX_NL_LENGTH};
 use err::{NlError,Nlmsgerr};
-use consts::{self,AddrFamily,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,GenlId,NlmF,NlFamily,NlType};
+use consts::{self,AddrFamily,CtrlCmd,CtrlAttr,CtrlAttrMcastGrp,GenlId,NlAttrType,NlmF,NlFamily,
+             NlType};
 use genl::Genlmsghdr;
 use nlattr::Nlattr;
 use nl::Nlmsghdr;
@@ -163,12 +164,13 @@ impl NlSocket {
         Ok(s)
     }
 
-    fn get_genl_family(&mut self, family_name: &str)
-            -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd>>, NlError> {
-        let attrs = vec![Nlattr::new_nl_payload(None, CtrlAttr::FamilyName, family_name)?];
+    fn get_genl_family<T>(&mut self, family_name: &str)
+            -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, T, Vec<u8>>>, NlError>
+            where T: NlAttrType {
+        let attrs = vec![Nlattr::new(None, CtrlAttr::FamilyName, family_name)];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
         let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl,
-                               vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
+                                  vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
         self.send_nl(nlhdr)?;
 
         let msg = self.recv_nl(None)?;
@@ -180,8 +182,8 @@ impl NlSocket {
     /// numeric netlink ID
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
-        let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
-        Ok(handle.get_payload::<u16>(CtrlAttr::FamilyId, None)?)
+        let handle = nlhdr.nl_payload.get_attr_handle();
+        Ok(handle.get_attr_payload_as::<u16>(CtrlAttr::FamilyId)?)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a
@@ -189,23 +191,19 @@ impl NlSocket {
     pub fn resolve_nl_mcast_group(&mut self, family_name: &str, mcast_name: &str)
             -> Result<u32, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
-        let mut handle = nlhdr.nl_payload.get_attr_handle::<CtrlAttr>();
-        let mut mcast_groups = handle.get_nested_attributes::<CtrlAttrMcastGrp>(CtrlAttr::McastGroups)?;
-        mcast_groups.parse_nested_attributes()?;
-        let mut id = None;
-        if let Some(iter) = mcast_groups.iter() {
-            for attribute in iter {
-                let attribute_len = attribute.nla_len;
-                let mut handle = attribute.get_attr_handle();
-                let string = handle.get_payload::<String>(CtrlAttrMcastGrp::Name,
-                    Some(attribute_len as usize - (attribute.nla_len.size() +
-                                                   attribute.nla_type.size())))?;
-                if string.as_str() == mcast_name {
-                    id = handle.get_payload::<u32>(CtrlAttrMcastGrp::Id, None).ok();
-                }
+        let mut handle = nlhdr.nl_payload.get_attr_handle();
+        let mcast_groups = handle.get_nested_attributes::<CtrlAttrMcastGrp>(
+            CtrlAttr::McastGroups
+        )?;
+        mcast_groups.iter().filter_map(|item| {
+            let nested_attrs = item.get_nested_attributes::<CtrlAttrMcastGrp>().ok()?;
+            let string = nested_attrs.get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name).ok()?;
+            if string.as_str() == mcast_name {
+                nested_attrs.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id).ok()
+            } else {
+                None
             }
-        }
-        id.ok_or(NlError::new("Failed to resolve multicast group ID"))
+        }).nth(0).ok_or(NlError::new("Failed to resolve multicast group ID"))
     }
 
     /// Convenience function to send an `Nlmsghdr` struct

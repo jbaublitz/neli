@@ -6,41 +6,36 @@ use nlattr::{Nlattr,AttrHandle};
 
 /// Struct representing generic netlink header and payload
 #[derive(Debug,PartialEq)]
-pub struct Genlmsghdr<C> {
+pub struct Genlmsghdr<C, T, P> {
     /// Generic netlink message command
     pub cmd: C,
     /// Version of generic netlink family protocol
     pub version: u8,
     reserved: u16,
     /// Attributes included in generic netlink message
-    attrs: Vec<u8>,
+    attrs: Vec<Nlattr<T, P>>,
 }
 
-impl<C> Genlmsghdr<C> where C: Cmd {
+impl<C, T, P> Genlmsghdr<C, T, P> where C: Cmd, T: NlAttrType, P: Nl {
     /// Create new generic netlink packet
-    pub fn new<T>(cmd: C, version: u8, mut attrs: Vec<Nlattr<T>>)
-            -> Result<Self, SerError> where T: NlAttrType {
-        let mut mem = StreamWriteBuffer::new_growable(Some(attrs.iter().fold(0, |acc, item| {
-            acc + item.asize()
-        })));
-        for item in attrs.iter_mut() {
-            item.serialize(&mut mem)?;
-        }
+    pub fn new(cmd: C, version: u8, attrs: Vec<Nlattr<T, P>>) -> Result<Self, SerError> {
         Ok(Genlmsghdr {
             cmd,
             version,
             reserved: 0,
-            attrs: mem.as_ref().to_vec(),
+            attrs,
         })
-    }
-
-    /// Get handle for attribute parsing and traversal
-    pub fn get_attr_handle<T>(&self) -> AttrHandle<T> where T: NlAttrType {
-        AttrHandle::Bin(self.attrs.as_slice())
     }
 }
 
-impl<C> Nl for Genlmsghdr<C> where C: Cmd {
+impl<C, T> Genlmsghdr<C, T, Vec<u8>> where C: Cmd, T: NlAttrType {
+    /// Get handle for attribute parsing and traversal
+    pub fn get_attr_handle(&self) -> AttrHandle<T> {
+        AttrHandle::new_borrowed(&self.attrs)
+    }
+}
+
+impl<C, T, P> Nl for Genlmsghdr<C, T, P> where C: Cmd, T: NlAttrType, P: Nl {
     fn serialize(&self, cur: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.cmd.serialize(cur)?;
         self.version.serialize(cur)?;
@@ -49,16 +44,22 @@ impl<C> Nl for Genlmsghdr<C> where C: Cmd {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let cmd = C::deserialize(mem)?;
         let version = u8::deserialize(mem)?;
         let reserved = u16::deserialize(mem)?;
-        let size_hint = mem.take_size_hint().map(|sh| sh - (cmd.size() + version.size() +
-                                                            reserved.size()));
-        if let Some(sh) = size_hint {
-            mem.set_size_hint(sh);
+        let mut size_hint = match mem.take_size_hint().map(|sh| {
+            sh - (cmd.size() + version.size() + reserved.size())
+        }) {
+            Some(sh) => sh,
+            None => return Err(DeError::new("Must provide size hint to deserialize Genlmsghdr")),
+        };
+        let mut attrs = Vec::new();
+        while size_hint > 0 {
+            let attr = Nlattr::<T, P>::deserialize(mem)?;
+            size_hint -= attr.size();
+            attrs.push(attr);
         }
-        let attrs = Vec::<u8>::deserialize(mem)?;
         Ok(Genlmsghdr {
             cmd,
             version,
@@ -83,11 +84,10 @@ mod test {
 
     #[test]
     pub fn test_serialize() {
-        let attr = vec![Nlattr::new_binary_payload(None, CtrlAttr::FamilyId,
-                                                        vec![0, 1, 2, 3, 4, 5, 0, 0]
-                                                      )];
+        let attr = vec![Nlattr::new(None, CtrlAttr::FamilyId,
+                                    vec![0, 1, 2, 3, 4, 5, 0, 0])];
         let genl = Genlmsghdr::new(CtrlCmd::Getops, 2,
-                                    attr).unwrap();
+                                   attr).unwrap();
         let mut mem = StreamWriteBuffer::new_growable(None);
         genl.serialize(&mut mem).unwrap();
         let v = Vec::with_capacity(genl.asize());
@@ -107,10 +107,8 @@ mod test {
     #[test]
     pub fn test_deserialize() {
         let genl_mock = Genlmsghdr::new(CtrlCmd::Getops, 2,
-                                     vec![Nlattr::new_nl_payload(None,
-                                            CtrlAttr::FamilyId, "AAAAAAA"
-                                        ).unwrap()]
-                                     ).unwrap();
+                                        vec![Nlattr::new(None, CtrlAttr::FamilyId,
+                                                         "AAAAAAA".to_string())]).unwrap();
         let v = Vec::new();
         let v_final = {
             let mut c = Cursor::new(v);
@@ -123,6 +121,7 @@ mod test {
             c.into_inner()
         };
         let mut mem = StreamReadBuffer::new(&v_final);
+        mem.set_size_hint(genl_mock.size());
         let genl = Genlmsghdr::deserialize(&mut mem).unwrap();
         assert_eq!(genl, genl_mock)
     }
