@@ -57,7 +57,7 @@ impl<C, T, P> Nl for Genlmsghdr<C, T, P> where C: Cmd, T: NlAttrType, P: Nl {
         let mut attrs = Vec::new();
         while size_hint > 0 {
             let attr = Nlattr::<T, P>::deserialize(mem)?;
-            size_hint -= attr.size();
+            size_hint -= attr.asize();
             attrs.push(attr);
         }
         Ok(Genlmsghdr {

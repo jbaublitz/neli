@@ -16,17 +16,13 @@ include = [
 name = "neli"
 path = "src/lib.rs"
 
-[[bin]]
-name = "genl_stream"
-path = "src/genl_stream.rs"
-
 [dependencies]
 byteorder = "1.2"
 
 [dependencies.libc]
 git = "https://github.com/jbaublitz/libc"
-branch = "nl_consts_pr"
-version = "0.2.43"
+branch = "nl_consts_pr-2"
+version = "0.2"
 
 [dependencies.tokio]
 version = "0.1"

@@ -1,0 +1,27 @@
+[package]
+name = "neli-examples"
+version = "0.1.0"
+authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+description = "Examples for use with neli"
+license = "BSD-3-Clause"
+repository = "https://github.com/jbaublitz/neli"
+keywords = ["netlink"]
+
+[[bin]]
+name = "ctrl-list"
+path = "ctrl-list.rs"
+
+[[bin]]
+name = "genl_stream"
+path = "genl_stream.rs"
+
+[dependencies]
+buffering = "0.3"
+tokio = { version = "0.1", optional = true}
+
+[dependencies.neli]
+version = "0.4"
+path = ".."
+
+[features]
+stream = ["tokio", "neli/stream"]

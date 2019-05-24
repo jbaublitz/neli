@@ -101,7 +101,7 @@ impl<T> Nl for Ifinfomsg<T> where T: RtaType {
 }
 
 /// Struct representing interface address messages
-pub struct Ifaddrmsg {
+pub struct Ifaddrmsg<T> {
     /// Interface address family
     pub ifa_family: Af,
     /// Interface address prefix length
@@ -112,9 +112,11 @@ pub struct Ifaddrmsg {
     pub ifa_scope: libc::c_uchar,
     /// Interface address index
     pub ifa_index: libc::c_int,
+    /// Payload of `Rtattr`s
+    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
 }
 
-impl Nl for Ifaddrmsg {
+impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifa_family.serialize(buf)?;
         self.ifa_prefixlen.serialize(buf)?;
@@ -124,6 +126,7 @@ impl Nl for Ifaddrmsg {
         }).serialize(buf)?;
         self.ifa_scope.serialize(buf)?;
         self.ifa_index.serialize(buf)?;
+        self.rtattrs.serialize(buf)?;
         Ok(())
     }
 
@@ -144,6 +147,7 @@ impl Nl for Ifaddrmsg {
             },
             ifa_scope: libc::c_uchar::deserialize(buf)?,
             ifa_index: libc::c_int::deserialize(buf)?,
+            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
         })
     }
 
@@ -154,7 +158,7 @@ impl Nl for Ifaddrmsg {
 }
 
 /// Route message
-pub struct Rtmsg {
+pub struct Rtmsg<T> {
     /// Address family of route
     pub rtm_family: libc::c_uchar,
     /// Length of destination
@@ -173,9 +177,11 @@ pub struct Rtmsg {
     pub rtm_type: Rtn,
     /// Routing flags
     pub rtm_flags: Vec<RtmF>,
+    /// Payload of `Rtattr`s
+    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
 }
 
-impl Nl for Rtmsg {
+impl<T> Nl for Rtmsg<T> where T: RtaType {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rtm_family.serialize(buf)?;
         self.rtm_dst_len.serialize(buf)?;
@@ -189,6 +195,7 @@ impl Nl for Rtmsg {
             let next_uint: libc::c_uint = next.into();
             acc | next_uint
         }).serialize(buf)?;
+        self.rtattrs.serialize(buf)?;
         Ok(())
     }
 
@@ -213,6 +220,7 @@ impl Nl for Rtmsg {
                 }
                 rtm_flags
             },
+            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
         })
     }
 
@@ -327,6 +335,51 @@ impl Nl for NdaCacheinfo {
     }
 }
 
+/// Message in response to queuing discipline operations
+pub struct Tcmsg<T> {
+    /// Family
+    pub tcm_family: libc::c_uchar,
+    /// Interface index
+    pub tcm_ifindex: libc::c_int,
+    /// Queuing discipline handle
+    pub tcm_handle: u32,
+    /// Parent queuing discipline
+    pub tcm_parent: u32,
+    /// Info
+    pub tcm_info: u32,
+    /// Payload of `Rtattr`s
+    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+}
+
+impl<T> Nl for Tcmsg<T> where T: RtaType {
+    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.tcm_family.serialize(buf)?;
+        self.tcm_ifindex.serialize(buf)?;
+        self.tcm_handle.serialize(buf)?;
+        self.tcm_parent.serialize(buf)?;
+        self.tcm_info.serialize(buf)?;
+        self.rtattrs.serialize(buf)?;
+        Ok(())
+    }
+
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+            where B: AsRef<[u8]> {
+        Ok(Tcmsg {
+            tcm_family: libc::c_uchar::deserialize(buf)?,
+            tcm_ifindex: libc::c_int::deserialize(buf)?,
+            tcm_handle: u32::deserialize(buf)?,
+            tcm_parent: u32::deserialize(buf)?,
+            tcm_info: u32::deserialize(buf)?,
+            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
+        })
+    }
+
+    fn size(&self) -> usize {
+        self.tcm_family.size() + self.tcm_ifindex.size() + self.tcm_handle.size() +
+            self.tcm_parent.size() + self.tcm_info.size()
+    }
+}
+
 /// Struct representing route netlink attributes
 pub struct Rtattr<T, P> {
     /// Length of the attribute
@@ -359,53 +412,12 @@ impl<T, P> Nl for Rtattr<T, P> where T: RtaType, P: Nl {
         let rta_payload = P::deserialize(buf)?;
         Ok(Rtattr {
             rta_len,
-            rta_type, 
+            rta_type,
             rta_payload,
         })
     }
 
     fn size(&self) -> usize {
         self.rta_len.size() + self.rta_type.size() + self.rta_payload.size()
-    }
-}
-
-/// Message in response to queuing discipline operations
-pub struct Tcmsg {
-    /// Family
-    pub tcm_family: libc::c_uchar,
-    /// Interface index
-    pub tcm_ifindex: libc::c_int,
-    /// Queuing discipline handle
-    pub tcm_handle: u32,
-    /// Parent queuing discipline
-    pub tcm_parent: u32,
-    /// Info
-    pub tcm_info: u32,
-}
-
-impl Nl for Tcmsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.tcm_family.serialize(buf)?;
-        self.tcm_ifindex.serialize(buf)?;
-        self.tcm_handle.serialize(buf)?;
-        self.tcm_parent.serialize(buf)?;
-        self.tcm_info.serialize(buf)?;
-        Ok(())
-    }
-
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-            where B: AsRef<[u8]> {
-        Ok(Tcmsg {
-            tcm_family: libc::c_uchar::deserialize(buf)?,
-            tcm_ifindex: libc::c_int::deserialize(buf)?,
-            tcm_handle: u32::deserialize(buf)?,
-            tcm_parent: u32::deserialize(buf)?,
-            tcm_info: u32::deserialize(buf)?,
-        })
-    }
-
-    fn size(&self) -> usize {
-        self.tcm_family.size() + self.tcm_ifindex.size() + self.tcm_handle.size() +
-            self.tcm_parent.size() + self.tcm_info.size()
     }
 }

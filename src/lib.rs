@@ -404,6 +404,42 @@ mod test {
     }
 
     #[test]
+    fn test_nl_str() {
+        let s = "AAAAA";
+        let sl = &mut [0; 6];
+        {
+            let mut mem = StreamWriteBuffer::new_sized(sl);
+            s.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(&[65, 65, 65, 65, 65, 0], sl);
+
+        let s = &[65, 65, 65, 65, 65, 65, 0, 0];
+        let st = &mut [0; 7];
+        let mut mem = StreamReadBuffer::new(s);
+        mem.set_size_hint(7);
+        let string = <&str>::deserialize_buf(&mut mem, st).unwrap();
+        assert_eq!(string, "AAAAAA")
+    }
+
+    #[test]
+    fn test_nl_slice() {
+        let s = &mut [0; 6];
+        let sl: &[u8] = &[0, 1, 2, 3, 4, 5];
+        {
+            let mut mem = StreamWriteBuffer::new_sized(s);
+            sl.serialize(&mut mem).unwrap();
+        }
+        assert_eq!(&[0, 1, 2, 3, 4, 5], sl);
+
+        let s = &[0, 1, 2, 3, 4, 5];
+        let sl = &mut [0; 6];
+        let mut mem = StreamReadBuffer::new(s);
+        mem.set_size_hint(6);
+        let slice = <&[u8]>::deserialize_buf(&mut mem, sl).unwrap();
+        assert_eq!(slice, &[0, 1, 2, 3, 4, 5])
+    }
+
+    #[test]
     fn test_nl_string() {
         let s = "AAAAA".to_string();
         let sl = &mut [0; 6];

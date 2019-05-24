@@ -1,5 +1,3 @@
-extern crate buffering;
-extern crate libc;
 extern crate neli;
 #[cfg(feature = "stream")]
 extern crate tokio;
@@ -29,7 +27,7 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
                                           None, None, true)?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
-    let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8>>::new(s)?;
+    let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16, Vec<u8>>>::new(s)?;
     tokio::run(ss.for_each(|next| {
         println!("{:?}", next);
         Ok(())

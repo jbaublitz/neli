@@ -375,7 +375,7 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `RtAttr.rta_type`. 
+    /// Enum for use with `RtAttr.rta_type` -
     /// Values are routing message attributes
     Rta, libc::c_ushort, RtaType,
     Unspec => libc::RTA_UNSPEC,
@@ -405,6 +405,21 @@ impl_var_trait!(
     Pad => libc::RTA_PAD,
     Uid => libc::RTA_UID,
     TtlPropagate => libc::RTA_TTL_PROPAGATE
+);
+
+impl_var_trait!(
+    /// Enum for use with `Rtattr.rta_type` -
+    /// Values specify queuing discipline attributes
+    Tca, libc::c_ushort, RtaType,
+    Unspec => libc::TCA_UNSPEC,
+    Kind => libc::TCA_KIND,
+    Options => libc::TCA_OPTIONS,
+    Stats => libc::TCA_STATS,
+    Xstats => libc::TCA_XSTATS,
+    Rate => libc::TCA_RATE,
+    Fcnt => libc::TCA_FCNT,
+    Stats2 => libc::TCA_STATS2,
+    Stab => libc::TCA_STAB
 );
 
 impl_var!(
