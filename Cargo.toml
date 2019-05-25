@@ -20,8 +20,8 @@ path = "src/lib.rs"
 byteorder = "1.2"
 
 [dependencies.libc]
-git = "https://github.com/jbaublitz/libc"
-branch = "nl_consts_pr-2"
+git = "https://github.com/rust-lang/libc"
+branch = "master"
 version = "0.2"
 
 [dependencies.tokio]
