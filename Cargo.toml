@@ -18,11 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 byteorder = "1.2"
-
-[dependencies.libc]
-git = "https://github.com/rust-lang/libc"
-branch = "master"
-version = "0.2.55"
+libc = "0.2.56"
 
 [dependencies.tokio]
 version = "0.1"
