@@ -31,4 +31,4 @@ way to do it, please let me know! I'm always happy to learn. My hope is that thi
 clarify some questions beforehand about why I did things the way I did and will make your life
 as a contributer easier.
 
-Documentation can be found [here](https://docs.rs/neli/0.3.0-r2/neli/)
+Documentation can be found [here](https://docs.rs/neli/0.4.0/neli/)
