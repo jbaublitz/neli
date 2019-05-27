@@ -1,3 +1,12 @@
+//! This module provides an implementation of routing netlink structures and the routing attributes
+//! that are at the end of most routing netlink responses.
+//!
+//! # Design decisions
+//!
+//! This module is based very heavily on the information in `man 7 rtnetlink` so it is mainly a
+//! series of structs organized in a style similar to the rest of the library with implementations
+//! of `Nl` for each.
+
 use std::mem;
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};

@@ -1,3 +1,6 @@
+//! This module aims to provide simple parsing for generic netlink attributes, including parsing
+//! for nested attributes.
+//!
 //! Due to netlink's loose treatment of types, parsing attributes can be hard to model in
 //! Rust. `neli`'s current solution is the following:
 //!
@@ -19,6 +22,16 @@
 //! // the payload of this attribute as a u32
 //! let thirty_two_bit_integer = next.get_attr_payload_as::<u32>(1).unwrap();
 //! ```
+//!
+//! # Design decisions
+//!
+//! Nested attributes are represented by `Vec<u8>` payloads inside top level attributes. They are
+//! parsed during traversal to provide the ability to parse one attribute header using a different
+//! generic type for the nested attribute type parameters, the typical case when parsing nested
+//! attributes. To
+//! traverse a nested attribute, look at the documentation for `.get_nested_attributes()` and
+//! `AttrHandle` as well as the `examples/` directory for code examples of how to traverse nested
+//! attributes.
 
 use std::io::{Read,Write};
 use std::slice;

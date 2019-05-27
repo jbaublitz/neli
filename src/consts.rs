@@ -343,12 +343,12 @@ impl_var!(
 );
 
 impl_trait!(
-    /// Marker trait for `RtAttr.rta_type` field
+    /// Marker trait for `Rtattr.rta_type` field
     RtaType, libc::c_ushort
 );
 
 impl_var_trait!(
-    /// Enum for use with `RtAttr.rta_type`
+    /// Enum for use with `Rtattr.rta_type`
     Ifla, libc::c_ushort, RtaType,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
@@ -361,7 +361,7 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `RtAttr.rta_type`
+    /// Enum for use with `Rtattr.rta_type`
     Ifa, libc::c_ushort, RtaType,
     Unspec => libc::IFA_UNSPEC,
     Address => libc::IFA_ADDRESS,
@@ -375,7 +375,7 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `RtAttr.rta_type` -
+    /// Enum for use with `Rtattr.rta_type` -
     /// Values are routing message attributes
     Rta, libc::c_ushort, RtaType,
     Unspec => libc::RTA_UNSPEC,
@@ -448,7 +448,7 @@ impl_var!(
 );
 
 impl_var!(
-    /// Values for `ifi_flags` in `rtnl.rs`
+    /// Values for `ifi_flags` in `Ifinfomsg`
     Iff, libc::c_uint,
     Up => libc::IFF_UP as libc::c_uint,
     Broadcast => libc::IFF_BROADCAST as libc::c_uint,
@@ -565,14 +565,14 @@ impl_var_trait!(
 );
 
 impl_trait!(
-    /// Marker trait for types usable in `NlaAttrHdr.nla_type`
+    /// Marker trait for types usable in `Nlattr.nla_type`
     NlAttrType, u16
 );
 
 impl NlAttrType for u16 {}
 
 impl_var_trait!(
-    /// Values for `nla_type` in `NlaAttrHdr`
+    /// Values for `nla_type` in `Nlattr`
     CtrlAttr, u16, NlAttrType,
     Unspec => libc::CTRL_ATTR_UNSPEC as u16,
     FamilyId => libc::CTRL_ATTR_FAMILY_ID as u16,
@@ -585,7 +585,7 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Values for `nla_type` in `NlaAttrHdr`
+    /// Values for `nla_type` in `Nlattr`
     CtrlAttrMcastGrp, u16, NlAttrType,
     Unspec => libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16,
     Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,

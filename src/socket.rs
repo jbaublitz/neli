@@ -1,10 +1,25 @@
-//! # Socket code around `libc`
+//! This module provides code that glues all of the other modules together and allows message send
+//! and receive operations. This module relies heavily on the `buffering` crate. See `buffering`
+//! for more information on the serialization and deserialization implementations.
 //!
-//! ## Notes
+//! ## Important methods
+//! * `send` and `recv` methods are meant to be the most low level calls. They essentially do what
+//! the C system calls `send` and `recv` do with very little abstraction.
+//! * `send_nl` and `recv_nl` methods are meant to provide an interface that is more idiomatic for
+//! the library. The are able to operate on any structure wrapped in an `Nlmsghdr` struct that implements
+//! the `Nl` trait.
+//! * `iter` provides a loop based iteration through messages that are received in a stream over
+//! the socket.
+//! * `recv_ack` receives an ACK message and verifies it matches the request.
+//! 
+//! ## Features
+//! The `stream` feature exposed by `cargo` allows the socket to use Rust's tokio for async IO.
 //!
-//! This module provides a low level one-to-one mapping between `libc` system call wrappers
-//! with defaults specific to netlink sockets as well as a higher level API for simplification
-//! of netlink code.
+//! ## Additional methods
+//!
+//! There are methods for blocking and non-blocking, resolving generic netlink multicast group IDs,
+//! and other convenience functions so see if your use case is supported. If it isn't, please open
+//! a Github issue and submit a feature request.
 
 use std::io;
 use std::os::unix::io::{AsRawFd,IntoRawFd,RawFd};
@@ -300,9 +315,11 @@ impl io::Read for NlSocket {
     }
 }
 
-/// Tokio-specific features for neli
 #[cfg(feature = "stream")]
 pub mod tokio {
+    //! Tokio-specific features for neli
+    //!
+    //! This module contains a struct that wraps `NlSocket` for async IO.
     use super::*;
 
     use mio::{self,Evented};

@@ -5,6 +5,52 @@
 //! This crate aims to be a pure Rust implementation that defines
 //! the necessary constants and wraps them in enums to distinguish between various categories of
 //! constants in the context of netlink.
+//!
+//! ## The project is broken down into the following modules:
+//! * `consts` - This is where all of the C-defined constants are wrapped into type safe enums for
+//! use in the library.
+//! * `err` - This module contains all of the protocol and library-level errors encountered in the
+//! code.
+//! * `genl` - This code provides parsing for the generic netlink subsystem of the netlink
+//! protocol.
+//! * `nlattr` - This code provides more granular parsing methods for the generic netlink
+//! attributes in the context of generic netlink requests and responses.
+//! * `nl` - This is the top level netlink header code that handles the header that all netlink
+//! messages are encapsulated in.
+//! * `rtnl` - This module is for the routing netlink subsystem of the netlink protocol.
+//! * `socket` - This provides a socket structure for use in sending and receiving messages and a
+//! number of convenience functions for commonly encountered use cases.
+//!
+//! ## Traits
+//!
+//! The library at the top level contains the `Nl` trait which provides a buffer size calculation
+//! function, a serialization method, and a deserialization method. It also contains
+//! implementations of `Nl` for common types. The is one additional trait, `NlBuf`, used in cases
+//! where, to deserialize a type, a buffer needs to be provided by the caller function and passed
+//! to the callee.
+//!
+//! ## Design decisions
+//!
+//! This is a fairly low level library that currently does not have a whole lot of higher level
+//! handle-type data structures and relies mostly on the `NlSocket` struct to provide most of the
+//! convenience functions. I hope to add a higher level API by `v0.5.0` to ease some of the
+//! workflows that have been brought to my attention.
+//!
+//! The goal of this library is completeness for handling netlink and am working to incorporate
+//! features that will make this library easier to use in all use cases. If you have a use case you
+//! would like to see supported, please open an issue on github.
+//!
+//! ## Examples
+//!
+//! Examples of working code exist in the `examples/` subdirectory on Github. They have a separate
+//! `Cargo.toml` file to provide easy testing and use.
+//!
+//! ## Documentation
+//!
+//! Each module has been documented extensively to provide information on how to use the code
+//! contained in the module. Pull requests for documentation mistakes, updates, and rewording for
+//! clarity is a valuable contribution as this project aims to be as simple to use as
+//! possible.
 
 #![deny(missing_docs)]
 

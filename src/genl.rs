@@ -1,3 +1,17 @@
+//! This module contains generic netlink parsing data structures. This is all handled by
+//! the `Genlmsghdr` header struct which contains all of the information needed for the generic
+//! netlink layer.
+//!
+//! # Design decisions
+//!
+//! The attributes that generic netlink uses are located in `nlattr.rs`. These attributes require
+//! special attention when parsing so they are separated into their own module.
+//!
+//! The generic netlink `attrs` field has been changed to a `Vec` of `Nlattr`s instead of the
+//! original `Vec<u8>` to allow simpler
+//! parsing at the top level when one `Nlattr` structure is not nested within another, a use case 
+//! that is instead handled in `nlattr.rs`.
+
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
 use {Nl,SerError,DeError};

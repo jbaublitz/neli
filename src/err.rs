@@ -1,3 +1,19 @@
+//! This is the module that contains the error types used in `neli`
+//!
+//! There are three main types:
+//! * `NlError` - typically socket errors
+//! * `DeError` - Error while deserializing
+//! * `SerError` - Error while serializing
+//!
+//! Additionally there is one other type: `Nlmsgerr`. This type is returned at the protocol level
+//! by netlink sockets when an error has been returned in response to the given request.
+//!
+//! # Design decisions
+//!
+//! `NlError` can either be created with a custom `String` message or using three variants, one for
+//! no ACK received, one for a bad PID that does not correspond to that assigned to the socket, or
+//! one for a bad sequence number that does not correspond to the request sequence number.
+
 use std;
 use std::error::Error;
 use std::fmt::{self,Display};

@@ -1,7 +1,12 @@
-//! This module contains the top level netlink header code and attribute parsing.
+//! This module contains the top level netlink header code and attribute parsing. Every netlink
+//! message will be encapsulated in a top level `Nlmsghdr`.
 //!
-//! NlHdr is the structure representing a header that all netlink protocols require to be
-//! passed to the correct kernel handler.
+//! `Nlmsghdr` is the structure representing a header that all netlink protocols require to be
+//! passed to the correct destination.
+//!
+//! # Design decisions
+//!
+//! Payloads for `Nlmsghdr` can be any type that implements the `Nl` trait.
 
 use std::mem;
 
