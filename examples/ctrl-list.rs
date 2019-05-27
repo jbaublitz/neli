@@ -34,7 +34,9 @@ fn main() -> Result<(), NlError> {
         match response.nl_type {
             // This example could be improved by reinterpreting the payload as an Nlmsgerr struct
             // and printing the specific error encountered.
-            Nlmsg::Error => panic!("An error occurred while retrieving available families."),
+            Nlmsg::Error => return Err(
+                NlError::new("An error occurred while retrieving available families"
+            )),
             Nlmsg::Done => break,
             _ => (),
         };

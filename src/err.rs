@@ -58,6 +58,10 @@ pub enum NlError {
     Msg(String),
     /// No ack was received when `NlmF::Ack` was specified in the request
     NoAck,
+    /// The sequence number for the response did not match the request
+    BadSeq,
+    /// Incorrect PID socket identifier in received message
+    BadPid,
 }
 
 try_err_compat!(NlError, io::Error, SerError, DeError);
@@ -75,6 +79,8 @@ impl Display for NlError {
         let msg = match *self {
             NlError::Msg(ref msg) => msg,
             NlError::NoAck => "No ack received",
+            NlError::BadSeq => "Sequence number does not match the request",
+            NlError::BadPid => "PID does not match the socket",
         };
         write!(f, "{}", msg)
     }
@@ -85,6 +91,8 @@ impl Error for NlError {
         match *self {
             NlError::Msg(ref msg) => msg.as_str(),
             NlError::NoAck => "No ack received",
+            NlError::BadSeq => "Sequence number does not match the request",
+            NlError::BadPid => "PID does not match the socket",
         }
     }
 }

@@ -107,6 +107,7 @@ impl NlSocket {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
+        self.pid = pid;
         nladdr.nl_groups = 0;
         match unsafe {
             libc::bind(self.fd, &nladdr as *const _ as *const libc::sockaddr,
@@ -210,8 +211,9 @@ impl NlSocket {
     pub fn send_nl<T, P>(&mut self, mut msg: Nlmsghdr<T, P>) -> Result<(), NlError>
             where T: Nl + NlType, P: Nl {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
-        if let Some(seq) = self.seq {
-            msg.nl_seq = seq;
+        if let Some(ref mut seq) = self.seq {
+            *seq += 1;
+            msg.nl_seq = *seq;
         }
         msg.serialize(&mut mem)?;
         self.send(mem, 0)?;
@@ -234,6 +236,16 @@ impl NlSocket {
             Some(ref mut b) => Nlmsghdr::deserialize(b)?,
             None => unreachable!(),
         };
+        if self.pid.is_none() {
+            self.pid = Some(msg.nl_pid);
+        } else if self.pid != Some(msg.nl_pid) {
+            return Err(NlError::BadPid);
+        }
+        if let Some(seq) = self.seq {
+            if seq != msg.nl_seq {
+                return Err(NlError::BadSeq);
+            }
+        }
         if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
             self.buffer = None;
         }
@@ -246,6 +258,13 @@ impl NlSocket {
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
                 if self.pid.is_none() {
                     self.pid = Some(ack.nl_pid);
+                } else if self.pid != Some(ack.nl_pid) {
+                    return Err(NlError::BadPid);
+                }
+                if let Some(seq) = self.seq {
+                    if seq != ack.nl_seq {
+                        return Err(NlError::BadSeq);
+                    }
                 }
                 Ok(())
             } else {
