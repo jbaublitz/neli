@@ -8,6 +8,10 @@ repository = "https://github.com/jbaublitz/neli"
 keywords = ["netlink"]
 
 [[bin]]
+name = "create-nested-attributes"
+path = "create-nested-attributes.rs"
+
+[[bin]]
 name = "ctrl-list"
 path = "ctrl-list.rs"
 
