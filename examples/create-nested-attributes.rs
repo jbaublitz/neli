@@ -8,7 +8,7 @@ use neli::nl::Nlmsghdr;
 use neli::genl::Genlmsghdr;
 use neli::nlattr::Nlattr;
 
-pub fn main() -> Result<(), Box<Error>> {
+pub fn main() -> Result<(), Box<dyn Error>> {
     let attrs = vec![Nlattr::new(None, 1, vec![Nlattr::new(None, 1, "this_family")]),
                      Nlattr::new(None, 2, vec![Nlattr::new(None, 1, "that_family")])];
     let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs)?;
