@@ -102,6 +102,16 @@ impl<T, P> Nlattr<T, P> where T: NlAttrType, P: Nl {
 }
 
 impl<T> Nlattr<T, Vec<u8>> where T: NlAttrType {
+    /// Add a nested attribute to the end of the payload
+    pub fn add_nested_attribute<P>(&mut self, attr: Nlattr<T, P>) -> Result<(), SerError>
+            where T: NlAttrType, P: Nl {
+        let size = self.payload.len() as u64;
+        let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
+        buffer.set_position(size);
+        attr.serialize(&mut buffer)?;
+        Ok(())
+    }
+
     /// Get an `Nlattr` payload as a provided type
     pub fn get_payload_as<R>(&self) -> Result<R, DeError> where R: Nl {
         let mut buf = StreamReadBuffer::new(&self.payload);
