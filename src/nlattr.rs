@@ -84,17 +84,6 @@ pub struct Nlattr<T, P> {
 }
 
 impl<T, P> Nlattr<T, P> where T: NlAttrType, P: Nl {
-    /// Create new netlink attribute with a payload from an object implementing `Nl`
-    pub fn new(nla_len: Option<u16>, nla_type: T, payload: P) -> Self {
-        let mut nla = Nlattr {
-            nla_len: 0,
-            nla_type,
-            payload,
-        };
-        nla.nla_len = nla_len.unwrap_or(nla.size() as u16);
-        nla
-    }
-
     /// Get the size of the payload only
     pub fn payload_size(&self) -> usize {
         self.payload.size()
@@ -102,9 +91,33 @@ impl<T, P> Nlattr<T, P> where T: NlAttrType, P: Nl {
 }
 
 impl<T> Nlattr<T, Vec<u8>> where T: NlAttrType {
+    /// This function will serialize the provided payload
+    pub fn new<P>(nla_len: Option<u16>, nla_type: T, payload: P) -> Result<Self, SerError>
+            where P: Nl {
+        let mut attr = Nlattr {
+            nla_len: nla_len.unwrap_or(0),
+            nla_type,
+            payload: Vec::new(),
+        };
+        attr.set_payload(payload)?;
+        Ok(attr)
+    }
+
+    /// Set the payload to a data type that implements `Nl` -
+    /// this function will overwrite the current payload
+    pub fn set_payload<P>(&mut self, payload: P) -> Result<(), SerError> where P: Nl {
+        let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
+        payload.serialize(&mut buffer)?;
+
+        // Update `Nlattr` with new length
+        self.nla_len = (self.nla_len.size() + self.nla_type.size() + payload.size()) as u16;
+
+        Ok(())
+    }
+
     /// Add a nested attribute to the end of the payload
-    pub fn add_nested_attribute<P>(&mut self, attr: Nlattr<T, P>) -> Result<(), SerError>
-            where T: NlAttrType, P: Nl {
+    pub fn add_nested_attribute<TT, P>(&mut self, attr: Nlattr<TT, P>) -> Result<(), SerError>
+            where TT: NlAttrType, P: Nl {
         let size = self.payload.len() as u64;
         let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
         buffer.set_position(size);
@@ -188,7 +201,7 @@ impl<'a, T> AttrHandle<'a, T> where T: NlAttrType {
             AttrHandle::Borrowed(ref v) => v,
         }
     }
-        
+
     /// Get the underlying `Vec` as a mutable reference or return `None`
     pub fn get_vec_mut(&mut self) -> Option<&mut Vec<Nlattr<T, Vec<u8>>>> {
         match self {
@@ -265,14 +278,14 @@ mod test {
 
     #[test]
     fn test_padding_size_calculation() {
-        let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16);
+        let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16).unwrap();
         assert_eq!(nlattr.size(), 6);
         assert_eq!(nlattr.asize(), 8);
     }
 
     #[test]
     fn test_nl_nlattr() {
-        let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16);
+        let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16).unwrap();
         let mut nlattr_serialized = StreamWriteBuffer::new_growable(Some(nlattr.asize()));
         nlattr.serialize(&mut nlattr_serialized).unwrap();
 

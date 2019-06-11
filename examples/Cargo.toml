@@ -20,12 +20,8 @@ name = "genl_stream"
 path = "genl_stream.rs"
 
 [dependencies]
-buffering = "0.3"
-tokio = { version = "0.1", optional = true}
-
-[dependencies.neli]
-version = "0.4"
-path = ".."
+tokio = { version = "0.1", optional = true }
+neli = { version = "0.4.0-r1", path = ".." }
 
 [features]
 stream = ["tokio", "neli/stream"]

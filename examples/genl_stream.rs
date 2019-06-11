@@ -52,8 +52,8 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
                                           None, None, true)?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
-    for next in s.iter::<u16, Genlmsghdr<u8, u16, Vec<u8>>>() {
-        println!("{:?}", next);
+    for next in s.iter::<u16, Genlmsghdr<u8, u16>>() {
+        println!("{:?}", next?);
     }
     Ok(())
 }

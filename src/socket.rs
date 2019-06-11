@@ -146,7 +146,10 @@ impl NlSocket {
                              &grps as *const _ as *const libc::c_void,
                              size_of::<u32>() as libc::socklen_t)
         } {
-            i if i == 0 => Ok(()),
+            i if i == 0 => {
+                self.pid = None;
+                Ok(())
+            },
             _ => return Err(io::Error::last_os_error()),
         }
     }
@@ -181,9 +184,9 @@ impl NlSocket {
     }
 
     fn get_genl_family<T>(&mut self, family_name: &str)
-            -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, T, Vec<u8>>>, NlError>
+            -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, T>>, NlError>
             where T: NlAttrType {
-        let attrs = vec![Nlattr::new(None, CtrlAttr::FamilyName, family_name)];
+        let attrs = vec![Nlattr::new(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
         let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl,
                                   vec![NlmF::Request, NlmF::Ack], None, None, genlhdr);
@@ -256,10 +259,8 @@ impl NlSocket {
         } else if self.pid != Some(msg.nl_pid) {
             return Err(NlError::BadPid);
         }
-        if let Some(seq) = self.seq {
-            if seq != msg.nl_seq {
-                return Err(NlError::BadSeq);
-            }
+        if self.seq.is_some() {
+            self.seq.map(|s| s + 1);
         }
         if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
             self.buffer = None;

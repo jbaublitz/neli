@@ -16,7 +16,7 @@ const GENL_VERSION: u8 = 2;
 fn main() -> Result<(), NlError> {
     let mut socket = NlSocket::connect(NlFamily::Generic, None, None, true)?;
 
-    let attrs: Vec<Nlattr<CtrlAttr, u16>> = vec![];
+    let attrs: Vec<Nlattr<CtrlAttr, Vec<u8>>> = vec![];
     let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs)?;
     let nlhdr = {
         let len = None;
@@ -29,7 +29,7 @@ fn main() -> Result<(), NlError> {
     };
     socket.send_nl(nlhdr)?;
 
-    let mut iter = socket.iter::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr, Vec<u8>>>();
+    let mut iter = socket.iter::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>();
     while let Some(Ok(response)) = iter.next() {
         match response.nl_type {
             // This example could be improved by reinterpreting the payload as an Nlmsgerr struct
