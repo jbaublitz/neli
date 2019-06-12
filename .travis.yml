@@ -6,3 +6,4 @@ script:
   - cargo build
   - cargo build --features=stream
   - cargo test
+  - cargo test --features=stream
