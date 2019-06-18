@@ -1,15 +1,36 @@
 # Changelog
 
+## 0.4.1
+### Breaking changes
+* Revert to builder pattern for creating/parsing generic netlink messages with attributes
+  * Particular notable changes for nested attribute handling
+
+## 0.4.0
+### Breaking changes
+* Rework API in a number of places:
+  * Tokio support for sockets
+  * Many socket functions
+  * Generic netlink
+
+### Additions
+* Support for rtnetlink
+* Iterative message parsing from `NlSocket`
+
+### Bug fixes
+* Support parsing multiple netlink messages returned in the same socket read buffer
+* Missing documentation added
+* Fix alignment bugs when serializing netlink attributes
+
 ## 0.3.1
 ### Breaking changes
 * Migration to buffering crate for buffer operations - _this does change the API_
 
 ## [0.3.0-r2]
-### Bug Fixes
+### Bug fixes
 * Fix documentation bug
 
 ## [0.3.0-r1]
-### Bug Fixes
+### Bug fixes
 * After looking at tokio's `File` implementation, the file descriptor should block for
 the `Stream` implementation
 
