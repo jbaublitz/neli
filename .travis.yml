@@ -1,9 +1,10 @@
 language: rust
 rust:
-  nightly
+- stable
+- nightly
 
 script:
-  - cargo build
-  - cargo build --features=stream
-  - cargo test
-  - cargo test --features=stream
+- cargo build
+- cargo build --features=stream
+- cargo test
+- cargo test --features=stream
