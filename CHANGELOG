@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.1-r1
+## 0.4.2
 ### Dependencies
 * Update buffering to 0.3.4 minimum to force stable channel support for neli
 
@@ -29,16 +29,20 @@
 ### Breaking changes
 * Migration to buffering crate for buffer operations - _this does change the API_
 
-## [0.3.0-r2]
+# NOTE:
+For record keeping it should be noted that semantic versioning was misused here. 0.3.0-r1 and
+0.3.0-r2 should have been 0.3.1 and 0.3.2 respectively.
+
+## 0.3.0-r2
 ### Bug fixes
 * Fix documentation bug
 
-## [0.3.0-r1]
+## 0.3.0-r1
 ### Bug fixes
 * After looking at tokio's `File` implementation, the file descriptor should block for
 the `Stream` implementation
 
-## [0.3.0]
+## 0.3.0
 ### Breaking changes
 * Type signature of `bind` and `connect` calls' `groups` parameter was changed to be a `Vec<u32>`
 which will allow specifying a list of IDs and the group bitmask will be calculated for the user.
