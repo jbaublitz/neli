@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+### Additions
+* Support `RTM_*` constants in `consts.rs`
+
 ## 0.4.2
 ### Dependencies
 * Update buffering to 0.3.4 minimum to force stable channel support for neli

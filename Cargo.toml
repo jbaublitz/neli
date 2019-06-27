@@ -18,7 +18,9 @@ path = "src/lib.rs"
 
 [dependencies]
 byteorder = "1.2"
-libc = "0.2.56"
+# Point to jbaublitz/libc until libc release
+#libc = "0.2.56"
+libc = { git = "https://github.com/jbaublitz/libc", version = "0.2.58", branch = "nl-const-rtm-pr" }
 
 [dependencies.tokio]
 version = "0.1"
