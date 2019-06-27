@@ -31,8 +31,10 @@ impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
         )?;
         let mut vec = Vec::new();
         while size_hint > 0 {
-            let attr = Rtattr::deserialize(buf)?;
-            size_hint -= attr.asize();
+            let attr : Rtattr<T,P> = Rtattr::deserialize(buf)?;
+            size_hint = size_hint.checked_sub(attr.asize()).ok_or_else(|| {
+                DeError::new(&format!("Rtattr size {} overflowed buffer size {}", attr.size(), size_hint))
+            })?;
             vec.push(attr);
         }
         Ok(vec)
@@ -166,6 +168,26 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
     }
 }
 
+/// General form of address family dependent message.  Used for requesting things from via rtnetlink.
+pub struct Rtgenmsg {
+    /// Address family for the request
+    pub rtgen_family: u8,
+}
+
+impl Nl for Rtgenmsg {
+    fn serialize(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        self.rtgen_family.serialize(m)
+    }
+
+    fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+        Ok(Self { rtgen_family: u8::deserialize(m)? })
+    }
+
+    fn size(&self) -> usize {
+        self.rtgen_family.size()
+    }
+}
+
 /// Route message
 pub struct Rtmsg<T> {
     /// Address family of route
@@ -209,27 +231,51 @@ impl<T> Nl for Rtmsg<T> where T: RtaType {
     }
 
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        Ok(Rtmsg {
-            rtm_family: libc::c_uchar::deserialize(buf)?,
-            rtm_dst_len: libc::c_uchar::deserialize(buf)?,
-            rtm_src_len: libc::c_uchar::deserialize(buf)?,
-            rtm_tos: libc::c_uchar::deserialize(buf)?,
-            rtm_table: RtTable::deserialize(buf)?,
-            rtm_protocol: Rtprot::deserialize(buf)?,
-            rtm_scope: RtScope::deserialize(buf)?,
-            rtm_type: Rtn::deserialize(buf)?,
-            rtm_flags: {
-                let flags = libc::c_int::deserialize(buf)?;
-                let mut rtm_flags = Vec::new();
-                for i in 0..mem::size_of::<libc::c_uint>() * 8 {
-                    let bit = 1 << i;
-                    if bit & flags == bit {
-                        rtm_flags.push((bit as libc::c_uint).into());
-                    }
+        let size_hint = buf.take_size_hint().ok_or_else(|| DeError::new("Must provide size hint to deserialize Rtmsg"))?;
+        
+        let rtm_family = libc::c_uchar::deserialize(buf)?;
+        let rtm_dst_len = libc::c_uchar::deserialize(buf)?;
+        let rtm_src_len = libc::c_uchar::deserialize(buf)?;
+        let rtm_tos = libc::c_uchar::deserialize(buf)?;
+        let rtm_table = RtTable::deserialize(buf)?;
+        let rtm_protocol = Rtprot::deserialize(buf)?;
+        let rtm_scope = RtScope::deserialize(buf)?;
+        let rtm_type = Rtn::deserialize(buf)?;
+        let rtm_flags = {
+            let flags = libc::c_int::deserialize(buf)?;
+            let mut rtm_flags = Vec::new();
+            for i in 0..mem::size_of::<libc::c_uint>() * 8 {
+                let bit = 1 << i;
+                if bit & flags == bit {
+                    rtm_flags.push((bit as libc::c_uint).into());
                 }
-                rtm_flags
-            },
-            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
+            }
+            rtm_flags
+        };
+        
+        buf.set_size_hint(
+                    size_hint - rtm_family.size() -
+                            rtm_dst_len.size() -
+                            rtm_src_len.size() -
+                            rtm_tos.size() -
+                            rtm_table.size() -
+                            rtm_protocol.size() -
+                            rtm_scope.size() -
+                            rtm_type.size() -
+                            mem::size_of::<libc::c_int>());
+        let rtattrs = Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?;
+
+        Ok(Rtmsg {
+            rtm_family,
+            rtm_dst_len,
+            rtm_src_len,
+            rtm_tos,
+            rtm_table,
+            rtm_protocol,
+            rtm_scope,
+            rtm_type,
+            rtm_flags,
+            rtattrs,
         })
     }
 
@@ -411,22 +457,61 @@ impl<T, P> Nl for Rtattr<T, P> where T: RtaType, P: Nl {
         self.rta_len.serialize(buf)?;
         self.rta_type.serialize(buf)?;
         self.rta_payload.serialize(buf)?;
+        self.pad(buf)?;
         Ok(())
     }
 
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let rta_len = libc::c_ushort::deserialize(buf)?;
         let rta_type = T::deserialize(buf)?;
-        buf.set_size_hint(rta_len as usize);
+        buf.set_size_hint((rta_len as usize).checked_sub(rta_len.size() + rta_type.size()).ok_or_else(|| {
+            DeError::new(&format!("Invalid size while reading Rtattr: {}", rta_len))
+        })?);
         let rta_payload = P::deserialize(buf)?;
-        Ok(Rtattr {
+        let rtattr = Rtattr {
             rta_len,
             rta_type,
             rta_payload,
-        })
+        };
+        rtattr.strip(buf)?;
+        Ok(rtattr)
     }
 
     fn size(&self) -> usize {
         self.rta_len.size() + self.rta_type.size() + self.rta_payload.size()
+    }
+}
+
+#[cfg(test)]
+mod test_rtattr {
+    use super::*;
+    use consts::Rta;
+
+    #[test]
+    fn deser_empty() {
+        let mut buf = StreamReadBuffer::new(&[4u8,0,0,0]);
+        assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_ok());
+    }
+
+    #[test]
+    fn deser_truncated() {
+        let mut buf = StreamReadBuffer::new(&[3u8,0,0,0]); // 3 bytes is below minimum length
+        assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_err());
+    }
+
+    #[test]
+    fn deser_stripping() {
+        let mut buf = StreamReadBuffer::new(&[5u8,0,0,0,0,0,0,0,111]);
+        assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_ok());
+        assert_eq!(u8::deserialize(&mut buf).unwrap(), 111); // should have stripped remainder of word.
+    }
+
+    #[test]
+    fn ser_padding() {
+        let attr = Rtattr { rta_len: 5, rta_type: Rta::Unspec, rta_payload: vec![0u8] };
+        let mut buf = StreamWriteBuffer::new_growable(None);
+    
+        assert!(attr.serialize(&mut buf).is_ok());
+        assert_eq!(buf.as_ref().len(), 8); // padding check.
     }
 }
