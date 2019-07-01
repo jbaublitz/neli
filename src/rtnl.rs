@@ -9,17 +9,19 @@
 
 use std::mem;
 
-use buffering::{StreamReadBuffer, StreamWriteBuffer};
+use bytes::{Bytes, BytesMut};
+use smallvec::SmallVec;
 
 use crate::{
-    consts::rtnl::*,
+    consts::{alignto, rtnl::*},
     err::{DeError, SerError},
-    Nl,
+    utils::packet_length,
+    Buffer, Nl, RtBuffer,
 };
 
 /// Set of `Rtattr` structs
 #[derive(Debug)]
-pub struct Rtattrs<T, P>(Vec<Rtattr<T, P>>);
+pub struct Rtattrs<T, P>(RtBuffer<T, P>);
 
 impl<T, P> Rtattrs<T, P>
 where
@@ -28,12 +30,12 @@ where
 {
     /// Create an empty `Rtattrs` set
     pub fn empty() -> Self {
-        Rtattrs(Vec::new())
+        Rtattrs(SmallVec::new())
     }
 
     /// Create an `Rtattrs` set initializing it with a vector
-    pub fn new(vec: Vec<Rtattr<T, P>>) -> Self {
-        Rtattrs(vec)
+    pub fn new(attrs: RtBuffer<T, P>) -> Self {
+        Rtattrs(attrs)
     }
 
     /// Return a reference iterator over underlying vector
@@ -48,14 +50,14 @@ where
     P: Nl,
 {
     type Item = Rtattr<T, P>;
-    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
+    type IntoIter = <RtBuffer<T, P> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<T> Rtattrs<T, Vec<u8>>
+impl<T> Rtattrs<T, Buffer>
 where
     T: RtaType,
 {
@@ -84,37 +86,37 @@ where
     T: RtaType,
     P: Nl,
 {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
+    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
+        let mut pos = 0;
         for item in self.0.iter() {
-            item.serialize(buf)?;
+            let (mem_tmp, pos_tmp) = drive_serialize!(item, mem, pos, asize);
+            mem = mem_tmp;
+            pos = pos_tmp;
         }
-        Ok(())
+        Ok(drive_serialize!(END mem, pos))
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let mut size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Vec of Rtattr requires a size hint to deserialize"))?;
-        let mut vec = Vec::new();
-        while size_hint > 0 {
-            let attr: Rtattr<T, P> = Rtattr::deserialize(buf)?;
-            size_hint = size_hint.checked_sub(attr.asize()).ok_or_else(|| {
-                DeError::new(&format!(
-                    "Rtattr size {} overflowed buffer size {}",
-                    attr.size(),
-                    size_hint
-                ))
-            })?;
-            vec.push(attr);
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        let mut rtattrs = SmallVec::new();
+        let mut pos = 0;
+        while pos < mem.len() {
+            let packet_len = packet_length(mem.as_ref(), pos);
+            let (nlhdr, pos_tmp) = drive_deserialize!(
+                Rtattr<T, P>, mem, pos, packet_len
+            );
+            pos = pos_tmp;
+            rtattrs.push(nlhdr);
         }
-        Ok(Rtattrs::new(vec))
+        drive_deserialize!(END mem, pos);
+        Ok(Rtattrs::new(rtattrs))
     }
 
     fn size(&self) -> usize {
         self.0.iter().fold(0, |acc, item| acc + item.asize())
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -123,16 +125,17 @@ where
 pub struct Ifinfomsg {
     /// Interface address family
     pub ifi_family: RtAddrFamily,
+    padding: u8,
     /// Interface type
     pub ifi_type: Arphrd,
     /// Interface index
     pub ifi_index: libc::c_int,
     /// Interface flags
-    pub ifi_flags: Vec<Iff>,
-    /// Change mask
+    pub ifi_flags: IffFlags,
+    /// Interface change mask
     pub ifi_change: Iff,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    pub rtattrs: Rtattrs<Ifla, Buffer>,
 }
 
 impl Ifinfomsg {
@@ -141,12 +144,13 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        ifi_flags: Vec<Iff>,
+        ifi_flags: IffFlags,
         ifi_change: Iff,
-        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+        rtattrs: Rtattrs<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
+            padding: 0,
             ifi_type,
             ifi_index,
             ifi_flags,
@@ -160,13 +164,14 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+        rtattrs: Rtattrs<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
+            padding: 0,
             ifi_type,
             ifi_index,
-            ifi_flags: vec![Iff::Up],
+            ifi_flags: IffFlags::new(&[Iff::Up]),
             ifi_change: Iff::Up,
             rtattrs,
         }
@@ -177,13 +182,14 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+        rtattrs: Rtattrs<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
+            padding: 0,
             ifi_type,
             ifi_index,
-            ifi_flags: Vec::new(),
+            ifi_flags: IffFlags::empty(),
             ifi_change: Iff::Up,
             rtattrs,
         }
@@ -191,79 +197,55 @@ impl Ifinfomsg {
 }
 
 impl Nl for Ifinfomsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.ifi_family.serialize(buf)?;
-        0u8.serialize(buf)?; // padding
-        self.ifi_type.serialize(buf)?;
-        self.ifi_index.serialize(buf)?;
-        self.ifi_flags
-            .iter()
-            .fold(0, |acc: libc::c_uint, next| {
-                let next_uint: libc::c_uint = next.into();
-                acc | next_uint
-            })
-            .serialize(buf)?;
-        self.ifi_change.serialize(buf)?;
-        self.rtattrs.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.ifi_family;
+            self.padding;
+            self.ifi_type;
+            self.ifi_change;
+            self.ifi_index;
+            self.ifi_flags;
+            self.ifi_change;
+            self.rtattrs, asize
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let mut size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Ifinfomsg requires a size hint to deserialize"))?;
-        let ifi_family = RtAddrFamily::deserialize(buf)?;
-        let padding = u8::deserialize(buf)?;
-        let ifi_type = Arphrd::deserialize(buf)?;
-        let ifi_index = libc::c_int::deserialize(buf)?;
-        let ifi_flags = {
-            let flags = libc::c_uint::deserialize(buf)?;
-            let mut nl_flags = Vec::new();
-            for i in 0..mem::size_of::<libc::c_int>() * 8 {
-                let bit = 1 << i;
-                if bit & flags == bit {
-                    nl_flags.push(bit.into());
-                }
-            }
-            nl_flags
-        };
-        let ifi_change: Iff = libc::c_uint::deserialize(buf)?.into();
-
-        size_hint = size_hint
-            .checked_sub(
-                ifi_family.size()
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Ifinfomsg {
+                ifi_family: RtAddrFamily,
+                padding: u8,
+                ifi_type: Arphrd,
+                ifi_index: libc::c_int,
+                ifi_flags: IffFlags,
+                ifi_change: Iff,
+                rtattrs: Rtattrs<Ifla, Buffer> => mem.len().checked_sub(
+                    ifi_family.size()
                     + padding.size()
                     + ifi_type.size()
                     + ifi_index.size()
-                    + mem::size_of::<libc::c_int>()
-                    + ifi_change.size(),
-            )
-            .ok_or_else(|| DeError::new(&format!("Truncated Ifinfomsg size_hint {}", size_hint)))?;
-        buf.set_size_hint(size_hint);
-        let rtattrs = Rtattrs::<Ifla, Vec<u8>>::deserialize(buf)?;
-
-        Ok(Ifinfomsg {
-            ifi_family,
-            ifi_type,
-            ifi_index,
-            ifi_flags,
-            ifi_change,
-            rtattrs,
+                    + ifi_flags.size()
+                    + ifi_change.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
+            }
         })
     }
 
     fn size(&self) -> usize {
-        self.ifi_family.size() +
-        // padding byte
-        0u8.size() +
-        self.ifi_type.size() + self.ifi_index.size() +
-        // flags
-        mem::size_of::<libc::c_uint>() +
-        self.ifi_change.size() +
-        self.rtattrs.asize()
+        self.ifi_family.size()
+            + self.padding.size()
+            + self.ifi_type.size()
+            + self.ifi_index.size()
+            + self.ifi_flags.size()
+            + self.ifi_change.size()
+            + self.rtattrs.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -275,71 +257,60 @@ pub struct Ifaddrmsg {
     /// Interface address prefix length
     pub ifa_prefixlen: libc::c_uchar,
     /// Interface address flags
-    pub ifa_flags: Vec<IfaF>,
+    pub ifa_flags: IfaFFlags,
     /// Interface address scope
     pub ifa_scope: libc::c_uchar,
     /// Interface address index
     pub ifa_index: libc::c_int,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Ifa, Vec<u8>>,
+    pub rtattrs: Rtattrs<Ifa, Buffer>,
 }
 
 impl Nl for Ifaddrmsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.ifa_family.serialize(buf)?;
-        self.ifa_prefixlen.serialize(buf)?;
-        self.ifa_flags
-            .iter()
-            .fold(0u8, |acc: libc::c_uchar, next| {
-                let next_uint: u8 = u32::from(next) as u8;
-                acc | next_uint as libc::c_uchar
-            })
-            .serialize(buf)?;
-        self.ifa_scope.serialize(buf)?;
-        self.ifa_index.serialize(buf)?;
-        self.rtattrs.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.ifa_family;
+            self.ifa_prefixlen;
+            self.ifa_flags;
+            self.ifa_scope;
+            self.ifa_index;
+            self.rtattrs, asize
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let mut result = Ifaddrmsg {
-            ifa_family: RtAddrFamily::deserialize(buf)?,
-            ifa_prefixlen: libc::c_uchar::deserialize(buf)?,
-            ifa_flags: {
-                let flags = libc::c_uchar::deserialize(buf)?;
-                let mut nl_flags = Vec::new();
-                for i in 0..mem::size_of::<libc::c_uchar>() * 8 {
-                    let bit = 1 << i;
-                    if bit & flags == bit {
-                        nl_flags.push((u32::from(bit)).into());
-                    }
-                }
-                nl_flags
-            },
-            ifa_scope: libc::c_uchar::deserialize(buf)?,
-            ifa_index: libc::c_int::deserialize(buf)?,
-            rtattrs: Rtattrs::empty(),
-        };
-
-        let size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Ifinfomsg requires a size hint to deserialize"))?
-            - result.asize();
-        buf.set_size_hint(size_hint);
-
-        result.rtattrs = Rtattrs::deserialize(buf)?;
-        Ok(result)
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Ifaddrmsg {
+                ifa_family: RtAddrFamily,
+                ifa_prefixlen: libc::c_uchar,
+                ifa_flags: IfaFFlags,
+                ifa_scope: libc::c_uchar,
+                ifa_index: libc::c_int,
+                rtattrs: Rtattrs<Ifa, Buffer> => mem.len().checked_sub(
+                    ifa_family.size()
+                    + ifa_prefixlen.size()
+                    + ifa_flags.size()
+                    + ifa_scope.size()
+                    + ifa_index.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
+            }
+        })
     }
 
     fn size(&self) -> usize {
         self.ifa_family.size()
             + self.ifa_prefixlen.size()
-            + mem::size_of::<libc::c_uchar>()
+            + self.ifa_flags.size()
             + self.ifa_scope.size()
             + self.ifa_index.size()
+            + self.rtattrs.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -351,21 +322,22 @@ pub struct Rtgenmsg {
 }
 
 impl Nl for Rtgenmsg {
-    fn serialize(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.rtgen_family.serialize(m)
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        self.rtgen_family.serialize(mem)
     }
 
-    fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
-    where
-        T: AsRef<[u8]>,
-    {
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
         Ok(Self {
-            rtgen_family: RtAddrFamily::deserialize(m)?,
+            rtgen_family: RtAddrFamily::deserialize(mem)?,
         })
     }
 
     fn size(&self) -> usize {
         self.rtgen_family.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        RtAddrFamily::type_size()
     }
 }
 
@@ -389,85 +361,54 @@ pub struct Rtmsg {
     /// Routing type
     pub rtm_type: Rtn,
     /// Routing flags
-    pub rtm_flags: Vec<RtmF>,
+    pub rtm_flags: RtmFFlags,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Rta, Vec<u8>>,
+    pub rtattrs: Rtattrs<Rta, Buffer>,
 }
 
 impl Nl for Rtmsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.rtm_family.serialize(buf)?;
-        self.rtm_dst_len.serialize(buf)?;
-        self.rtm_src_len.serialize(buf)?;
-        self.rtm_tos.serialize(buf)?;
-        self.rtm_table.serialize(buf)?;
-        self.rtm_protocol.serialize(buf)?;
-        self.rtm_scope.serialize(buf)?;
-        self.rtm_type.serialize(buf)?;
-        self.rtm_flags
-            .iter()
-            .fold(0, |acc: libc::c_uint, next| {
-                let next_uint: libc::c_uint = next.into();
-                acc | next_uint
-            })
-            .serialize(buf)?;
-        self.rtattrs.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.rtm_family;
+            self.rtm_dst_len;
+            self.rtm_src_len;
+            self.rtm_tos;
+            self.rtm_table;
+            self.rtm_protocol;
+            self.rtm_scope;
+            self.rtm_type;
+            self.rtm_flags;
+            self.rtattrs, asize
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Must provide size hint to deserialize Rtmsg"))?;
-
-        let rtm_family = RtAddrFamily::deserialize(buf)?;
-        let rtm_dst_len = libc::c_uchar::deserialize(buf)?;
-        let rtm_src_len = libc::c_uchar::deserialize(buf)?;
-        let rtm_tos = libc::c_uchar::deserialize(buf)?;
-        let rtm_table = RtTable::deserialize(buf)?;
-        let rtm_protocol = Rtprot::deserialize(buf)?;
-        let rtm_scope = RtScope::deserialize(buf)?;
-        let rtm_type = Rtn::deserialize(buf)?;
-        let rtm_flags = {
-            let flags = libc::c_int::deserialize(buf)?;
-            let mut rtm_flags = Vec::new();
-            for i in 0..mem::size_of::<libc::c_uint>() * 8 {
-                let bit = 1 << i;
-                if bit & flags == bit {
-                    rtm_flags.push((bit as libc::c_uint).into());
-                }
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Rtmsg {
+                rtm_family: RtAddrFamily,
+                rtm_dst_len: libc::c_uchar,
+                rtm_src_len: libc::c_uchar,
+                rtm_tos: libc::c_uchar,
+                rtm_table: RtTable,
+                rtm_protocol: Rtprot,
+                rtm_scope: RtScope,
+                rtm_type: Rtn,
+                rtm_flags: RtmFFlags,
+                rtattrs: Rtattrs<Rta, Buffer> => mem.len().checked_sub(
+                    rtm_family.size()
+                    + rtm_dst_len.size()
+                    + rtm_src_len.size()
+                    + rtm_tos.size()
+                    + rtm_table.size()
+                    + rtm_protocol.size()
+                    + rtm_scope.size()
+                    + rtm_type.size()
+                    + rtm_flags.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
             }
-            rtm_flags
-        };
-
-        buf.set_size_hint(
-            size_hint
-                - rtm_family.size()
-                - rtm_dst_len.size()
-                - rtm_src_len.size()
-                - rtm_tos.size()
-                - rtm_table.size()
-                - rtm_protocol.size()
-                - rtm_scope.size()
-                - rtm_type.size()
-                - mem::size_of::<libc::c_int>(),
-        );
-        let rtattrs = Rtattrs::<Rta, Vec<u8>>::deserialize(buf)?;
-
-        Ok(Rtmsg {
-            rtm_family,
-            rtm_dst_len,
-            rtm_src_len,
-            rtm_tos,
-            rtm_table,
-            rtm_protocol,
-            rtm_scope,
-            rtm_type,
-            rtm_flags,
-            rtattrs,
         })
     }
 
@@ -480,8 +421,12 @@ impl Nl for Rtmsg {
             + self.rtm_protocol.size()
             + self.rtm_scope.size()
             + self.rtm_type.size()
-            + mem::size_of::<libc::c_uint>()
-            + self.rtattrs.asize()
+            + self.rtm_flags.size()
+            + self.rtattrs.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -490,109 +435,73 @@ impl Nl for Rtmsg {
 pub struct Ndmsg {
     /// Address family of entry
     pub ndm_family: RtAddrFamily,
+    pad1: u8,
+    pad2: u16,
     /// Index of entry
     pub ndm_index: libc::c_int,
     /// State of entry
-    pub ndm_state: Vec<Nud>,
+    pub ndm_state: NudFlags,
     /// Flags for entry
-    pub ndm_flags: Vec<Ntf>,
+    pub ndm_flags: NtfFlags,
     /// Type of entry
     pub ndm_type: Rtn,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Nda, Vec<u8>>,
+    pub rtattrs: Rtattrs<Nda, Buffer>,
 }
 
 impl Nl for Ndmsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.ndm_family.serialize(buf)?;
-        0u8.serialize(buf)?; // padding
-        0u16.serialize(buf)?; // padding
-        self.ndm_index.serialize(buf)?;
-        self.ndm_state
-            .iter()
-            .fold(0, |acc: u16, next| {
-                let next_uint: u16 = next.into();
-                acc | next_uint
-            })
-            .serialize(buf)?;
-        self.ndm_flags
-            .iter()
-            .fold(0, |acc: u8, next| {
-                let next_uint: u8 = next.into();
-                acc | next_uint
-            })
-            .serialize(buf)?;
-        self.ndm_type.serialize(buf)?;
-        self.rtattrs.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.ndm_family;
+            self.pad1;
+            self.pad2;
+            self.ndm_index;
+            self.ndm_state;
+            self.ndm_flags;
+            self.ndm_type;
+            self.rtattrs, asize
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Must provide size hint to deserialize Ndmsg"))?;
-
-        let ndm_family = RtAddrFamily::deserialize(buf)?;
-        u8::deserialize(buf)?; // padding
-        u16::deserialize(buf)?; // padding
-        let ndm_index = libc::c_int::deserialize(buf)?;
-        let ndm_state = {
-            let state = u16::deserialize(buf)?;
-            let mut ndm_state = Vec::new();
-            for i in 0..mem::size_of::<u16>() * 8 {
-                let bit = 1 << i;
-                if bit & state == bit {
-                    ndm_state.push((bit as u16).into());
-                }
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Ndmsg {
+                ndm_family: RtAddrFamily,
+                pad1: u8,
+                pad2: u16,
+                ndm_index: libc::c_int,
+                ndm_state: NudFlags,
+                ndm_flags: NtfFlags,
+                ndm_type: Rtn,
+                rtattrs: Rtattrs<Nda, Buffer> => mem.len().checked_sub(
+                    ndm_family.size()
+                    + pad1.size()
+                    + pad2.size()
+                    + ndm_index.size()
+                    + ndm_state.size()
+                    + ndm_flags.size()
+                    + ndm_type.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
             }
-            ndm_state
-        };
-        let ndm_flags = {
-            let flags = u8::deserialize(buf)?;
-            let mut ndm_flags = Vec::new();
-            for i in 0..mem::size_of::<u8>() * 8 {
-                let bit = 1 << i;
-                if bit & flags == bit {
-                    ndm_flags.push((bit as u8).into());
-                }
-            }
-            ndm_flags
-        };
-        let ndm_type = Rtn::deserialize(buf)?;
-
-        buf.set_size_hint(
-            size_hint
-                - ndm_family.size()
-                - 3 // padding of u8 + u16
-                - ndm_index.size()
-                - mem::size_of::<u16>() // ndm_state
-                - mem::size_of::<u8>() // ndm_flags
-                - ndm_type.size(),
-        );
-
-        let rtattrs = Rtattrs::<Nda, Vec<u8>>::deserialize(buf)?;
-
-        Ok(Ndmsg {
-            ndm_family,
-            ndm_index,
-            ndm_state,
-            ndm_flags,
-            ndm_type,
-            rtattrs,
         })
     }
 
     fn size(&self) -> usize {
         self.ndm_family.size()
-            + 3 // padding of u8 + u16
+            + self.pad1.size()
+            + self.pad2.size()
             + self.ndm_index.size()
-            + mem::size_of::<u16>() // ndm_state
-            + mem::size_of::<u8>() // ndm_flags
+            + self.ndm_state.size()
+            + self.ndm_flags.size()
             + self.ndm_type.size()
             + self.rtattrs.asize()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -610,23 +519,25 @@ pub struct NdaCacheinfo {
 }
 
 impl Nl for NdaCacheinfo {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.ndm_confirmed.serialize(buf)?;
-        self.ndm_used.serialize(buf)?;
-        self.ndm_updated.serialize(buf)?;
-        self.ndm_refcnt.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.ndm_confirmed;
+            self.ndm_used;
+            self.ndm_updated;
+            self.ndm_refcnt
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        Ok(NdaCacheinfo {
-            ndm_confirmed: u32::deserialize(buf)?,
-            ndm_used: u32::deserialize(buf)?,
-            ndm_updated: u32::deserialize(buf)?,
-            ndm_refcnt: u32::deserialize(buf)?,
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            NdaCacheinfo {
+                ndm_confirmed: u32,
+                ndm_used: u32,
+                ndm_updated: u32,
+                ndm_refcnt: u32
+            }
         })
     }
 
@@ -635,6 +546,10 @@ impl Nl for NdaCacheinfo {
             + self.ndm_used.size()
             + self.ndm_updated.size()
             + self.ndm_refcnt.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        u32::type_size().map(|s| s * 4)
     }
 }
 
@@ -652,59 +567,41 @@ pub struct Tcmsg {
     /// Info
     pub tcm_info: u32,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Tca, Vec<u8>>,
+    pub rtattrs: Rtattrs<Tca, Buffer>,
 }
 
 impl Nl for Tcmsg {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.tcm_family.serialize(buf)?;
-        (0 as libc::c_uchar).serialize(buf)?;
-        (0 as libc::c_ushort).serialize(buf)?;
-        self.tcm_ifindex.serialize(buf)?;
-        self.tcm_handle.serialize(buf)?;
-        self.tcm_parent.serialize(buf)?;
-        self.tcm_info.serialize(buf)?;
-        self.rtattrs.serialize(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.tcm_family;
+            self.tcm_ifindex;
+            self.tcm_handle;
+            self.tcm_parent;
+            self.tcm_info;
+            self.rtattrs, asize
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let mut size_hint = buf
-            .take_size_hint()
-            .ok_or_else(|| DeError::new("Tcmsg requires a size hint to deserialize"))?;
-
-        let tcm_family = libc::c_uchar::deserialize(buf)?;
-        libc::c_uchar::deserialize(buf)?;
-        libc::c_ushort::deserialize(buf)?;
-        let tcm_ifindex = libc::c_int::deserialize(buf)?;
-        let tcm_handle = u32::deserialize(buf)?;
-        let tcm_parent = u32::deserialize(buf)?;
-        let tcm_info = u32::deserialize(buf)?;
-
-        size_hint = size_hint
-            .checked_sub(
-                tcm_family.size()
-                    + mem::size_of::<libc::c_uchar>()
-                    + mem::size_of::<libc::c_ushort>()
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Tcmsg {
+                tcm_family: libc::c_uchar,
+                tcm_ifindex: libc::c_int,
+                tcm_handle: u32,
+                tcm_parent: u32,
+                tcm_info: u32,
+                rtattrs: Rtattrs<Tca, Buffer> => mem.len().checked_sub(
+                    tcm_family.size()
                     + tcm_ifindex.size()
                     + tcm_handle.size()
                     + tcm_parent.size()
-                    + tcm_info.size(),
-            )
-            .ok_or_else(|| DeError::new(&format!("Truncated Tcmsg size_hint {}", size_hint)))?;
-        buf.set_size_hint(size_hint);
-        let rtattrs = Rtattrs::<Tca, Vec<u8>>::deserialize(buf)?;
+                    + tcm_info.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
+            }
 
-        Ok(Tcmsg {
-            tcm_family,
-            tcm_ifindex,
-            tcm_handle,
-            tcm_parent,
-            tcm_info,
-            rtattrs,
         })
     }
 
@@ -716,6 +613,10 @@ impl Nl for Tcmsg {
             + self.tcm_handle.size()
             + self.tcm_parent.size()
             + self.tcm_info.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -741,7 +642,7 @@ where
     }
 }
 
-impl<T> Rtattr<T, Vec<u8>>
+impl<T> Rtattr<T, Buffer>
 where
     T: RtaType,
 {
@@ -750,7 +651,7 @@ where
     where
         R: Nl,
     {
-        R::deserialize(&mut StreamReadBuffer::new(&self.rta_payload))
+        R::deserialize(Bytes::from(self.rta_payload.as_ref()))
     }
 }
 
@@ -759,39 +660,37 @@ where
     T: RtaType,
     P: Nl,
 {
-    fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.rta_len.serialize(buf)?;
-        self.rta_type.serialize(buf)?;
-        self.rta_payload.serialize(buf)?;
-        self.pad(buf)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            PAD self;
+            mem;
+            self.rta_len;
+            self.rta_type;
+            self.rta_payload
+        })
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let rta_len = libc::c_ushort::deserialize(buf)?;
-        let rta_type = T::deserialize(buf)?;
-        buf.set_size_hint(
-            (rta_len as usize)
-                .checked_sub(rta_len.size() + rta_type.size())
-                .ok_or_else(|| {
-                    DeError::new(&format!("Invalid size while reading Rtattr: {}", rta_len))
-                })?,
-        );
-        let rta_payload = P::deserialize(buf)?;
-        let rtattr = Rtattr {
-            rta_len,
-            rta_type,
-            rta_payload,
-        };
-        rtattr.strip(buf)?;
-        Ok(rtattr)
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            STRIP Self;
+            mem;
+            Rtattr<T, P> {
+                rta_len: libc::c_ushort,
+                rta_type: T,
+                rta_payload: P => (rta_len as usize).checked_sub(
+                    rta_len.size() + rta_type.size()
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
+            } => alignto(rta_len as usize) - rta_len as usize
+        })
     }
 
     fn size(&self) -> usize {
         self.rta_len.size() + self.rta_type.size() + self.rta_payload.size()
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 }
 
@@ -802,23 +701,15 @@ mod test {
 
     #[test]
     fn test_rta_deserialize() {
-        let mut buf = StreamReadBuffer::new(&[4u8, 0, 0, 0]);
-        assert!(Rtattr::<Rta, Vec<u8>>::deserialize(&mut buf).is_ok());
+        let buf = Bytes::from(&[4u8, 0, 0, 0] as &[u8]);
+        assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_ok());
     }
 
     #[test]
     fn test_rta_deserialize_err() {
         // 3 bytes is below minimum length
-        let mut buf = StreamReadBuffer::new(&[3u8, 0, 0, 0]);
-        assert!(Rtattr::<Rta, Vec<u8>>::deserialize(&mut buf).is_err());
-    }
-
-    #[test]
-    fn test_rtattr_deserialize_padding() {
-        let mut buf = StreamReadBuffer::new(&[5u8, 0, 0, 0, 0, 0, 0, 0, 111]);
-        assert!(Rtattr::<Rta, Vec<u8>>::deserialize(&mut buf).is_ok());
-        // should have stripped remainder of word
-        assert_eq!(u8::deserialize(&mut buf).unwrap(), 111);
+        let buf = Bytes::from(&[3u8, 0, 0, 0] as &[u8]);
+        assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_err());
     }
 
     #[test]
@@ -828,10 +719,11 @@ mod test {
             rta_type: Rta::Unspec,
             rta_payload: vec![0u8],
         };
-        let mut buf = StreamWriteBuffer::new_growable(None);
+        let buf = BytesMut::from(vec![0; attr.asize()]);
 
-        assert!(attr.serialize(&mut buf).is_ok());
+        let buf_res = attr.serialize(buf);
+        assert!(buf_res.is_ok());
         // padding check
-        assert_eq!(buf.as_ref().len(), 8);
+        assert_eq!(buf_res.unwrap().as_ref().len(), 8);
     }
 }

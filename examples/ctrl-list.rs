@@ -1,12 +1,11 @@
-extern crate neli;
-use neli::consts::{CtrlAttr, CtrlCmd, GenlId, NlFamily, NlmF, Nlmsg};
-use neli::err::NlError;
-use neli::genl::Genlmsghdr;
-use neli::nl::Nlmsghdr;
-use neli::nlattr::Nlattr;
-use neli::socket::NlSocket;
-use neli::Nl;
-use neli::StreamReadBuffer;
+use neli::{
+    consts::{CtrlAttr, CtrlCmd, GenlId, NlFamily, NlmF, NlmFFlags, Nlmsg},
+    err::NlError,
+    genl::Genlmsghdr,
+    nl::Nlmsghdr,
+    socket::NlSocket,
+    Buffer, Bytes, GenlBuffer, Nl, SmallVec, U32Bitmask,
+};
 
 const GENL_VERSION: u8 = 2;
 
@@ -14,14 +13,14 @@ const GENL_VERSION: u8 = 2;
 // the name and identifier of each generic netlink family.
 
 fn main() -> Result<(), NlError> {
-    let mut socket = NlSocket::connect(NlFamily::Generic, None, None, true)?;
+    let mut socket = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
 
-    let attrs: Vec<Nlattr<CtrlAttr, Vec<u8>>> = vec![];
-    let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs)?;
+    let attrs: GenlBuffer<CtrlAttr, Buffer> = SmallVec::new();
+    let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs);
     let nlhdr = {
         let len = None;
         let nl_type = GenlId::Ctrl;
-        let flags = vec![NlmF::Request, NlmF::Dump];
+        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
         let seq = None;
         let pid = None;
         let payload = genlhdr;
@@ -48,14 +47,13 @@ fn main() -> Result<(), NlError> {
         for attr in handle.iter() {
             match &attr.nla_type {
                 CtrlAttr::FamilyName => {
-                    let mut mem = StreamReadBuffer::new(&attr.payload);
-                    mem.set_size_hint(attr.payload.len() - 1);
-                    let name = String::deserialize(&mut mem)?;
+                    let mem = Bytes::from(attr.payload.as_ref());
+                    let name = String::deserialize(mem)?;
                     println!("{}", name);
                 }
                 CtrlAttr::FamilyId => {
-                    let mut mem = StreamReadBuffer::new(&attr.payload);
-                    let id = u16::deserialize(&mut mem)?;
+                    let mem = Bytes::from(attr.payload.as_ref());
+                    let id = u16::deserialize(mem)?;
                     println!("\tID: 0x{:x}", id);
                 }
                 _ => {}

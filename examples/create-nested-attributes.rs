@@ -2,11 +2,7 @@ extern crate neli;
 
 use std::error::Error;
 
-use neli::consts;
-use neli::genl::Genlmsghdr;
-use neli::nl::Nlmsghdr;
-use neli::nlattr::Nlattr;
-use neli::Nl;
+use neli::{consts, genl::Genlmsghdr, nl::Nlmsghdr, nlattr::Nlattr, BytesMut, Nl, SmallVec};
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     // The following works as Nlattr payload types are the same but is STRONGLY discouraged
@@ -44,19 +40,19 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // Not a string
     attr2.add_nested_attribute(&Nlattr::new(None, 2, 5)?)?;
 
-    let attrs = vec![attr1, attr2];
+    let attrs = SmallVec::from(vec![attr1, attr2]);
 
-    let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs)?;
+    let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs);
     let nlmsg = Nlmsghdr::new(
         None,
         consts::Nlmsg::Noop,
-        vec![consts::NlmF::Request],
+        consts::NlmFFlags::new(&[consts::NlmF::Request]),
         None,
         None,
         genlmsg,
     );
-    let mut buffer = neli::StreamWriteBuffer::new_growable(Some(nlmsg.asize()));
-    nlmsg.serialize(&mut buffer)?;
+    let mut buffer = BytesMut::with_capacity(nlmsg.asize());
+    buffer = nlmsg.serialize(buffer)?;
     println!("Serialized heterogeneous attributes: {:?}", buffer.as_ref());
     Ok(())
 }

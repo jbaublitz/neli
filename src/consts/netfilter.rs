@@ -3,13 +3,11 @@
 //! Note that this doesn't cover everything yet, both the list of types and variants in enums will
 //! be added over time.
 
-use super::{NlAttrType, NlType};
-
-impl_var_trait! {
+impl_var! {
     /// Attributes inside a netfilter log packet message.
     ///
     /// These are send by the kernel and describe a logged packet.
-    NfLogAttr, u16, NlAttrType,
+    NfLogAttr, u16,
     PacketHdr => libc::NFULA_PACKET_HDR as u16,
     Mark => libc::NFULA_MARK as u16,
     Timestamp => libc::NFULA_TIMESTAMP as u16,
@@ -31,11 +29,11 @@ impl_var_trait! {
     CtInfo => libc::NFULA_CT_INFO as u16
 }
 
-impl_var_trait! {
+impl_var! {
     /// Configuration attributes for netfilter logging.
     ///
     /// See [LogConfigReq][crate::netfilter::LogConfigReq]
-    NfLogCfg, u16, NlAttrType,
+    NfLogCfg, u16,
     Cmd => libc::NFULA_CFG_CMD as u16,
     Mode => libc::NFULA_CFG_MODE as u16,
     NlBufSize => libc::NFULA_CFG_NLBUFSIZ as u16,
@@ -48,11 +46,11 @@ const fn nfnl_msg_type(subsys: u8, msg: u8) -> u16 {
     ((subsys as u16) << 8) | (msg as u16)
 }
 
-impl_var_trait! {
+impl_var! {
     /// Messages related to the netfilter netlink protocols.
     ///
     /// These appear on the [NlFamily::Netfilter][super::NlFamily::Netfilter] sockets.
-    NetfilterMsg, u16, NlType,
+    NetfilterMsg, u16,
     // TODO: Docs here /// A logged packet, going from kernel to userspace.
     LogPacket => nfnl_msg_type(libc::NFNL_SUBSYS_ULOG as u8, libc::NFULNL_MSG_PACKET as u8),
     // TODO: Docs here /// A logging configuration request, going from userspace to kernel.
@@ -61,12 +59,15 @@ impl_var_trait! {
 
 impl_trait! {
     /// Parameters for the [NfLogCfg::Cmd].
-    LogCfgCmd, u8
+    LogCfgCmd, u8,
+    /// Wrapper that is valid anywhere that accepts a value implementing the `LogCfgCmd` trait
+    LogCfgCmdWrapper,
+    LogCmd
 }
 
-impl_var_trait! {
+impl_var! {
     /// Command value for the [NfLogCfg::Cmd].
-    LogCmd, u8, LogCfgCmd,
+    LogCmd, u8,
     Bind => libc::NFULNL_CFG_CMD_BIND as u8,
     Unbind => libc::NFULNL_CFG_CMD_UNBIND as u8,
     PfBind => libc::NFULNL_CFG_CMD_PF_BIND as u8,

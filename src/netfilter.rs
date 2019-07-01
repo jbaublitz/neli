@@ -8,32 +8,41 @@
 use std::ffi::CString;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use bytes::{Bytes, BytesMut};
 use libc::c_int;
 
-use crate::consts::netfilter::{LogCopyMode, NfLogAttr, NfLogCfg};
-use crate::err::{DeError, SerError};
-use crate::nlattr::Nlattr;
-use crate::{Nl, StreamReadBuffer, StreamWriteBuffer};
-
-type Nlattrs = Vec<Nlattr<NfLogAttr, Vec<u8>>>;
+use crate::{
+    consts::netfilter::{LogCopyMode, NfLogAttr, NfLogCfg},
+    err::{DeError, SerError},
+    nlattr::Nlattr,
+    BeU64, Nl,
+};
 
 #[derive(Copy, Clone, Debug)]
 struct Timestamp {
-    secs: u64,
-    usecs: u64,
+    secs: BeU64,
+    usecs: BeU64,
 }
 
 impl Nl for Timestamp {
-    fn serialize(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        u64::to_be(self.secs).serialize(m)?;
-        u64::to_be(self.usecs).serialize(m)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            mem;
+            self.secs;
+            self.usecs
+        })
     }
-    fn deserialize<B: AsRef<[u8]>>(m: &mut StreamReadBuffer<B>) -> Result<Self, DeError> {
-        let secs = u64::from_be(u64::deserialize(m)?);
-        let usecs = u64::from_be(u64::deserialize(m)?);
-        Ok(Self { secs, usecs })
+
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            Timestamp {
+                secs: BeU64,
+                usecs: BeU64
+            }
+        })
     }
+
     fn size(&self) -> usize {
         self.secs.size() + self.usecs.size()
     }
