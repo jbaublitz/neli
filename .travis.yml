@@ -16,16 +16,16 @@ jobs:
       rust: stable
       script:
         - cargo build
-        - cargo build --features=stream
+        - cargo build --features=async
         - cargo test
-        - cargo test --features=stream
+        - cargo test --features=async
     - stage: test
       rust: nightly
       script:
         - cargo build
-        - cargo build --features=stream
+        - cargo build --features=async
         - cargo test
-        - cargo test --features=stream
+        - cargo test --features=async
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -35,9 +35,9 @@ jobs:
           /usr/bin/git checkout $TRAVIS_COMMIT &&
           /root/.cargo/bin/rustup default stable-x86_64-unknown-linux-musl &&
           /root/.cargo/bin/cargo build &&
-          /root/.cargo/bin/cargo build --features=stream &&
+          /root/.cargo/bin/cargo build --features=async &&
           /root/.cargo/bin/cargo test &&
-          /root/.cargo/bin/cargo test --features=stream"
+          /root/.cargo/bin/cargo test --features=async"
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -47,6 +47,6 @@ jobs:
           /usr/bin/git checkout $TRAVIS_COMMIT &&
           /root/.cargo/bin/rustup default nightly-x86_64-unknown-linux-musl &&
           /root/.cargo/bin/cargo build &&
-          /root/.cargo/bin/cargo build --features=stream &&
+          /root/.cargo/bin/cargo build --features=async &&
           /root/.cargo/bin/cargo test &&
-          /root/.cargo/bin/cargo test --features=stream"
+          /root/.cargo/bin/cargo test --features=async"

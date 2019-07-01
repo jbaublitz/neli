@@ -14,7 +14,7 @@ const GENL_VERSION: u8 = 2;
 // the name and identifier of each generic netlink family.
 
 fn main() -> Result<(), NlError> {
-    let mut socket = NlSocket::connect(NlFamily::Generic, None, None, true)?;
+    let mut socket = NlSocket::connect(NlFamily::Generic, None, None)?;
 
     let attrs: Vec<Nlattr<CtrlAttr, Vec<u8>>> = vec![];
     let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs)?;

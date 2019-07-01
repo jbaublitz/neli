@@ -1,5 +1,5 @@
 extern crate neli;
-#[cfg(feature = "stream")]
+#[cfg(feature = "async")]
 extern crate tokio;
 
 use std::env;
@@ -7,10 +7,10 @@ use std::env;
 use neli::consts;
 use neli::genl::Genlmsghdr;
 use neli::socket;
-#[cfg(feature = "stream")]
+#[cfg(feature = "async")]
 use tokio::prelude::{Future, Stream};
 
-#[cfg(feature = "stream")]
+#[cfg(feature = "async")]
 fn debug_stream() -> Result<(), neli::err::NlError> {
     let mut args = env::args();
     let _ = args.next();
@@ -23,9 +23,9 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, None, true)?;
+    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, None)?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.set_mcast_groups(vec![id])?;
+    s.add_mcast_membership(vec![id])?;
     let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s)?;
     tokio::run(
         ss.for_each(|next| {
@@ -38,7 +38,7 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
     Ok(())
 }
 
-#[cfg(not(feature = "stream"))]
+#[cfg(not(feature = "async"))]
 fn debug_stream() -> Result<(), neli::err::NlError> {
     let mut args = env::args();
     let _ = args.next();
@@ -51,9 +51,9 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, None, true)?;
+    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, None)?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.set_mcast_groups(vec![id])?;
+    s.add_mcast_membership(vec![id])?;
     for next in s.iter::<u16, Genlmsghdr<u8, u16>>() {
         println!("{:?}", next?);
     }
@@ -61,14 +61,14 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
 }
 
 pub fn main() {
-    #[cfg(feature = "stream")]
+    #[cfg(feature = "async")]
     match debug_stream() {
         Ok(_) => (),
         Err(e) => {
             println!("{}", e);
         }
     };
-    #[cfg(not(feature = "stream"))]
+    #[cfg(not(feature = "async"))]
     match debug_stream() {
         Ok(_) => (),
         Err(e) => {

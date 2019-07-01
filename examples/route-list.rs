@@ -61,7 +61,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
 /// with the rtnetlink subsystem.  
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
+    let mut socket = NlSocket::connect(NlFamily::Route, None, None).unwrap();
 
     let rtmsg: Rtmsg<Rta> = Rtmsg {
         rtm_family: RtAddrFamily::Inet,

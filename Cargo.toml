@@ -34,4 +34,4 @@ features = ["copy"]
 
 [features]
 default = []
-stream = ["tokio", "mio"]
+async = ["tokio", "mio"]

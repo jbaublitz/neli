@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0
+### Breaking changes
+* Change `stream` feature to `async` for clarity with higher level API
+* Move `seq` and `pid` tracking to higher level APIs for better support case by case
+
+### Additions
+* Add genetlink ID to family name/multicast group name lookup
+* Add `Index` type for nested attributes returned as a numbered list
+* `NlSocket` functions to leave/list multicast groups
+
+### Deprecations
+* `Nlattr.get_nested_attributes()` in favor of `.get_attr_handle()`
+* `NlSocket.set_mcast_groups()` in favor of `.add_multicast_membership()`
+
 ## 0.4.3
 ### Breaking changes
 * Change `Nlattr.add_nested_attribute()` to take a reference

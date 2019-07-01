@@ -224,7 +224,16 @@ where
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_nested_attributes<R>(&self) -> Result<AttrHandle<R>, DeError>
+    #[deprecated(since = "0.5.0", note = "Use get_attr_handle instead")]
+    pub fn get_nested_attributes<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError>
+    where
+        R: NlAttrType,
+    {
+        self.get_attr_handle()
+    }
+
+    /// Return an `AttrHandle` for attributes nested in the given attribute payload
+    pub fn get_attr_handle<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError>
     where
         R: NlAttrType,
     {
@@ -449,7 +458,7 @@ mod test {
         assert_eq!(nlattr.size(), 20);
         assert_eq!(
             nlattr
-                .get_nested_attributes()
+                .get_attr_handle()
                 .unwrap()
                 .get_attribute(CtrlAttr::FamilyId)
                 .unwrap()

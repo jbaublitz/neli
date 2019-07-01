@@ -166,7 +166,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_genl_family() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None).unwrap();
         let id = s.resolve_genl_family("acpi_event").unwrap();
         assert_eq!(23, id)
     }
@@ -174,7 +174,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_mcast_group() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None).unwrap();
         let id = s
             .resolve_nl_mcast_group("acpi_event", "acpi_mc_group")
             .unwrap();

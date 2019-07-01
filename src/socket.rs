@@ -13,7 +13,7 @@
 //! * `recv_ack` receives an ACK message and verifies it matches the request.
 //!
 //! ## Features
-//! The `stream` feature exposed by `cargo` allows the socket to use Rust's tokio for async IO.
+//! The `async` feature exposed by `cargo` allows the socket to use Rust's tokio for async IO.
 //!
 //! ## Additional methods
 //!
@@ -30,8 +30,8 @@ use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
 use libc::{self, c_int, c_void};
 
 use consts::{
-    self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, NlAttrType, NlFamily, NlType,
-    NlmF,
+    self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, Index, NlAttrType, NlFamily,
+    NlType, NlmF, Nlmsg,
 };
 use err::{NlError, Nlmsgerr};
 use genl::Genlmsghdr;
@@ -76,34 +76,41 @@ where
     }
 }
 
+/// Conversion between multicast group IDs and the bitmask representation expected by the kernel
+#[inline]
+pub fn vec_to_bitmask(groups: Vec<u32>) -> u32 {
+    groups.iter().fold(0, |acc, grp| acc + 1 << (grp - 1))
+}
+
+/// Conversion between multicast group IDs and the bitmask expected by the kernel
+#[inline]
+pub fn bitmask_to_vec(mask: u32) -> Vec<u32> {
+    let mut vec = Vec::new();
+    // Number of bits in a u32
+    for i in 1..=size_of::<u32>() * 8 {
+        if (1 << (i - 1)) & mask != 0 {
+            vec.push(i as u32);
+        }
+    }
+    vec
+}
+
 /// Handle for the socket file descriptor
 pub struct NlSocket {
     fd: c_int,
     buffer: Option<StreamReadBuffer<Vec<u8>>>,
-    pid: Option<u32>,
-    seq: Option<u32>,
 }
 
 impl NlSocket {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
-    pub fn new(proto: NlFamily, track_seq: bool) -> Result<Self, io::Error> {
+    pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd =
             match unsafe { libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into()) }
             {
                 i if i >= 0 => Ok(i),
                 _ => Err(io::Error::last_os_error()),
             }?;
-        Ok(NlSocket {
-            fd,
-            buffer: None,
-            pid: None,
-            seq: if track_seq { Some(0) } else { None },
-        })
-    }
-
-    /// Manually increment sequence number
-    pub fn increment_seq(&mut self) {
-        self.seq.map(|seq| seq + 1);
+        Ok(NlSocket { fd, buffer: None })
     }
 
     /// Set underlying socket file descriptor to be blocking
@@ -150,7 +157,6 @@ impl NlSocket {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
-        self.pid = pid;
         nladdr.nl_groups = 0;
         match unsafe {
             libc::bind(
@@ -163,16 +169,20 @@ impl NlSocket {
             _ => return Err(io::Error::last_os_error()),
         };
         if let Some(grps) = groups {
-            self.set_mcast_groups(grps)?;
+            self.add_mcast_membership(grps)?;
         }
         Ok(())
     }
 
     /// Set multicast groups for socket
+    #[deprecated(since = "0.5.0", note = "Use add_multicast_membership instead")]
     pub fn set_mcast_groups(&mut self, groups: Vec<u32>) -> Result<(), io::Error> {
-        let grps = groups
-            .into_iter()
-            .fold(0, |acc, next| acc | (1 << (next - 1)));
+        self.add_mcast_membership(groups)
+    }
+
+    /// Join multicast groups for a socket
+    pub fn add_mcast_membership(&mut self, groups: Vec<u32>) -> Result<(), io::Error> {
+        let grps = vec_to_bitmask(groups);
         match unsafe {
             libc::setsockopt(
                 self.fd,
@@ -182,10 +192,42 @@ impl NlSocket {
                 size_of::<u32>() as libc::socklen_t,
             )
         } {
-            i if i == 0 => {
-                self.pid = None;
-                Ok(())
-            }
+            i if i == 0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
+    /// Leave multicast groups for a socket
+    pub fn drop_mcast_membership(&mut self, groups: Vec<u32>) -> Result<(), io::Error> {
+        let grps = vec_to_bitmask(groups);
+        match unsafe {
+            libc::setsockopt(
+                self.fd,
+                libc::SOL_NETLINK,
+                libc::NETLINK_DROP_MEMBERSHIP,
+                &grps as *const _ as *const libc::c_void,
+                size_of::<u32>() as libc::socklen_t,
+            )
+        } {
+            i if i == 0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
+    /// List joined groups for a socket
+    pub fn list_mcast_membership(&mut self) -> Result<Vec<u32>, io::Error> {
+        let mut grps = 0u32;
+        let mut len = size_of::<u32>() as libc::socklen_t;
+        match unsafe {
+            libc::getsockopt(
+                self.fd,
+                libc::SOL_NETLINK,
+                libc::NETLINK_LIST_MEMBERSHIPS,
+                &mut grps as *mut _ as *mut libc::c_void,
+                &mut len as *mut _ as *mut libc::socklen_t,
+            )
+        } {
+            i if i == 0 => Ok(bitmask_to_vec(grps)),
             _ => Err(io::Error::last_os_error()),
         }
     }
@@ -232,9 +274,8 @@ impl NlSocket {
         proto: NlFamily,
         pid: Option<u32>,
         groups: Option<Vec<u32>>,
-        track_seq: bool,
     ) -> Result<Self, io::Error> {
-        let mut s = NlSocket::new(proto, track_seq)?;
+        let mut s = NlSocket::new(proto)?;
         s.bind(pid, groups)?;
         Ok(s)
     }
@@ -280,12 +321,11 @@ impl NlSocket {
     ) -> Result<u32, NlError> {
         let nlhdr = self.get_genl_family(family_name)?;
         let mut handle = nlhdr.nl_payload.get_attr_handle();
-        let mcast_groups =
-            handle.get_nested_attributes::<CtrlAttrMcastGrp>(CtrlAttr::McastGroups)?;
+        let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
         mcast_groups
             .iter()
             .filter_map(|item| {
-                let nested_attrs = item.get_nested_attributes::<CtrlAttrMcastGrp>().ok()?;
+                let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
                 let string = nested_attrs
                     .get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)
                     .ok()?;
@@ -298,20 +338,57 @@ impl NlSocket {
                 }
             })
             .nth(0)
-            .ok_or_else(|| NlError::new("Failed to resolve multicast group ID"))
+            .ok_or(NlError::new("Failed to resolve multicast group ID"))
+    }
+
+    /// Look up netlink family and multicast group name by ID
+    pub fn lookup_id(&mut self, id: u32) -> Result<(String, String), NlError> {
+        let attrs = vec![];
+        let genlhdr = Genlmsghdr::<CtrlCmd, CtrlAttrMcastGrp>::new(CtrlCmd::Getfamily, 2, attrs)?;
+        let nlhdr = Nlmsghdr::new(
+            None,
+            GenlId::Ctrl,
+            vec![NlmF::Request, NlmF::Dump],
+            None,
+            None,
+            genlhdr,
+        );
+
+        self.send_nl(nlhdr)?;
+        for res_msg in self.iter::<Nlmsg, Genlmsghdr<u8, CtrlAttr>>() {
+            let msg = res_msg?;
+            if msg.nl_type == Nlmsg::Done {
+                break;
+            }
+
+            let mut attributes = msg.nl_payload.get_attr_handle();
+            let name = attributes.get_attr_payload_as::<String>(CtrlAttr::FamilyName)?;
+            let groups = match attributes.get_nested_attributes::<Index>(CtrlAttr::McastGroups) {
+                Ok(grps) => grps,
+                Err(_) => continue,
+            };
+            for group_by_index in groups.iter() {
+                let attributes = group_by_index.get_attr_handle::<CtrlAttrMcastGrp>()?;
+                if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id) {
+                    if mcid == id {
+                        let mcast_name =
+                            attributes.get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)?;
+                        return Ok((name, mcast_name));
+                    }
+                }
+            }
+        }
+
+        Err(NlError::new("ID does not correspond to a multicast group"))
     }
 
     /// Convenience function to send an `Nlmsghdr` struct
-    pub fn send_nl<T, P>(&mut self, mut msg: Nlmsghdr<T, P>) -> Result<(), NlError>
+    pub fn send_nl<T, P>(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError>
     where
         T: Nl + NlType,
         P: Nl,
     {
         let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
-        if let Some(ref mut seq) = self.seq {
-            *seq += 1;
-            msg.nl_seq = *seq;
-        }
         msg.serialize(&mut mem)?;
         self.send(mem, 0)?;
         Ok(())
@@ -336,14 +413,6 @@ impl NlSocket {
             Some(ref mut b) => Nlmsghdr::deserialize(b)?,
             None => unreachable!(),
         };
-        if self.pid.is_none() {
-            self.pid = Some(msg.nl_pid);
-        } else if self.pid != Some(msg.nl_pid) {
-            return Err(NlError::BadPid);
-        }
-        if self.seq.is_some() {
-            self.seq.map(|s| s + 1);
-        }
         if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
             self.buffer = None;
         }
@@ -354,16 +423,6 @@ impl NlSocket {
     pub fn recv_ack(&mut self) -> Result<(), NlError> {
         if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(None) {
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
-                if self.pid.is_none() {
-                    self.pid = Some(ack.nl_pid);
-                } else if self.pid != Some(ack.nl_pid) {
-                    return Err(NlError::BadPid);
-                }
-                if let Some(seq) = self.seq {
-                    if seq != ack.nl_seq {
-                        return Err(NlError::BadSeq);
-                    }
-                }
                 Ok(())
             } else {
                 if let Some(b) = self.buffer.as_mut() {
@@ -404,7 +463,7 @@ impl io::Read for NlSocket {
     }
 }
 
-#[cfg(feature = "stream")]
+#[cfg(feature = "async")]
 pub mod tokio {
     //! Tokio-specific features for neli
     //!
@@ -536,7 +595,7 @@ mod test {
 
     #[test]
     fn test_socket_nonblock() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None).unwrap();
         s.nonblock().unwrap();
         assert_eq!(s.is_blocking().unwrap(), false);
         let buf = &mut [0; 4];
@@ -596,8 +655,6 @@ mod test {
         let mut s = NlSocket {
             fd: -1,
             buffer: Some(StreamReadBuffer::new(vec)),
-            seq: None,
-            pid: None,
         };
         let mut iter = s.iter();
         if let Some(Ok(nl_next)) = iter.next() {
