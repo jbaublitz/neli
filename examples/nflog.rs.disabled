@@ -10,16 +10,20 @@
 //! Both this example and the above command needs to be run as root.
 extern crate neli;
 
-use neli::consts::netfilter::{LogCmd, LogCopyMode, NetfilterMsg, NfLogCfg};
-use neli::consts::{NlFamily, NlmF};
-use neli::netfilter::{LogConfigMode, LogConfigReq, LogPacket};
-use neli::nl::Nlmsghdr;
-use neli::nlattr::Nlattr;
-use neli::socket::NlSocket;
+use neli::{
+    consts::netfilter::{LogCmd, LogCopyMode, NetfilterMsg, NfLogCfg},
+    consts::nl::{NlmF, NlmFFlags},
+    consts::socket::NlFamily,
+    netfilter::{LogConfigMode, LogConfigReq, LogPacket},
+    nl::Nlmsghdr,
+    nlattr::Nlattr,
+    socket::{NlSocket, OnError},
+    U32Bitmask,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // First, let's create a socket to the netfilter.
-    let mut socket = NlSocket::connect(NlFamily::Netfilter, None, None, false)?;
+    let mut socket = NlSocket::connect(NlFamily::Netfilter, None, U32Bitmask::empty())?;
 
     // Then, ask the kernel to send the relevant packets into it. Unfortunately, the documentation
     // of the functionality is kind of sparse, so there are some unknowns, like why do we have to
@@ -41,12 +45,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Nlattr::new(None, NfLogCfg::Cmd, LogCmd::Bind)?,
     ];
     let req = LogConfigReq::new(libc::AF_INET, 10, cmds);
-    let flags = vec![NlmF::Request, NlmF::Ack];
+    let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Ack]);
     let msg = Nlmsghdr::new(None, NetfilterMsg::LogConfig, flags, None, None, req);
     // Send the request to the kernel
     socket.send_nl(msg)?;
     // And check it succeeds.
-    socket.recv_ack()?;
+    socket.recv_ack(OnError::FastForward)?;
 
     // Now, let's start getting the packets. A real world application would do something more
     // useful with them then just print them, but hey, this is an example.

@@ -24,6 +24,10 @@ path = "genl_stream.rs"
 name = "route-list"
 path = "route-list.rs"
 
+[[bin]]
+name = "lookup_id"
+path = "lookup_id.rs"
+
 [dependencies.tokio]
 version = "0.2"
 optional = true
@@ -33,5 +37,5 @@ version = "0.4.3"
 path = ".."
 
 [features]
-stream = ["tokio", "neli/stream"]
+async = ["tokio", "neli/async"]
 logging = ["neli/logging"]

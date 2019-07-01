@@ -1,13 +1,8 @@
 extern crate neli;
 
-use std::error::Error;
-use std::net::IpAddr;
+use std::{error::Error, net::IpAddr};
 
-use neli::consts::*;
-use neli::err::NlError;
-use neli::nl::Nlmsghdr;
-use neli::rtnl::*;
-use neli::socket::*;
+use neli::{consts::*, err::NlError, nl::Nlmsghdr, rtnl::*, socket::*, U32Bitmask};
 
 fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
     // This sample is only interested in the main table.
@@ -61,7 +56,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
 /// with the rtnetlink subsystem.  
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
+    let mut socket = NlSocket::connect(NlFamily::Route, None, U32Bitmask::empty()).unwrap();
 
     let rtmsg = Rtmsg {
         rtm_family: RtAddrFamily::Inet,
@@ -72,13 +67,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         rtm_protocol: Rtprot::Unspec,
         rtm_scope: RtScope::Universe,
         rtm_type: Rtn::Unspec,
-        rtm_flags: vec![],
+        rtm_flags: RtmFFlags::empty(),
         rtattrs: Rtattrs::empty(),
     };
     let nlhdr = {
         let len = None;
         let nl_type = Rtm::Getroute;
-        let flags = vec![NlmF::Request, NlmF::Dump];
+        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
         let seq = None;
         let pid = None;
         let payload = rtmsg;
@@ -87,11 +82,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     socket.send_nl(nlhdr).unwrap();
 
     // Provisionally deserialize as a Nlmsg first.
-    let nl = socket.recv_nl::<Rtm, Rtmsg>(None)?;
+    let nl = socket.recv_nl::<Rtm, Rtmsg>(OnError::FastForward)?;
     let multi_msg = nl.nl_flags.contains(&NlmF::Multi);
     parse_route_table(nl);
     if multi_msg {
-        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg>(None) {
+        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg>(OnError::FastForward) {
             match Nlmsg::from(nl.nl_type) {
                 Nlmsg::Done => return Ok(()),
                 Nlmsg::Error => return Err(Box::new(NlError::new("rtnetlink error."))),

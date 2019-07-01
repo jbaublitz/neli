@@ -1,19 +1,22 @@
 extern crate neli;
 
-use neli::consts::NlFamily;
-use neli::genl::*;
-use neli::socket::*;
+use neli::{
+    consts::{NlFamily, NlmFFlags},
+    genl::*,
+    socket::*,
+    SmallVec, U32Bitmask,
+};
 
 fn main() {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
-    let mut sock = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+    let mut sock = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
     let _id = sock.resolve_genl_family(family_name).unwrap();
 
     // Resolve generic netlink multicast group ID
     let family_name = "your_family_name_here";
     let group_name = "your_group_name_here";
-    let mut sock = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+    let mut sock = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
     let _id = sock
         .resolve_nl_mcast_group(family_name, group_name)
         .unwrap();
@@ -24,10 +27,10 @@ fn main() {
     let nlmsg = neli::nl::Nlmsghdr::new(
         None,
         neli::consts::GenlId::Ctrl,
-        Vec::new(),
+        NlmFFlags::empty(),
         None,
         None,
-        Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, Vec::new()).unwrap(),
+        Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, SmallVec::new()),
     );
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type

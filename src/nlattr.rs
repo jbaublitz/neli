@@ -6,8 +6,8 @@
 //!
 //! ```no_run
 //! // This was received from the socket
-//! let nlmsg = neli::nl::Nlmsghdr::new(None, neli::consts::GenlId::Ctrl, Vec::new(), None, None,
-//!         neli::genl::Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, Vec::new()).unwrap());
+//! let nlmsg = neli::nl::Nlmsghdr::new(None, neli::consts::GenlId::Ctrl, neli::consts::NlmFFlags::empty(), None, None,
+//!         neli::genl::Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, neli::SmallVec::new()));
 //!
 //! // Get parsing handler for the attributes in this message where the next call
 //! // to either get_nested_attributes() or get_payload_with() will expect a u16 type
@@ -55,88 +55,74 @@
 
 use std::slice;
 
-use buffering::{StreamReadBuffer, StreamWriteBuffer};
+use bytes::{Bytes, BytesMut};
+use smallvec::SmallVec;
 
 use crate::{
-    consts::NlAttrType,
+    consts::{alignto, NlAttrType},
     err::{DeError, NlError, SerError},
-    Nl,
+    utils::packet_length,
+    Buffer, GenlBuffer, Nl,
 };
 
-impl<T, P> Nl for Vec<Nlattr<T, P>>
+impl<T, P> Nl for GenlBuffer<T, P>
 where
     T: NlAttrType,
-    P: Nl,
+    P: Nl + std::fmt::Debug,
 {
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        for item in self.iter() {
-            item.serialize(mem)?;
-        }
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        self.as_slice().serialize(mem)
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let mut vec = Vec::new();
-        let mut size_hint = mem.take_size_hint();
-        while size_hint > Some(0) || (size_hint == None && !mem.at_end()) {
-            let next = Nlattr::<T, P>::deserialize(mem)?;
-            if let Some(val) = size_hint {
-                if val > 0 {
-                    let result = val.checked_sub(next.asize()).ok_or_else(|| {
-                        DeError::new("Deserialization read passed the end of the specified buffer")
-                    })?;
-                    size_hint = Some(result);
-                }
-            }
-            vec.push(next);
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        let mut vec = SmallVec::new();
+        let mut pos = 0;
+        while pos < mem.len() {
+            let (attr, pos_tmp) = drive_deserialize!(
+                Nlattr<T, P>,
+                mem,
+                pos,
+                alignto(packet_length(mem.as_ref(), pos))
+            );
+            vec.push(attr);
+            pos = pos_tmp;
         }
         Ok(vec)
     }
 
-    fn size(&self) -> usize {
-        println!(
-            "This function should not be used anymore - it uses .asize() internally and will \
-        eventually stop working. Change to .asize(). See design decisions in nlattr.rs for more
-        information"
-        );
-        self.asize()
+    fn type_size() -> Option<usize> {
+        None
     }
 
-    fn asize(&self) -> usize {
-        let mut size = 0;
-        for attr in self.iter() {
-            size += attr.asize()
-        }
-        size
+    fn size(&self) -> usize {
+        self.as_slice().size()
     }
 }
 
-impl<'a, T> Nl for &'a [Nlattr<T, Vec<u8>>]
+impl<'a, T, P> Nl for &'a [Nlattr<T, P>]
 where
     T: NlAttrType,
+    P: Nl,
 {
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
+    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
+        let mut pos = 0;
         for item in self.iter() {
-            item.serialize(mem)?;
+            let (mem_tmp, pos_tmp) = drive_serialize!(item, mem, pos, asize);
+            mem = mem_tmp;
+            pos = pos_tmp;
         }
-        Ok(())
+        Ok(drive_serialize!(END mem, pos))
     }
 
-    fn deserialize<B>(_: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
+    fn deserialize(_: Bytes) -> Result<Self, DeError> {
         unimplemented!("Use deserialize_buf instead")
     }
 
-    fn size(&self) -> usize {
-        unimplemented!("Use .asize() instead")
+    fn type_size() -> Option<usize> {
+        None
     }
 
-    fn asize(&self) -> usize {
+    fn size(&self) -> usize {
         let mut size = 0;
         for attr in self.iter() {
             size += attr.asize()
@@ -167,7 +153,7 @@ where
     }
 }
 
-impl<T> Nlattr<T, Vec<u8>>
+impl<T> Nlattr<T, Buffer>
 where
     T: NlAttrType,
 {
@@ -179,7 +165,7 @@ where
         let mut attr = Nlattr {
             nla_len: nla_len.unwrap_or(0),
             nla_type,
-            payload: Vec::new(),
+            payload: SmallVec::new(),
         };
         attr.set_payload(payload)?;
         Ok(attr)
@@ -191,8 +177,10 @@ where
     where
         P: Nl,
     {
-        let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
-        payload.serialize(&mut buffer)?;
+        let mut buffer = BytesMut::from(vec![0; payload.size()]);
+        buffer = payload.serialize(buffer)?;
+
+        self.payload = SmallVec::from(buffer.as_ref());
 
         // Update `Nlattr` with new length
         self.nla_len = (self.nla_len.size() + self.nla_type.size() + payload.size()) as u16;
@@ -206,11 +194,11 @@ where
         TT: NlAttrType,
         P: Nl,
     {
-        let init_position = self.payload_size();
-        let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
-        buffer.set_position(init_position as u64);
+        let attr_size = attr.asize();
+        let mut ser_buffer = BytesMut::from(vec![0; attr_size]);
+        ser_buffer = attr.serialize(ser_buffer)?;
 
-        attr.serialize(&mut buffer)?;
+        self.payload.extend(&ser_buffer);
         self.nla_len += attr.asize() as u16;
         Ok(())
     }
@@ -220,19 +208,26 @@ where
     where
         R: Nl,
     {
-        let mut buf = StreamReadBuffer::new(&self.payload);
-        buf.set_size_hint(self.payload_size());
-        R::deserialize(&mut buf)
+        R::deserialize(Bytes::from(self.payload.as_slice()))
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
+    #[deprecated(since = "0.5.0", note = "Use get_attr_handle instead")]
     pub fn get_nested_attributes<R>(&self) -> Result<AttrHandle<R>, DeError>
     where
         R: NlAttrType,
     {
-        Ok(AttrHandle::new(Vec::<Nlattr<R, Vec<u8>>>::deserialize(
-            &mut StreamReadBuffer::new(&self.payload),
-        )?))
+        self.get_attr_handle()
+    }
+
+    /// Return an `AttrHandle` for attributes nested in the given attribute payload
+    pub fn get_attr_handle<R>(&self) -> Result<AttrHandle<R>, DeError>
+    where
+        R: NlAttrType,
+    {
+        Ok(AttrHandle::new(GenlBuffer::deserialize(Bytes::from(
+            self.payload.as_slice(),
+        ))?))
     }
 }
 
@@ -241,29 +236,34 @@ where
     T: NlAttrType,
     P: Nl,
 {
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        self.nla_len.serialize(mem)?;
-        self.nla_type.serialize(mem)?;
-        self.payload.serialize(mem)?;
-        self.pad(mem)?;
-        Ok(())
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        Ok(serialize! {
+            PAD self;
+            mem;
+            self.nla_len, size;
+            self.nla_type, size;
+            self.payload, size
+        })
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let nla_len = u16::deserialize(mem)?;
-        let nla_type = T::deserialize(mem)?;
-        mem.set_size_hint(nla_len as usize - (nla_len.size() + nla_type.size()));
-        let payload = P::deserialize(mem)?;
-        let nla = Nlattr {
-            nla_len,
-            nla_type,
-            payload,
-        };
-        nla.strip(mem)?;
-        Ok(nla)
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            STRIP Self;
+            mem;
+            Nlattr<T, P> {
+                nla_len: u16,
+                nla_type: T,
+                payload: P => (nla_len as usize).checked_sub(
+                   u16::type_size().expect("Must be a static size")
+                   + T::type_size().expect("Must be a static size")
+                )
+                .ok_or_else(|| DeError::UnexpectedEOB)?
+            } => alignto(nla_len as usize) - nla_len as usize
+        })
+    }
+
+    fn type_size() -> Option<usize> {
+        None
     }
 
     fn size(&self) -> usize {
@@ -274,9 +274,9 @@ where
 /// Handle returned by `Genlmsghdr` for traversing nested attribute structures
 pub enum AttrHandle<'a, T> {
     /// Owned vector
-    Owned(Vec<Nlattr<T, Vec<u8>>>),
+    Owned(GenlBuffer<T, Buffer>),
     /// Vector reference
-    Borrowed(&'a [Nlattr<T, Vec<u8>>]),
+    Borrowed(&'a [Nlattr<T, Buffer>]),
 }
 
 impl<'a, T> AttrHandle<'a, T>
@@ -284,17 +284,17 @@ where
     T: NlAttrType,
 {
     /// Create new `AttrHandle`
-    pub fn new(vec: Vec<Nlattr<T, Vec<u8>>>) -> Self {
+    pub fn new(vec: GenlBuffer<T, Buffer>) -> Self {
         AttrHandle::Owned(vec)
     }
 
     /// Create new borrowed `AttrHandle`
-    pub fn new_borrowed(vec: &'a [Nlattr<T, Vec<u8>>]) -> Self {
+    pub fn new_borrowed(vec: &'a [Nlattr<T, Buffer>]) -> Self {
         AttrHandle::Borrowed(vec)
     }
 
     /// Get the underlying `Vec` as a reference
-    pub fn get_slice(&self) -> &[Nlattr<T, Vec<u8>>] {
+    pub fn get_slice(&self) -> &[Nlattr<T, Buffer>] {
         match *self {
             AttrHandle::Owned(ref v) => v,
             AttrHandle::Borrowed(v) => v,
@@ -302,7 +302,7 @@ where
     }
 
     /// Get the underlying `Vec` as a mutable reference or return `None`
-    pub fn get_vec_mut(&mut self) -> Option<&mut Vec<Nlattr<T, Vec<u8>>>> {
+    pub fn get_vec_mut(&mut self) -> Option<&mut GenlBuffer<T, Buffer>> {
         match self {
             AttrHandle::Owned(ref mut v) => Some(v),
             AttrHandle::Borrowed(_) => None,
@@ -314,8 +314,8 @@ where
         self.get_slice().asize()
     }
 
-    /// If attributes are parsed, pass back iterator over attributes
-    pub fn iter(&self) -> slice::Iter<Nlattr<T, Vec<u8>>> {
+    /// Pass back iterator over attributes
+    pub fn iter(&self) -> slice::Iter<Nlattr<T, Buffer>> {
         self.get_slice().iter()
     }
 
@@ -324,18 +324,16 @@ where
     where
         S: NlAttrType,
     {
-        Ok(AttrHandle::new(Vec::<Nlattr<S, Vec<u8>>>::deserialize(
-            &mut StreamReadBuffer::new(
-                &self
-                    .get_attribute(subattr)
-                    .ok_or_else(|| NlError::new("Couldn't find specified attribute"))?
-                    .payload,
-            ),
-        )?))
+        Ok(AttrHandle::new(GenlBuffer::deserialize(Bytes::from(
+            self.get_attribute(subattr)
+                .ok_or_else(|| NlError::new("Couldn't find specified attribute"))?
+                .payload
+                .as_slice(),
+        ))?))
     }
 
     /// Get nested attributes from a parsed handle
-    pub fn get_attribute<'b>(&'b self, t: T) -> Option<&'b Nlattr<T, Vec<u8>>> {
+    pub fn get_attribute<'b>(&'b self, t: T) -> Option<&'b Nlattr<T, Buffer>> {
         for item in self.get_slice().iter() {
             if item.nla_type == t {
                 return Some(&item);
@@ -345,7 +343,7 @@ where
     }
 
     /// Mutably get nested attributes from a parsed handle
-    pub fn get_attribute_mut<'b>(&'b mut self, t: T) -> Option<&'b mut Nlattr<T, Vec<u8>>> {
+    pub fn get_attribute_mut<'b>(&'b mut self, t: T) -> Option<&'b mut Nlattr<T, Buffer>> {
         let vec_mut = self.get_vec_mut()?;
         for item in vec_mut.iter_mut() {
             if item.nla_type == t {
@@ -388,8 +386,8 @@ mod test {
     #[test]
     fn test_nl_nlattr() {
         let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16).unwrap();
-        let mut nlattr_serialized = StreamWriteBuffer::new_growable(Some(nlattr.asize()));
-        nlattr.serialize(&mut nlattr_serialized).unwrap();
+        let mut nlattr_serialized = BytesMut::from(vec![0; nlattr.asize()]);
+        nlattr_serialized = nlattr.serialize(nlattr_serialized).unwrap();
 
         let mut nlattr_desired_serialized = Cursor::new(vec![0; nlattr.size()]);
         nlattr_desired_serialized
@@ -426,8 +424,8 @@ mod test {
             .write_u16::<NativeEndian>(4)
             .unwrap();
         nlattr_deserialize_buffer.write_all(&[0, 0]).unwrap();
-        let mut reader = StreamReadBuffer::new(nlattr_deserialize_buffer.into_inner());
-        let nlattr_deserialized = Nlattr::<CtrlAttr, u16>::deserialize(&mut reader).unwrap();
+        let bytes = Bytes::from(nlattr_deserialize_buffer.into_inner());
+        let nlattr_deserialized = Nlattr::<CtrlAttr, u16>::deserialize(bytes).unwrap();
         assert_eq!(nlattr_deserialized, nlattr_desired_deserialized);
     }
 
@@ -448,7 +446,7 @@ mod test {
         assert_eq!(nlattr.size(), 20);
         assert_eq!(
             nlattr
-                .get_nested_attributes()
+                .get_attr_handle()
                 .unwrap()
                 .get_attribute(CtrlAttr::FamilyId)
                 .unwrap()
@@ -508,19 +506,18 @@ mod test {
         nlattr
             .add_nested_attribute(&Nlattr::new(None, 4u16, 15u16).unwrap())
             .unwrap();
-        let vec = vec![
-            nlattr,
-            Nlattr::new(None, 2u16, vec![0, 1]).unwrap(),
-            Nlattr::new(None, 3u16, 5u8).unwrap(),
-        ];
+        let mut vec = GenlBuffer::new();
+        vec.push(nlattr);
+        vec.push(Nlattr::new(None, 2u16, vec![0, 1]).unwrap());
+        vec.push(Nlattr::new(None, 3u16, 5u8).unwrap());
 
-        let mut sw = StreamWriteBuffer::new_growable(Some(vec.asize()));
-        vec.serialize(&mut sw).unwrap();
+        let mut bytesmut = BytesMut::from(vec![0; vec.asize()]);
+        bytesmut = vec.serialize(bytesmut).unwrap();
 
-        assert_eq!(vec_nlattr_desired.get_ref().as_slice(), sw.as_ref());
+        assert_eq!(vec_nlattr_desired.get_ref().as_slice(), bytesmut.as_ref());
 
-        let mut reader = StreamReadBuffer::new(vec_nlattr_desired.into_inner());
-        let deserialized = Vec::<Nlattr<u16, Vec<u8>>>::deserialize(&mut reader).unwrap();
+        let bytes = Bytes::from(vec_nlattr_desired.into_inner());
+        let deserialized = GenlBuffer::deserialize(bytes).unwrap();
 
         assert_eq!(vec, deserialized);
     }

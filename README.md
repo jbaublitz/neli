@@ -134,6 +134,7 @@ Steps for a PR:
 * For bug fixes and improvements that are not breaking changes, please target `master`
 * For breaking changes, please target the branch for the next version release - this will
 look like `v[NEXT_VERSION]-dev`
+* Please include a brief description of your change in the CHANGELOG file
 * Once a PR has been reviewed and approved, please rebase onto the target branch and squash your
 commit into one
   * For those less familiar with git, it should look something like this
