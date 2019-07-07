@@ -133,8 +133,8 @@ impl<T> Nlattr<T, Vec<u8>> where T: NlAttrType {
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_nested_attributes<'a, R>(&'a self) -> Result<AttrHandle<'a, T>, DeError> where R: Nl {
-        Ok(AttrHandle::new(Vec::<Nlattr<T, Vec<u8>>>::deserialize(
+    pub fn get_nested_attributes<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError> where R: NlAttrType {
+        Ok(AttrHandle::new(Vec::<Nlattr<R, Vec<u8>>>::deserialize(
             &mut StreamReadBuffer::new(&self.payload)
         )?))
     }
