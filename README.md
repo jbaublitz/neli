@@ -43,7 +43,7 @@ more in depth usage of `neli`.
 Workflows seem to usually follow a pattern of socket creation, and then either sending and receiving messages in
 request/response formats:
 
-```
+```rust
 extern crate neli;
 
 use neli::consts::{CtrlAttr,CtrlCmd,GenlId,NlFamly,NlmF,Nlmsg};
@@ -80,7 +80,7 @@ socket.recv_ack()?;
 
 or a subscriptions to a stream of event notifications from netlink:
 
-```
+```rust
 extern crate neli;
 
 use neli::{consts,socket};
