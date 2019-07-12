@@ -62,6 +62,8 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
         self.nl_seq.serialize(mem)?;
         self.nl_pid.serialize(mem)?;
         self.nl_payload.serialize(mem)?;
+        self.pad(mem)?;
+
         Ok(())
     }
 
@@ -82,8 +84,9 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
         let nl_seq = u32::deserialize(mem)?;
         let nl_pid = u32::deserialize(mem)?;
         let nl_payload = {
-            mem.set_size_hint(nl_len as usize - (nl_len.size() + nl_type.size() + 0u16.size() +
-                                                 nl_seq.size() + nl_pid.size()));
+            let payload_len = nl_len as usize - (nl_len.size() + nl_type.size() + 0u16.size() +
+                                                 nl_seq.size() + nl_pid.size());
+            mem.set_size_hint(payload_len);
             P::deserialize(mem)?
         };
         let nl = Nlmsghdr::<T, P> {
@@ -94,6 +97,9 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
             nl_pid,
             nl_payload,
         };
+
+        mem.set_size_hint(nl.asize() - nl.size());
+        Self::strip(mem)?;
         Ok(nl)
     }
 

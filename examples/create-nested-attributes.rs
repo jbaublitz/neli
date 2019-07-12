@@ -21,8 +21,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // nlmsg.serialize(&mut buffer)?;
     // println!("Serialized homogeneous nested attributes: {:?}", buffer.as_ref());
 
-    // This is discouraged because this method does not work - the payload type of one nested
-    // attribute is a &str while another is an integer value:
+    // This is discouraged because the following method does not work -
+    // the payload type of one nested attribute is a &str while another is an integer value:
     //
     // let attrs = vec![Nlattr::new(None, 1, vec![
     //                Nlattr::new(None, 1, "this_family"),
@@ -34,15 +34,15 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     // Instead, do the following:
     let mut attr1 = Nlattr::new(None, 0, Vec::<u8>::new())?;
-    attr1.add_nested_attribute(Nlattr::new(None, 1, "this is a string")?)?;
+    attr1.add_nested_attribute(&Nlattr::new(None, 1, "this is a string")?)?;
     // This is not a string
-    attr1.add_nested_attribute(Nlattr::new(None, 2, 0)?)?;
+    attr1.add_nested_attribute(&Nlattr::new(None, 2, 0)?)?;
 
     // And again for another set of nested attributes
     let mut attr2 = Nlattr::new(None, 2, Vec::<u8>::new())?;
-    attr2.add_nested_attribute(Nlattr::new(None, 1, "this is also a string")?)?;
+    attr2.add_nested_attribute(&Nlattr::new(None, 1, "this is also a string")?)?;
     // Not a string
-    attr2.add_nested_attribute(Nlattr::new(None, 2, 5)?)?;
+    attr2.add_nested_attribute(&Nlattr::new(None, 2, 5)?)?;
 
     let attrs = vec![attr1, attr2];
 

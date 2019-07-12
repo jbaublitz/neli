@@ -109,6 +109,25 @@ pub trait Nl: Sized {
     fn asize(&self) -> usize {
         alignto(self.size())
     }
+
+    /// Pad the data serialized data structure to alignment
+    fn pad(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        let padding_len = self.asize() - self.size();
+        m.write(&[0; libc::NLA_ALIGNTO as usize][..padding_len])?;
+        Ok(())
+    }
+
+    /// Strip padding from the deserialization buffer
+    fn strip<T>(m: &mut StreamReadBuffer<T>) -> Result<(), DeError> where T: AsRef<[u8]> {
+        let size_hint = if let Some(sh) = m.take_size_hint() {
+            sh
+        } else {
+            return Err(DeError::new("Size hint required to strip padding"));
+        };
+
+        let _ = m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..size_hint])?;
+        Ok(())
+    }
 }
 
 /// Deserialize trait that allows a buffer to be passed in so that references with appropriate
@@ -196,16 +215,12 @@ impl Nl for u64 {
 
 impl<'a> Nl for &'a [u8] {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        let num_bytes = mem.write(self)?;
-        if alignto(self.len()) - num_bytes > 0 {
-            let padding = vec![0; self.len() - num_bytes];
-            mem.write(&padding)?;
-        }
+        let _ = mem.write(self)?;
         Ok(())
     }
 
     fn deserialize<T>(_m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
-        unimplemented!()
+        unimplemented!("Use deserialize_buf instead")
     }
 
     fn size(&self) -> usize {
@@ -224,7 +239,7 @@ impl<'a> NlBuf<'a> for &'a [u8] {
 impl Nl for Vec<u8> {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let size_hint = mem.take_size_hint();
-        let slice: &[u8] = &self.as_ref();
+        let slice: &[u8] = self.as_ref();
         let slice_hinted = match size_hint {
             Some(sh) => &slice[0..sh],
             None => slice,
@@ -268,7 +283,7 @@ impl<'a> Nl for &'a str {
 
     fn deserialize<B>(_: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
             where B: AsRef<[u8]> {
-        unimplemented!()
+        unimplemented!("Use deserialize_buf instead")
     }
 
     fn size(&self) -> usize {

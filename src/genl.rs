@@ -55,6 +55,9 @@ impl<C, T> Nl for Genlmsghdr<C, T> where C: Cmd, T: NlAttrType {
         self.version.serialize(cur)?;
         self.reserved.serialize(cur)?;
         self.attrs.serialize(cur)?;
+
+        self.pad(cur)?;
+
         Ok(())
     }
 
@@ -74,6 +77,9 @@ impl<C, T> Nl for Genlmsghdr<C, T> where C: Cmd, T: NlAttrType {
             size_hint -= attr.asize();
             attrs.push(attr);
         }
+        mem.set_size_hint(attrs.asize() - attrs.size());
+        Self::strip(mem)?;
+
         Ok(Genlmsghdr {
             cmd,
             version,

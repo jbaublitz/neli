@@ -1,8 +1,13 @@
 # Changelog
 
 ## 0.4.3
+### Breaking changes
+* Change `Nlattr.add_nested_attribute()` to take a reference
+
 ### Additions
 * Support `RTM_*` constants in `consts.rs`
+* Fix length calculation errors
+* Add methods to Nl trait with default implementations - does not break API
 
 ## 0.4.2
 ### Dependencies
