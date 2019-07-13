@@ -118,14 +118,11 @@ pub trait Nl: Sized {
     }
 
     /// Strip padding from the deserialization buffer
-    fn strip<T>(m: &mut StreamReadBuffer<T>) -> Result<(), DeError> where T: AsRef<[u8]> {
-        let size_hint = if let Some(sh) = m.take_size_hint() {
-            sh
-        } else {
-            return Err(DeError::new("Size hint required to strip padding"));
-        };
-
-        let _ = m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..size_hint])?;
+    fn strip<T>(&self, m: &mut StreamReadBuffer<T>) -> Result<(), DeError> where T: AsRef<[u8]> {
+        let padding_len = self.asize() - self.size();
+        if padding_len > 0 {
+            m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..padding_len])?;
+        }
         Ok(())
     }
 }

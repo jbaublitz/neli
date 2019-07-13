@@ -52,14 +52,17 @@ impl<T> Nl for Nlmsgerr<T> where T: NlType {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.error.serialize(mem)?;
         self.nlmsg.serialize(mem)?;
+        self.pad(mem)?;
         Ok(())
     }
 
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        Ok(Nlmsgerr {
+        let nlmsg = Nlmsgerr {
             error: libc::c_int::deserialize(mem)?,
             nlmsg: Nlmsghdr::<T, NlEmpty>::deserialize(mem)?,
-        })
+        };
+        nlmsg.strip(mem)?;
+        Ok(nlmsg)
     }
 
     fn size(&self) -> usize {

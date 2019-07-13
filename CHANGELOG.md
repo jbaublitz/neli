@@ -8,6 +8,11 @@
 * Support `RTM_*` constants in `consts.rs`
 * Fix length calculation errors
 * Add methods to Nl trait with default implementations - does not break API
+* Additional tests for padding
+* Add design decision documentation for new padding handling
+
+### Deprecations
+* Deprecate `.size()` usage for `Vec<Nlattr>` - use `.asize()` instead
 
 ## 0.4.2
 ### Dependencies

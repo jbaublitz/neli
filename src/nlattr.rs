@@ -32,11 +32,30 @@
 //! traverse a nested attribute, look at the documentation for `.get_nested_attributes()` and
 //! `AttrHandle` as well as the `examples/` directory for code examples of how to traverse nested
 //! attributes.
+//!
+//! Padding has been reworked using `.strip()` and `.pad()`. This is to be able to reason more
+//! clearly about where padding is expected and where it is not. Padding expectations in the attribute
+//! case of this library is defined as follows:
+//! * Attributes containing a primitive datatype (`Nl` implementation defined in `lib.rs`) should
+//! always report a length that is unpadded when using `.size()` and the representation when
+//! deserialized should always be stripped of padding
+//! * Attributes containing nested attributes should *always* be aligned to the number of bytes
+//! represented by `libc::NLA_ALIGNTO`
+//!   * This is the way the kernel represents it for every standard generic netlink family
+//!   I have seen
+//!   * It also makes sense as every message payload should be padded by the serialization method
+//!   of the header containing it
+//!   * Headers encapsulating the structure on the level above it have no concept of the padding on
+//!   the level below it
+//!     * For example, `Genlmsghdr` will never get involved in padding for any data
+//!     structure other than the payload defined for `Genlmsghdr` - this includes all of the
+//!     attribute payloads contained in the `Genlmsghdr` payload
+//!     * Only `Nlattr` knows what is padding and what is not in its own payload - to every other
+//!     serialization and deserialization method, it may or may not be padding
 
 use std::slice;
 
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
-use libc;
 
 use Nl;
 use err::{DeError,NlError,SerError};
@@ -44,13 +63,8 @@ use consts::NlAttrType;
 
 impl<T, P> Nl for Vec<Nlattr<T, P>> where T: NlAttrType, P: Nl {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        // len - 1 twice due to what iterators vs. indexing start the count at (1 vs. 0)
-        for item in self.iter().take(self.len() - 1) {
+        for item in self.iter() {
             item.serialize(mem)?;
-            item.pad(mem)?;
-        }
-        if let Some(ref attr) = self.get(self.len() - 1) {
-            attr.serialize(mem)?;
         }
         Ok(())
     }
@@ -62,15 +76,7 @@ impl<T, P> Nl for Vec<Nlattr<T, P>> where T: NlAttrType, P: Nl {
         while size_hint > 0 || !mem.at_end() {
             let next = Nlattr::<T, P>::deserialize(mem)?;
             if size_hint > 0 {
-                if size_hint - next.asize() > 0 {
-                    size_hint -= next.asize();
-                } else if (size_hint as isize) - (next.asize() as isize) < 0
-                        && size_hint - next.size() == 0 {
-                    size_hint -= next.size();
-                } else {
-                    return Err(DeError::new("Deserialized subattribute length extends past the \
-                                             end of the payload buffer"));
-                }
+                size_hint -= next.asize();
             }
             vec.push(next);
         }
@@ -78,13 +84,18 @@ impl<T, P> Nl for Vec<Nlattr<T, P>> where T: NlAttrType, P: Nl {
     }
 
     fn size(&self) -> usize {
-        let mut size = 0;
+        println!("This function should not be used anymore - it uses .asize() internally and will \
+        eventually stop working. Change to .asize(). See design decisions in nlattr.rs for more
+        information");
+        self.asize()
+    }
 
-        // len - 1 used twice because of zero-indexing semantics vs. iterator semantics
-        for attr in self.iter().take(self.len() - 1) {
+    fn asize(&self) -> usize {
+        let mut size = 0;
+        for attr in self.iter() {
             size += attr.asize()
         }
-        size + self.get(self.len() - 1).map(|attr| attr.size()).unwrap_or(0)
+        size
     }
 }
 
@@ -135,16 +146,11 @@ impl<T> Nlattr<T, Vec<u8>> where T: NlAttrType {
     pub fn add_nested_attribute<TT, P>(&mut self, attr: &Nlattr<TT, P>) -> Result<(), SerError>
             where TT: NlAttrType, P: Nl {
         let init_position = self.payload_size();
-        let pad_size = self.asize() - self.size();
         let mut buffer = StreamWriteBuffer::new_growable_ref(&mut self.payload);
         buffer.set_position(init_position as u64);
-        // Hack to get around simultaneous immutable/mutable reference restriction
-        (&[0; libc::NLA_ALIGNTO as usize][..libc::NLA_ALIGNTO as usize - pad_size])
-            .pad(&mut buffer)?;
 
-        let attr_size = pad_size + attr.size();
         attr.serialize(&mut buffer)?;
-        self.nla_len += attr_size as u16;
+        self.nla_len += attr.asize() as u16;
         Ok(())
     }
 
@@ -168,6 +174,7 @@ impl<T, P> Nl for Nlattr<T, P> where T: NlAttrType, P: Nl {
         self.nla_len.serialize(mem)?;
         self.nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
+        self.pad(mem)?;
         Ok(())
     }
 
@@ -181,6 +188,7 @@ impl<T, P> Nl for Nlattr<T, P> where T: NlAttrType, P: Nl {
             nla_type,
             payload,
         };
+        nla.strip(mem)?;
         Ok(nla)
     }
 
@@ -287,6 +295,7 @@ mod test {
     use std::io::{Cursor,Write};
 
     use byteorder::{NativeEndian,WriteBytesExt};
+    use nl::NlEmpty;
 
     use consts::CtrlAttr;
 
@@ -307,6 +316,7 @@ mod test {
         nlattr_desired_serialized.write_u16::<NativeEndian>(6).unwrap();
         nlattr_desired_serialized.write_u16::<NativeEndian>(CtrlAttr::Unspec.into()).unwrap();
         nlattr_desired_serialized.write_u16::<NativeEndian>(4).unwrap();
+        nlattr_desired_serialized.write(&[0, 0]).unwrap();
 
         assert_eq!(nlattr_serialized.as_ref(), nlattr_desired_serialized.into_inner().as_slice());
 
@@ -339,11 +349,69 @@ mod test {
         assert_eq!(nlattr.size(), 12);
 
         nlattr.add_nested_attribute(&unaligned).unwrap();
-        assert_eq!(nlattr.size(), 17);
+        assert_eq!(nlattr.size(), 20);
         assert_eq!(nlattr.get_nested_attributes().unwrap().get_attribute(CtrlAttr::FamilyId)
                    .unwrap().size(), 5);
 
         nlattr.add_nested_attribute(&aligned).unwrap();
         assert_eq!(nlattr.size(), 28);
+    }
+
+    #[test]
+    fn test_vec_nlattr_nl() {
+        let mut vec_nlattr_desired = Cursor::new(vec![]);
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(36).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(1).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(12).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(1).unwrap();
+        vec_nlattr_desired.write(&[0, 1, 2, 3, 4, 5, 6, 7]).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(8).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(2).unwrap();
+        vec_nlattr_desired.write(&[0, 1, 2, 3]).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(3).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(6).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(15).unwrap();
+        vec_nlattr_desired.write(&[0, 0]).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(6).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(2).unwrap();
+        vec_nlattr_desired.write(&[0, 1, 0, 0]).unwrap();
+
+        vec_nlattr_desired.write_u16::<NativeEndian>(5).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(3).unwrap();
+        vec_nlattr_desired.write(&[5, 0, 0, 0]).unwrap();
+
+        let mut nlattr = Nlattr::new(None, 1u16, Vec::<u8>::new()).unwrap();
+        nlattr.add_nested_attribute(&Nlattr::new(
+                None, 1u16, &[0u8, 1, 2, 3, 4, 5, 6, 7] as &[u8]
+        ).unwrap()).unwrap();
+        nlattr.add_nested_attribute(&Nlattr::new(
+                None, 2u16, &[0u8, 1, 2, 3] as &[u8]
+        ).unwrap()).unwrap();
+        nlattr.add_nested_attribute(&Nlattr::new(
+                None, 3u16, NlEmpty
+        ).unwrap()).unwrap();
+        nlattr.add_nested_attribute(&Nlattr::new(
+                None, 4u16, 15u16
+        ).unwrap()).unwrap();
+        let vec = vec![nlattr, Nlattr::new(None, 2u16, vec![0, 1]).unwrap(),
+                       Nlattr::new(None, 3u16, 5u8).unwrap()];
+
+        let mut sw = StreamWriteBuffer::new_growable(Some(vec.asize()));
+        vec.serialize(&mut sw).unwrap();
+
+        assert_eq!(vec_nlattr_desired.get_ref().as_slice(), sw.as_ref());
+
+        let mut reader = StreamReadBuffer::new(vec_nlattr_desired.into_inner());
+        let deserialized = Vec::<Nlattr<u16, Vec<u8>>>::deserialize(&mut reader).unwrap();
+
+        assert_eq!(vec, deserialized);
     }
 }

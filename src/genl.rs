@@ -55,9 +55,7 @@ impl<C, T> Nl for Genlmsghdr<C, T> where C: Cmd, T: NlAttrType {
         self.version.serialize(cur)?;
         self.reserved.serialize(cur)?;
         self.attrs.serialize(cur)?;
-
         self.pad(cur)?;
-
         Ok(())
     }
 
@@ -65,32 +63,28 @@ impl<C, T> Nl for Genlmsghdr<C, T> where C: Cmd, T: NlAttrType {
         let cmd = C::deserialize(mem)?;
         let version = u8::deserialize(mem)?;
         let reserved = u16::deserialize(mem)?;
-        let mut size_hint = match mem.take_size_hint().map(|sh| {
+        let size_hint = match mem.take_size_hint().map(|sh| {
             sh - (cmd.size() + version.size() + reserved.size())
         }) {
             Some(sh) => sh,
             None => return Err(DeError::new("Must provide size hint to deserialize Genlmsghdr")),
         };
-        let mut attrs = Vec::new();
-        while size_hint > 0 {
-            let attr = Nlattr::<T, Vec<u8>>::deserialize(mem)?;
-            size_hint -= attr.asize();
-            attrs.push(attr);
-        }
-        mem.set_size_hint(attrs.asize() - attrs.size());
-        Self::strip(mem)?;
+        mem.set_size_hint(size_hint);
+        let attrs = Vec::<Nlattr<T, Vec<u8>>>::deserialize(mem)?;
 
-        Ok(Genlmsghdr {
+        let genl = Genlmsghdr {
             cmd,
             version,
             reserved,
             attrs,
-        })
+        };
+        genl.strip(mem)?;
+        Ok(genl)
     }
 
     fn size(&self) -> usize {
         self.cmd.size() + self.version.size() + self.reserved.size()
-            + self.attrs.size()
+            + self.attrs.asize()
     }
 }
 

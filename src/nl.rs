@@ -89,6 +89,7 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
             mem.set_size_hint(payload_len);
             P::deserialize(mem)?
         };
+
         let nl = Nlmsghdr::<T, P> {
             nl_len,
             nl_type,
@@ -97,9 +98,8 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
             nl_pid,
             nl_payload,
         };
+        nl.strip(mem)?;
 
-        mem.set_size_hint(nl.asize() - nl.size());
-        Self::strip(mem)?;
         Ok(nl)
     }
 
