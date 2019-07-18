@@ -18,8 +18,17 @@ use std::net::IpAddr;
 fn main() {
     let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
 
-    let rtmsg = Rtgenmsg {
-        rtgen_family: libc::AF_INET as u8, // Only ask about Ipv4, as it's simpler to display below.
+    let rtmsg : Rtmsg<Rta> = Rtmsg {
+        rtm_family: libc::AF_INET as u8,
+        rtm_dst_len: 0,
+        rtm_src_len: 0,
+        rtm_tos: 0,
+        rtm_table: RtTable::Unspec,
+        rtm_protocol: Rtprot::Unspec,
+        rtm_scope: RtScope::Universe,
+        rtm_type: Rtn::Unspec,
+        rtm_flags: vec![],
+        rtattrs: vec![],
     };
     let nlhdr = {
         let len = None;
