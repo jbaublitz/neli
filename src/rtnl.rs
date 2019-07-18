@@ -283,6 +283,7 @@ impl<T> Nl for Rtmsg<T> where T: RtaType {
         self.rtm_family.size() + self.rtm_dst_len.size() + self.rtm_src_len.size()
             + self.rtm_tos.size() + self.rtm_table.size() + self.rtm_protocol.size()
             + self.rtm_scope.size() + self.rtm_type.size() + mem::size_of::<libc::c_uint>()
+            + self.rtattrs.asize()
     }
 }
 
