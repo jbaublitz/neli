@@ -1,25 +1,71 @@
-extern crate buffering;
 extern crate neli;
 
-use buffering::StreamReadBuffer;
+use std::error::Error;
+use std::net::IpAddr;
+
 use neli::consts::*;
-use neli::nl::NlEmpty;
+use neli::err::NlError;
 use neli::nl::Nlmsghdr;
 use neli::rtnl::*;
 use neli::socket::*;
-use neli::Nl;
-use neli::MAX_NL_LENGTH;
-use std::net::IpAddr;
 
 
-///
-/// This sample is a simple imitation of the `ip route` command, to demonstrate interaction with the rtnetlink subsystem.  
-/// 
-fn main() {
+fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
+    // This sample is only interested in the main table.
+    if rtm.nl_payload.rtm_table == RtTable::Main {
+        let mut src = None;
+        let mut dst = None;
+        let mut gateway = None;
+
+        for attr in &rtm.nl_payload.rtattrs {
+            fn to_addr(b: &[u8]) -> Option<IpAddr> {
+                use std::convert::TryFrom;
+                if let Ok(tup) = <&[u8; 4]>::try_from(b) {
+                    Some(IpAddr::from(tup.clone()))
+                } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
+                    Some(IpAddr::from(tup.clone()))
+                } else {
+                    None
+                }
+            }
+
+            match attr.rta_type {
+                Rta::Dst => dst = to_addr(&attr.rta_payload),
+                Rta::Prefsrc => src = to_addr(&attr.rta_payload),
+                Rta::Gateway => gateway = to_addr(&attr.rta_payload),
+                _ => (),
+            }
+        }
+
+        if let Some(dst) = dst {
+            print!("{}/{} ", dst, rtm.nl_payload.rtm_dst_len);
+        } else {
+            print!("default ");
+            if let Some(gateway) = gateway {
+                print!("via {} ", gateway);
+            }
+        }
+
+        if rtm.nl_payload.rtm_scope != RtScope::Universe {
+            print!(
+                " proto {:?}  scope {:?} ",
+                rtm.nl_payload.rtm_protocol, rtm.nl_payload.rtm_scope
+            )
+        }
+        if let Some(src) = src {
+            print!(" src {} ", src);
+        }
+        println!();
+    }
+}
+
+/// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
+/// with the rtnetlink subsystem.  
+fn main() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
 
     let rtmsg : Rtmsg<Rta> = Rtmsg {
-        rtm_family: libc::AF_INET as u8,
+        rtm_family: Af::Inet.into(),
         rtm_dst_len: 0,
         rtm_src_len: 0,
         rtm_tos: 0,
@@ -33,7 +79,7 @@ fn main() {
     let nlhdr = {
         let len = None;
         let nl_type = Rtm::Getroute;
-        let flags = vec![NlmF::Request, NlmF::Root, NlmF::Match];
+        let flags = vec![NlmF::Request, NlmF::Dump];
         let seq = None;
         let pid = None;
         let payload = rtmsg;
@@ -41,85 +87,30 @@ fn main() {
     };
     socket.send_nl(nlhdr).unwrap();
 
-    'socket_read: loop {
-        let mut mem = vec![0u8; MAX_NL_LENGTH];
-        match socket.recv(&mut mem, 0) {
-            Err(e) => {
-                println!("Error: could not read from netlink socket: {}", e);
-                break;
-            }
-            Ok(x) if x <= 0 => {
-                println!("Error: could not read from netlink socket: {}", x);
-                break;
-            }
-            Ok(read_len) => mem.truncate(read_len as usize),
-        }
-        let mut buf = StreamReadBuffer::new(&mem[..]);
-
-        while !buf.at_end() {
-            // Provisionally deserialize as a Nlmsg first.
-            let mut nl_reader = StreamReadBuffer::new(buf.as_ref());
-            let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(&mut nl_reader)
-                .expect("Error deserializing Nlmsghdr");
-            match nl.nl_type {
-                Nlmsg::Done => break 'socket_read,
-                Nlmsg::Error => {
-                    println!("rtnetlink error.");
-                    break 'socket_read;
-                }
+    // Provisionally deserialize as a Nlmsg first.
+    let nl = socket.recv_nl::<Rtm, Rtmsg<Rta>>(None)?;
+    let multi_msg = nl.nl_flags.contains(&NlmF::Multi);
+    parse_route_table(nl);
+    if multi_msg {
+        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg<Rta>>(None) {
+            match Nlmsg::from(nl.nl_type) {
+                Nlmsg::Done => return Ok(()),
+                Nlmsg::Error => return Err(Box::new(NlError::new("rtnetlink error."))),
                 _ => {
+                    let rtm = Nlmsghdr {
+                        nl_len: nl.nl_len,
+                        nl_type: Rtm::from(nl.nl_type),
+                        nl_flags: nl.nl_flags,
+                        nl_seq: nl.nl_seq,
+                        nl_pid: nl.nl_pid,
+                        nl_payload: nl.nl_payload,
+                    };
+
                     // Some other message type, so let's try to deserialize as a Rtm.
-                    let rtm = Nlmsghdr::<Rtm, Rtmsg<Rta>>::deserialize(&mut buf)
-                        .expect("Error deserializing Rtmsg");
-
-                    // This sample is only interested in the main table.
-                    if rtm.nl_payload.rtm_table == RtTable::Main {
-                        let mut src = None;
-                        let mut dst = None;
-                        let mut gateway = None;
-
-                        for attr in &rtm.nl_payload.rtattrs {
-                            fn to_addr(b: &[u8]) -> Option<IpAddr> {
-                                use std::convert::TryFrom;
-                                if let Ok(tup) = <&[u8; 4]>::try_from(b) {
-                                    Some(IpAddr::from(tup.clone()))
-                                } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
-                                    Some(IpAddr::from(tup.clone()))
-                                } else {
-                                    None
-                                }
-                            }
-
-                            match attr.rta_type {
-                                Rta::Dst => dst = to_addr(&attr.rta_payload),
-                                Rta::Prefsrc => src = to_addr(&attr.rta_payload),
-                                Rta::Gateway => gateway = to_addr(&attr.rta_payload),
-                                _ => (),
-                            }
-                        }
-
-                        if let Some(dst) = dst {
-                            print!("{}/{} ", dst, rtm.nl_payload.rtm_dst_len);
-                        } else {
-                            print!("default ");
-                            if let Some(gateway) = gateway {
-                                print!("via {} ", gateway);
-                            }
-                        }
-
-                        if rtm.nl_payload.rtm_scope != RtScope::Universe {
-                            print!(
-                                " proto {:?}  scope {:?} ",
-                                rtm.nl_payload.rtm_protocol, rtm.nl_payload.rtm_scope
-                            )
-                        }
-                        if let Some(src) = src {
-                            print!(" src {} ", src);
-                        }
-                        println!();
-                    }
+                    parse_route_table(rtm)
                 }
             }
         }
     }
+    Ok(())
 }
