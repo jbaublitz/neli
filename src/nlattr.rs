@@ -72,11 +72,16 @@ impl<T, P> Nl for Vec<Nlattr<T, P>> where T: NlAttrType, P: Nl {
     fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
             where B: AsRef<[u8]> {
         let mut vec = Vec::new();
-        let mut size_hint = mem.take_size_hint().unwrap_or(0);
-        while size_hint > 0 || !mem.at_end() {
+        let mut size_hint = mem.take_size_hint();
+        while size_hint > Some(0) || (size_hint == None && !mem.at_end()) {
             let next = Nlattr::<T, P>::deserialize(mem)?;
-            if size_hint > 0 {
-                size_hint -= next.asize();
+            if let Some(val) = size_hint {
+                if val > 0 {
+                    let result = val.checked_sub(next.asize()).ok_or(DeError::new(
+                        "Deserialization read passed the end of the specified buffer"
+                    ))?;
+                    size_hint = Some(result);
+                }
             }
             vec.push(next);
         }

@@ -413,6 +413,8 @@ mod test {
 
     use std::io::Read;
 
+    use consts::Nlmsg;
+
     #[test]
     fn test_socket_nonblock() {
         let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
@@ -428,6 +430,49 @@ mod test {
             Ok(_) => {
                 panic!("Should not return data");
             }
+        }
+    }
+
+    #[test]
+    fn multi_msg_iter() {
+        let mut vec = vec![];
+        let mut stream = StreamWriteBuffer::new_growable_ref(&mut vec);
+
+        let nl1 = Nlmsghdr::new(None, Nlmsg::Noop, vec![NlmF::Multi], None, None,
+                                Genlmsghdr::new(CtrlCmd::Unspec, 2,
+                                                vec![
+                                                    Nlattr::new(None, CtrlAttr::FamilyId, 5u32
+                                                                ).unwrap(),
+                                                    Nlattr::new(None, CtrlAttr::FamilyName,
+                                                                "my_family_name"
+                                                                ).unwrap(),
+                                                ]).unwrap()
+                                );
+        let nl2 = Nlmsghdr::new(None, Nlmsg::Noop, vec![NlmF::Multi], None, None,
+                                Genlmsghdr::new(CtrlCmd::Unspec, 2,
+                                                vec![
+                                                    Nlattr::new(None, CtrlAttr::FamilyId, 6u32
+                                                                ).unwrap(),
+                                                    Nlattr::new(None, CtrlAttr::FamilyName,
+                                                                "my_other_family_name"
+                                                                ).unwrap(),
+                                                ]).unwrap()
+                                );
+
+        nl1.serialize(&mut stream).unwrap();
+        nl2.serialize(&mut stream).unwrap();
+
+        let mut s = NlSocket { fd: -1, buffer: Some(StreamReadBuffer::new(vec)), seq: None, pid: None };
+        let mut iter = s.iter();
+        if let Some(Ok(nl_next)) = iter.next() {
+            assert_eq!(nl_next, nl1);
+        } else {
+            panic!("Expected message not found");
+        }
+        if let Some(Ok(nl_next)) = iter.next() {
+            assert_eq!(nl_next, nl2);
+        } else {
+            panic!("Expected message not found");
         }
     }
 }
