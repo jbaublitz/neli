@@ -179,7 +179,7 @@ mod ifinfomsg_tests {
         assert!(nlmsg.is_ok());
 
         let mut bytes = StreamWriteBuffer::new_growable(None);
-        nlmsg.unwrap().serialize(&mut bytes);
+        nlmsg.unwrap().serialize(&mut bytes).unwrap();
         assert_eq!(bytes.as_ref(), &request[..]);
     }
 }
