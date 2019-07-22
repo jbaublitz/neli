@@ -13,7 +13,7 @@ use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
 use Nl;
-use consts::{Af,Arphrd,AddrFamily,IfaF,Iff,Ntf,Nud,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
+use consts::{Af,Arphrd,IfaF,Iff,Ntf,Nud,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
 use err::{SerError,DeError};
 
 impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
@@ -50,7 +50,7 @@ impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
 /// Struct representing interface information messages
 pub struct Ifinfomsg<T> {
     /// Interface address family
-    pub ifi_family: AddrFamily,
+    pub ifi_family: Af,
     /// Interface type
     pub ifi_type: Arphrd,
     /// Interface index
@@ -64,7 +64,7 @@ pub struct Ifinfomsg<T> {
 
 impl<T> Ifinfomsg<T> where T: RtaType {
     /// Create a fully initialized interface info struct
-    pub fn new(ifi_family: AddrFamily, ifi_type: Arphrd, ifi_index: libc::c_int,
+    pub fn new(ifi_family: Af, ifi_type: Arphrd, ifi_index: libc::c_int,
                ifi_flags: Vec<Iff>, rtattrs: Vec<Rtattr<T, Vec<u8>>>) -> Self {
         Ifinfomsg { ifi_family, ifi_type, ifi_index, ifi_flags, ifi_change: 0xffffffff,
                     rtattrs, }
@@ -74,6 +74,7 @@ impl<T> Ifinfomsg<T> where T: RtaType {
 impl<T> Nl for Ifinfomsg<T> where T: RtaType {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifi_family.serialize(buf)?;
+        0u8.serialize(buf)?; // padding
         self.ifi_type.serialize(buf)?;
         self.ifi_index.serialize(buf)?;
         self.ifi_flags.iter().fold(0, |acc: libc::c_uint, next| {
@@ -85,29 +86,101 @@ impl<T> Nl for Ifinfomsg<T> where T: RtaType {
         Ok(())
     }
 
-    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        Ok(Ifinfomsg {
-            ifi_family: AddrFamily::deserialize(buf)?,
-            ifi_type: Arphrd::deserialize(buf)?,
-            ifi_index: libc::c_int::deserialize(buf)?,
-            ifi_flags: {
-                let flags = libc::c_uint::deserialize(buf)?;
-                let mut nl_flags = Vec::new();
-                for i in 0..mem::size_of::<libc::c_int>() * 8 {
-                    let bit = 1 << i;
-                    if bit & flags == bit {
-                        nl_flags.push(bit.into());
-                    }
+    fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
+        let mut size_hint = buf.take_size_hint().ok_or(DeError::new(
+            "Ifinfomsg requires a size hint to deserialize",
+        ))?;
+        let ifi_family = Af::deserialize(buf)?;
+        let padding = u8::deserialize(buf)?;
+        let ifi_type = Arphrd::deserialize(buf)?;
+        let ifi_index = libc::c_int::deserialize(buf)?;
+        let ifi_flags = {
+            let flags = libc::c_uint::deserialize(buf)?;
+            let mut nl_flags = Vec::new();
+            for i in 0..mem::size_of::<libc::c_int>() * 8 {
+                let bit = 1 << i;
+                if bit & flags == bit {
+                    nl_flags.push(bit.into());
                 }
-                nl_flags
-            },
-            ifi_change: 0xffffffff,
-            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
+            }
+            nl_flags
+        };
+        let ifi_change = libc::c_uint::deserialize(buf)?;
+
+        size_hint = size_hint
+            .checked_sub(
+                ifi_family.size()
+                    + padding.size()
+                    + ifi_type.size()
+                    + ifi_index.size()
+                    + mem::size_of::<libc::c_int>()
+                    + ifi_change.size(),
+            )
+            .ok_or_else(|| DeError::new(&format!("Truncated Ifinfomsg size_hint {}", size_hint)))?;
+        buf.set_size_hint(size_hint);
+        let rtattrs = Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?;
+
+        Ok(Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags,
+            ifi_change,
+            rtattrs,
         })
     }
 
     fn size(&self) -> usize {
-        self.ifi_family.size() + self.ifi_type.size() + self.ifi_index.size() + mem::size_of::<libc::c_uint>()
+        self.ifi_family.size() + 
+        0u8.size() + // padding byte
+        self.ifi_type.size() + self.ifi_index.size() + 
+        mem::size_of::<libc::c_uint>() + // flags
+        self.ifi_change.size() + 
+        self.rtattrs.asize()
+    }
+}
+
+#[cfg(test)]
+mod ifinfomsg_tests {
+    use super::*;
+    use crate::nl::Nlmsghdr;
+    use crate::consts::{Rtm,Ifla};
+
+    #[test]
+    fn can_ser_deser_straced_ip_link() {
+        // strace `ip link` to see what it asks for, and verify that we can deserialize it.
+        let request = [
+            // begin nlmsg
+            0x28,0x00,0x00,0x00,    // length
+            0x12,0x00,              // type = RTM_GETLINK
+            0x01,0x03,              // flags
+            0xe5,0xd8,0x35,0x5d,    // seq
+            0x00,0x00,0x00,0x00,    // pid
+            // begin ifinfomsg
+            0x11,                   // family AF_PACKET
+            0x00,                   // pad
+            0x00,0x00,              // type
+            0x00,0x00,0x00,0x00,    // index
+            0x00,0x00,0x00,0x00,    // flags
+            0x00,0x00,0x00,0x00,    // change
+            // begin attr
+            0x08,0x00,              // len = 8
+            0x1d,0x00,              // type = IFLA_EXT_MASK
+            0x01,0x00,0x00,0x00     // RTEXT_FILTER_VF
+        ];
+        let mut buf = StreamReadBuffer::new(&request[..]);
+        let nlmsg = Nlmsghdr::<Rtm, Ifinfomsg<Ifla>>::deserialize(&mut buf);
+        if let Err(e) = &nlmsg {
+            dbg!(e);
+        }
+        assert!(nlmsg.is_ok());
+
+        let mut bytes = StreamWriteBuffer::new_growable(None);
+        nlmsg.unwrap().serialize(&mut bytes);
+        assert_eq!(bytes.as_ref(), &request[..]);
     }
 }
 
