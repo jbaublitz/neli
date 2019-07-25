@@ -204,8 +204,8 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifa_family.serialize(buf)?;
         self.ifa_prefixlen.serialize(buf)?;
-        self.ifa_flags.iter().fold(0, |acc: libc::c_uchar, next| {
-            let next_uint: u32 = next.into();
+        self.ifa_flags.iter().fold(0u8, |acc: libc::c_uchar, next| {
+            let next_uint : u8 = u32::from(next) as u8;
             acc | next_uint as libc::c_uchar
         }).serialize(buf)?;
         self.ifa_scope.serialize(buf)?;
@@ -215,7 +215,7 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
     }
 
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
-        Ok(Ifaddrmsg {
+        let mut result = Ifaddrmsg {
             ifa_family: Af::deserialize(buf)?,
             ifa_prefixlen: libc::c_uchar::deserialize(buf)?,
             ifa_flags: {
@@ -231,14 +231,46 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
             },
             ifa_scope: libc::c_uchar::deserialize(buf)?,
             ifa_index: libc::c_int::deserialize(buf)?,
-            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
-        })
+            rtattrs: vec![],
+        };
+        
+        let size_hint = buf.take_size_hint().ok_or(DeError::new(
+            "Ifinfomsg requires a size hint to deserialize",
+        ))? - result.asize();
+        buf.set_size_hint(size_hint);
+
+        result.rtattrs = Vec::deserialize(buf)?;
+        Ok(result)
     }
 
     fn size(&self) -> usize {
         self.ifa_family.size() + self.ifa_prefixlen.size() + mem::size_of::<libc::c_uchar>()
             + self.ifa_scope.size() + self.ifa_index.size()
     }
+}
+
+#[cfg(test)]
+mod ifaddrmsg_tests {
+    use super::*;
+    use crate::nl::Nlmsghdr;
+    use crate::consts::{Rtm,Ifa};
+
+    #[test]
+    fn can_ser_deser_straced_ip_addr() {
+        // strace `ip addr` to see a sample reply.
+        let request = b"\x4c\x00\x00\x00\x14\x00\x02\x00\x04\x0b\x3a\x5d\x68\x1f\x00\x00\x02\x08\x80\xfe\x01\x00\x00\x00\x08\x00\x01\x00\x7f\x00\x00\x01\x08\x00\x02\x00\x7f\x00\x00\x01\x07\x00\x03\x00\x6c\x6f\x00\x00\x08\x00\x08\x00\x80\x00\x00\x00\x14\x00\x06\x00\xff\xff\xff\xff\xff\xff\xff\xff\xb0\x02\x00\x00\xb0\x02\x00\x00";
+        let mut buf = StreamReadBuffer::new(&request[..]);
+        let nlmsg = Nlmsghdr::<Rtm, Ifaddrmsg<Ifa>>::deserialize(&mut buf);
+        if let Err(e) = &nlmsg {
+            dbg!(e);
+        }
+        assert!(nlmsg.is_ok());
+
+        let mut bytes = StreamWriteBuffer::new_growable(None);
+        nlmsg.unwrap().serialize(&mut bytes).unwrap();
+        assert_eq!(bytes.as_ref(), &request[..]);
+    }
+
 }
 
 /// General form of address family dependent message.  Used for requesting things from via rtnetlink.
