@@ -1,12 +1,18 @@
 language: rust
-rust:
-- stable
-- nightly
 
 jobs:
   include:
     - stage: test
       env: TARGET="x86_64-unknown-linux-gnu"
+      rust: stable
+      script:
+        - cargo build
+        - cargo build --features=stream
+        - cargo test
+        - cargo test --features=stream
+    - stage: test
+      env: TARGET="x86_64-unknown-linux-gnu"
+      rust: nightly 
       script:
         - cargo build
         - cargo build --features=stream
@@ -14,6 +20,15 @@ jobs:
         - cargo test --features=stream
     - stage: test
       env: TARGET="x86_64-unknown-linux-musl"
+      rust: stable
+      script:
+        - cargo build
+        - cargo build --features=stream
+        - cargo test
+        - cargo test --features=stream
+    - stage: test
+      env: TARGET="x86_64-unknown-linux-musl"
+      rust: nightly
       script:
         - cargo build
         - cargo build --features=stream
