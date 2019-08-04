@@ -1,9 +1,10 @@
 language: rust
+services:
+  - docker
 
 jobs:
   include:
     - stage: test
-      env: TARGET=x86_64-unknown-linux-gnu
       rust: stable
       script:
         - cargo build
@@ -11,7 +12,6 @@ jobs:
         - cargo test
         - cargo test --features=stream
     - stage: test
-      env: TARGET=x86_64-unknown-linux-gnu
       rust: nightly 
       script:
         - cargo build
@@ -19,18 +19,23 @@ jobs:
         - cargo test
         - cargo test --features=stream
     - stage: test
-      env: TARGET=x86_64-unknown-linux-musl
-      rust: stable
       script:
-        - cargo build
-        - cargo build --features=stream
-        - cargo test
-        - cargo test --features=stream
+        - docker run -ti jbaublitz/rust-musl-ci /bin/bash -c "cd neli && \
+          git checkout $TRAVIS_COMMIT && \
+          rustup default stable-x86_64-unknown-linux-musl && \ 
+          /root/.cargo/bin/cargo build && \
+          /root/.cargo/bin/cargo build --features=stream && \
+          /root/.cargo/bin/cargo test && \
+          /root/.cargo/bin/cargo test --features=stream"
     - stage: test
-      env: TARGET=x86_64-unknown-linux-musl
-      rust: nightly
       script:
-        - cargo build
-        - cargo build --features=stream
-        - cargo test
-        - cargo test --features=stream
+        - docker run -ti jbaublitz/rust-musl-ci /bin/bash -c "cd neli && \
+          git checkout $TRAVIS_COMMIT && \
+          rustup default nightly-x86_64-unknown-linux-musl && \ 
+          /root/.cargo/bin/cargo build && \
+          /root/.cargo/bin/cargo build --features=stream && \
+          /root/.cargo/bin/cargo test && \
+          /root/.cargo/bin/cargo test --features=stream"
+
+before_install:
+  - docker build -t jbaublitz/rust-musl-ci ./test
