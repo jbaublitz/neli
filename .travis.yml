@@ -19,6 +19,8 @@ jobs:
         - cargo test
         - cargo test --features=stream
     - stage: test
+      before_install:
+        - docker build -t jbaublitz/rust-musl-ci ./test
       script:
         - docker run -ti jbaublitz/rust-musl-ci /bin/bash -c "cd neli && \
           git checkout $TRAVIS_COMMIT && \
@@ -28,6 +30,8 @@ jobs:
           /root/.cargo/bin/cargo test && \
           /root/.cargo/bin/cargo test --features=stream"
     - stage: test
+      before_install:
+        - docker build -t jbaublitz/rust-musl-ci ./test
       script:
         - docker run -ti jbaublitz/rust-musl-ci /bin/bash -c "cd neli && \
           git checkout $TRAVIS_COMMIT && \
@@ -36,6 +40,3 @@ jobs:
           /root/.cargo/bin/cargo build --features=stream && \
           /root/.cargo/bin/cargo test && \
           /root/.cargo/bin/cargo test --features=stream"
-
-before_install:
-  - docker build -t jbaublitz/rust-musl-ci ./test
