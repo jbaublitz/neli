@@ -23,9 +23,9 @@ jobs:
         - docker pull jbaublitz/ubuntu-musl
         - docker build -t rust-musl-ci test/rust-musl-ci
       script:
-        - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd neli && \
-          git checkout $TRAVIS_COMMIT && \
-          rustup default stable-x86_64-unknown-linux-musl && \ 
+        - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd /neli && \
+          /usr/bin/git checkout $TRAVIS_COMMIT && \
+          /root/.cargo/bin/rustup default stable-x86_64-unknown-linux-musl && \ 
           /root/.cargo/bin/cargo build && \
           /root/.cargo/bin/cargo build --features=stream && \
           /root/.cargo/bin/cargo test && \
@@ -35,9 +35,9 @@ jobs:
         - docker pull jbaublitz/ubuntu-musl
         - docker build -t rust-musl-ci test/rust-musl-ci
       script:
-        - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd neli && \
-          git checkout $TRAVIS_COMMIT && \
-          rustup default nightly-x86_64-unknown-linux-musl && \ 
+        - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd /neli && \
+          /usr/bin/git checkout $TRAVIS_COMMIT && \
+          /root/.cargo/bin/rustup default nightly-x86_64-unknown-linux-musl && \ 
           /root/.cargo/bin/cargo build && \
           /root/.cargo/bin/cargo build --features=stream && \
           /root/.cargo/bin/cargo test && \
