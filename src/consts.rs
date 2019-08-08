@@ -44,14 +44,16 @@ use Nl;
 #[macro_export]
 #[doc(hidden)]
 macro_rules! impl_var_base {
-    ($name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => {
-
+    ($name:ident, $ty:ty, $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => {
         impl From<$ty> for $name {
             fn from(v: $ty) -> Self {
                 match v {
-                    i if i == $val_def => $name::$var_def,
-                    $( i if i == $val => $name::$var, )*
+                    $(
+                        $(
+                            #[cfg($meta)]
+                        )*
+                        i if i == $val => $name::$var,
+                    )*
                     i => $name::UnrecognizedVariant(i)
                 }
             }
@@ -60,8 +62,12 @@ macro_rules! impl_var_base {
         impl From<$name> for $ty {
             fn from(v: $name) -> Self {
                 match v {
-                    $name::$var_def => $val_def,
-                    $( $name::$var => $val, )*
+                    $(
+                        $(
+                            #[cfg($meta)]
+                        )*
+                        $name::$var => $val,
+                    )*
                     $name::UnrecognizedVariant(i) => i,
                 }
             }
@@ -70,8 +76,12 @@ macro_rules! impl_var_base {
         impl<'a> From<&'a $name> for $ty {
             fn from(v: &'a $name) -> Self {
                 match *v {
-                    $name::$var_def => $val_def,
-                    $( $name::$var => $val, )*
+                    $(
+                        $(
+                            #[cfg($meta)]
+                        )*
+                        $name::$var => $val,
+                    )*
                     $name::UnrecognizedVariant(i) => i,
                 }
             }
@@ -125,15 +135,17 @@ macro_rules! impl_var_base {
 /// ```
 ///
 macro_rules! impl_var {
-    ( $( #[$outer:meta] )*
-      $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => ( // with comments
+    (
+        $( #[$outer:meta] )*
+        $name:ident, $ty:ty, $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
+    ) => ( // with comments
         $(#[$outer])*
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
-            #[allow(missing_docs)]
-            $var_def,
             $(
+                $(
+                    #[cfg($meta)]
+                )*
                 #[allow(missing_docs)]
                 $var,
             )*
@@ -141,18 +153,20 @@ macro_rules! impl_var {
             UnrecognizedVariant($ty),
         }
 
-        impl_var_base!($name, $ty, $var_def => $val_def,
-            $( $var => $val),*
-        );
+        impl_var_base!($name, $ty, $( $( #[cfg($meta)] )* $var => $val),* );
     );
-    ( $name:ident, $ty:ty, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => ( // without comments
+    (
+        $name:ident, $ty:ty,
+        $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
+    ) => ( // without comments
         #[allow(missing_docs)]
         #[derive(Clone,Debug,Eq,PartialEq)]
         pub enum $name {
             #[allow(missing_docs)]
-            $var_def,
             $(
+                $(
+                    #[cfg($meta)]
+                )*
                 #[allow(missing_docs)]
                 $var,
             )*
@@ -160,9 +174,7 @@ macro_rules! impl_var {
             UnrecognizedVariant($ty),
         }
 
-        impl_var_base!($name, $ty, $var_def => $val_def,
-            $( $var => $val),*
-        );
+        impl_var_base!($name, $ty, $( $( #[cfg($meta:meta)] )* $var => $val),* );
     );
 }
 
@@ -191,17 +203,17 @@ macro_rules! impl_trait {
 /// deserialization conversions, as well as value conversions
 /// for serialization and deserialization.
 macro_rules! impl_var_trait {
-    ( $( #[$outer:meta] )* $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => ( // with comments
+    ( $( #[$outer:meta] )* $name:ident, $ty:ty, $impl_name:ident,
+      $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => ( // with comments
         impl_var!( $(#[$outer])*
-            $name, $ty, $var_def => $val_def, $( $var => $val ),* 
+            $name, $ty, $( $( #[cfg($meta)] )* $var => $val ),*
         );
 
         impl $impl_name for $name {}
     );
-    ( $name:ident, $ty:ty, $impl_name:ident, $var_def:ident => $val_def:expr,
-      $( $var:ident => $val:expr ),* ) => ( // without comments
-        impl_var!($name, $ty, $var_def => $val_def, $( $var => $val ),* );
+    ( $name:ident, $ty:ty, $impl_name:ident,
+      $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => ( // without comments
+        impl_var!($name, $ty, $( $( #[cfg($meta)] )* $var => $val ),* );
 
         impl $impl_name for $name {}
     );
@@ -213,7 +225,7 @@ pub fn alignto(len: usize) -> usize {
 }
 
 impl_var!(
-    /// Internet address families 
+    /// Internet address families
     Af, libc::c_uchar,
     Inet => libc::AF_INET as libc::c_uchar,
     Inet6 => libc::AF_INET6 as libc::c_uchar
@@ -247,9 +259,13 @@ impl_var!(
     Deprecated => libc::IFA_F_DEPRECATED,
     Tentative => libc::IFA_F_TENTATIVE,
     Permanent => libc::IFA_F_PERMANENT,
+    #[cfg(target_env="gnu")]
     Managetempaddr => libc::IFA_F_MANAGETEMPADDR,
+    #[cfg(target_env="gnu")]
     Noprefixroute => libc::IFA_F_NOPREFIXROUTE,
+    #[cfg(target_env="gnu")]
     Mcautojoin => libc::IFA_F_MCAUTOJOIN,
+    #[cfg(target_env="gnu")]
     StablePrivacy => libc::IFA_F_STABLE_PRIVACY
 );
 
@@ -312,7 +328,10 @@ impl_var!(
     Cloned => libc::RTM_F_CLONED,
     Equalize => libc::RTM_F_EQUALIZE,
     Prefix => libc::RTM_F_PREFIX,
+
+    #[cfg(target_env="gnu")]
     LookupTable => libc::RTM_F_LOOKUP_TABLE,
+    #[cfg(target_env="gnu")]
     FibMatch => libc::RTM_F_FIB_MATCH
 );
 
@@ -337,7 +356,9 @@ impl_var!(
     Self_ => libc::NTF_SELF,
     Master => libc::NTF_MASTER,
     Proxy => libc::NTF_PROXY,
+    #[cfg(target_env="gnu")]
     ExtLearned => libc::NTF_EXT_LEARNED,
+    #[cfg(target_env="gnu")]
     Offloaded => libc::NTF_OFFLOADED,
     Router => libc::NTF_ROUTER
 );
@@ -371,6 +392,7 @@ impl_var_trait!(
     Anycast => libc::IFA_ANYCAST,
     Cacheinfo => libc::IFA_CACHEINFO,
     Multicast => libc::IFA_MULTICAST,
+    #[cfg(target_env="gnu")]
     Flags => libc::IFA_FLAGS
 );
 
@@ -396,14 +418,23 @@ impl_var_trait!(
     Table => libc::RTA_TABLE,
     Mark => libc::RTA_MARK,
     MfcStats => libc::RTA_MFC_STATS,
+    #[cfg(target_env="gnu")]
     Via => libc::RTA_VIA,
+    #[cfg(target_env="gnu")]
     Newdst => libc::RTA_NEWDST,
+    #[cfg(target_env="gnu")]
     Pref => libc::RTA_PREF,
+    #[cfg(target_env="gnu")]
     EncapType => libc::RTA_ENCAP_TYPE,
+    #[cfg(target_env="gnu")]
     Encap => libc::RTA_ENCAP,
+    #[cfg(target_env="gnu")]
     Expires => libc::RTA_EXPIRES,
+    #[cfg(target_env="gnu")]
     Pad => libc::RTA_PAD,
+    #[cfg(target_env="gnu")]
     Uid => libc::RTA_UID,
+    #[cfg(target_env="gnu")]
     TtlPropagate => libc::RTA_TTL_PROPAGATE
 );
 
@@ -519,7 +550,9 @@ impl_var_trait!(
     /// Values for `nl_type` in `Nlmsghdr`
     GenlId, u16, NlType,
     Ctrl => libc::GENL_ID_CTRL as u16,
+    #[cfg(target_env="gnu")]
     VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
+    #[cfg(target_env="gnu")]
     Pmcraid => libc::GENL_ID_PMCRAID as u16
 );
 
