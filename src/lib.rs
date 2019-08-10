@@ -115,7 +115,7 @@ pub trait Nl: Sized {
     /// Pad the data serialized data structure to alignment
     fn pad(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let padding_len = self.asize() - self.size();
-        m.write(&[0; libc::NLA_ALIGNTO as usize][..padding_len])?;
+        m.write_all(&[0; libc::NLA_ALIGNTO as usize][..padding_len])?;
         Ok(())
     }
 
@@ -349,7 +349,7 @@ impl Nl for String {
         let bytes = c_str.as_bytes_with_nul();
         let num_bytes = mem.write(bytes)?;
         if size_hint > num_bytes {
-            mem.write(&vec![0; size_hint - num_bytes])?;
+            mem.write_all(&vec![0; size_hint - num_bytes])?;
         }
         Ok(())
     }
@@ -426,11 +426,11 @@ mod test {
 
     #[test]
     fn test_nl_u32() {
-        let v: u32 = 600000;
+        let v: u32 = 600_000;
         let s: &mut [u8] = &mut [0; 4];
         {
             let mut c = Cursor::new(&mut *s);
-            c.write_u32::<NativeEndian>(600000).unwrap();
+            c.write_u32::<NativeEndian>(600_000).unwrap();
         }
         let s_test = &mut [0; 4];
         {
@@ -442,18 +442,18 @@ mod test {
         let s: &mut [u8] = &mut [0; 4];
         {
             let mut c = Cursor::new(&mut *s);
-            c.write_u32::<NativeEndian>(600000).unwrap();
+            c.write_u32::<NativeEndian>(600_000).unwrap();
         }
         let v = {
             let mut mem = StreamReadBuffer::new(&*s);
             u32::deserialize(&mut mem).unwrap()
         };
-        assert_eq!(v, 600000)
+        assert_eq!(v, 600_000)
     }
 
     #[test]
     fn test_nl_u64() {
-        let test_int: u64 = 12345678901234;
+        let test_int: u64 = 12_345_678_901_234;
         let expected_serial: &mut [u8] = &mut [0; 8];
         {
             let mut c = Cursor::new(&mut *expected_serial);

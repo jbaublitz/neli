@@ -8,6 +8,10 @@ jobs:
       script:
         - rustup component add rustfmt
         - cargo fmt -- --check
+    - stage: lint
+      script:
+        - rustup component add clippy
+        - cargo clippy --all-targets --all-features -- -D warnings
     - stage: test
       rust: stable
       script:
@@ -16,7 +20,7 @@ jobs:
         - cargo test
         - cargo test --features=stream
     - stage: test
-      rust: nightly 
+      rust: nightly
       script:
         - cargo build
         - cargo build --features=stream

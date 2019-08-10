@@ -20,9 +20,9 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
                 use std::convert::TryFrom;
                 if let Ok(tup) = <&[u8; 4]>::try_from(b) {
-                    Some(IpAddr::from(tup.clone()))
+                    Some(IpAddr::from(*tup))
                 } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
-                    Some(IpAddr::from(tup.clone()))
+                    Some(IpAddr::from(*tup))
                 } else {
                     None
                 }
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
 
     let rtmsg: Rtmsg<Rta> = Rtmsg {
-        rtm_family: Af::Inet.into(),
+        rtm_family: RtAddrFamily::Inet,
         rtm_dst_len: 0,
         rtm_src_len: 0,
         rtm_tos: 0,

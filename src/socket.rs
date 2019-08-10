@@ -71,7 +71,7 @@ where
     fn next(&mut self) -> Option<Result<Nlmsghdr<T, P>, NlError>> {
         match self.socket_ref.recv_nl(None) {
             Ok(rn) => Some(Ok(rn)),
-            Err(e) => return Some(Err(e)),
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -115,7 +115,7 @@ impl NlSocket {
                 libc::fcntl(self.fd, libc::F_GETFL, 0) & !libc::O_NONBLOCK,
             )
         } {
-            i if i < 0 => return Err(io::Error::last_os_error()),
+            i if i < 0 => Err(io::Error::last_os_error()),
             _ => Ok(self),
         }
     }
@@ -129,7 +129,7 @@ impl NlSocket {
                 libc::fcntl(self.fd, libc::F_GETFL, 0) | libc::O_NONBLOCK,
             )
         } {
-            i if i < 0 => return Err(io::Error::last_os_error()),
+            i if i < 0 => Err(io::Error::last_os_error()),
             _ => Ok(self),
         }
     }
@@ -186,7 +186,7 @@ impl NlSocket {
                 self.pid = None;
                 Ok(())
             }
-            _ => return Err(io::Error::last_os_error()),
+            _ => Err(io::Error::last_os_error()),
         }
     }
 
@@ -210,7 +210,7 @@ impl NlSocket {
     }
 
     /// Receive message encoded as byte slice from the netlink socket
-    pub fn recv<'a, B>(&mut self, mut buf: B, flags: i32) -> Result<libc::ssize_t, io::Error>
+    pub fn recv<B>(&mut self, mut buf: B, flags: i32) -> Result<libc::ssize_t, io::Error>
     where
         B: AsMut<[u8]>,
     {
@@ -298,7 +298,7 @@ impl NlSocket {
                 }
             })
             .nth(0)
-            .ok_or(NlError::new("Failed to resolve multicast group ID"))
+            .ok_or_else(|| NlError::new("Failed to resolve multicast group ID"))
     }
 
     /// Convenience function to send an `Nlmsghdr` struct
@@ -366,7 +366,9 @@ impl NlSocket {
                 }
                 Ok(())
             } else {
-                self.buffer.as_mut().map(|b| b.rewind());
+                if let Some(b) = self.buffer.as_mut() {
+                    b.rewind()
+                }
                 Err(NlError::NoAck)
             }
         } else {
@@ -375,7 +377,7 @@ impl NlSocket {
     }
 
     /// Return an iterator object
-    pub fn iter<'a, T, P>(&'a mut self) -> NlMessageIter<'a, T, P>
+    pub fn iter<T, P>(&mut self) -> NlMessageIter<T, P>
     where
         T: NlType,
         P: Nl,

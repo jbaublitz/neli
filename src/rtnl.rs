@@ -34,9 +34,9 @@ where
     where
         B: AsRef<[u8]>,
     {
-        let mut size_hint = buf.take_size_hint().ok_or(DeError::new(
-            "Vec of Rtattr requires a size hint to deserialize",
-        ))?;
+        let mut size_hint = buf
+            .take_size_hint()
+            .ok_or_else(|| DeError::new("Vec of Rtattr requires a size hint to deserialize"))?;
         let mut vec = Vec::new();
         while size_hint > 0 {
             let attr: Rtattr<T, P> = Rtattr::deserialize(buf)?;
@@ -89,7 +89,7 @@ where
             ifi_type,
             ifi_index,
             ifi_flags,
-            ifi_change: 0xffffffff,
+            ifi_change: 0xffff_ffff,
             rtattrs,
         }
     }
@@ -120,9 +120,9 @@ where
     where
         B: AsRef<[u8]>,
     {
-        let mut size_hint = buf.take_size_hint().ok_or(DeError::new(
-            "Ifinfomsg requires a size hint to deserialize",
-        ))?;
+        let mut size_hint = buf
+            .take_size_hint()
+            .ok_or_else(|| DeError::new("Ifinfomsg requires a size hint to deserialize"))?;
         let ifi_family = RtAddrFamily::deserialize(buf)?;
         let padding = u8::deserialize(buf)?;
         let ifi_type = Arphrd::deserialize(buf)?;
@@ -224,7 +224,7 @@ where
                 for i in 0..mem::size_of::<libc::c_uchar>() * 8 {
                     let bit = 1 << i;
                     if bit & flags == bit {
-                        nl_flags.push((bit as u32).into());
+                        nl_flags.push((u32::from(bit)).into());
                     }
                 }
                 nl_flags
@@ -234,9 +234,10 @@ where
             rtattrs: vec![],
         };
 
-        let size_hint = buf.take_size_hint().ok_or(DeError::new(
-            "Ifinfomsg requires a size hint to deserialize",
-        ))? - result.asize();
+        let size_hint = buf
+            .take_size_hint()
+            .ok_or_else(|| DeError::new("Ifinfomsg requires a size hint to deserialize"))?
+            - result.asize();
         buf.set_size_hint(size_hint);
 
         result.rtattrs = Vec::deserialize(buf)?;

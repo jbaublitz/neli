@@ -131,7 +131,7 @@ mod test {
             c.write_u16::<NativeEndian>(12).unwrap();
             c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into())
                 .unwrap();
-            c.write_all(&vec![0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
+            c.write_all(&[0, 1, 2, 3, 4, 5, 0, 0]).unwrap();
             c.into_inner()
         };
         assert_eq!(mem.as_ref(), v_final.as_slice())
@@ -154,7 +154,7 @@ mod test {
             c.write_u16::<NativeEndian>(12).unwrap();
             c.write_u16::<NativeEndian>(CtrlAttr::FamilyId.into())
                 .unwrap();
-            c.write(&vec![65, 65, 65, 65, 65, 65, 65, 0]).unwrap();
+            c.write_all(&[65, 65, 65, 65, 65, 65, 65, 0]).unwrap();
             c.into_inner()
         };
         let mut mem = StreamReadBuffer::new(&v_final);

@@ -83,9 +83,9 @@ where
             let next = Nlattr::<T, P>::deserialize(mem)?;
             if let Some(val) = size_hint {
                 if val > 0 {
-                    let result = val.checked_sub(next.asize()).ok_or(DeError::new(
-                        "Deserialization read passed the end of the specified buffer",
-                    ))?;
+                    let result = val.checked_sub(next.asize()).ok_or_else(|| {
+                        DeError::new("Deserialization read passed the end of the specified buffer")
+                    })?;
                     size_hint = Some(result);
                 }
             }
@@ -101,6 +101,37 @@ where
         information"
         );
         self.asize()
+    }
+
+    fn asize(&self) -> usize {
+        let mut size = 0;
+        for attr in self.iter() {
+            size += attr.asize()
+        }
+        size
+    }
+}
+
+impl<'a, T> Nl for &'a [Nlattr<T, Vec<u8>>]
+where
+    T: NlAttrType,
+{
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
+        for item in self.iter() {
+            item.serialize(mem)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize<B>(_: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
+        unimplemented!("Use deserialize_buf instead")
+    }
+
+    fn size(&self) -> usize {
+        unimplemented!("Use .asize() instead")
     }
 
     fn asize(&self) -> usize {
@@ -193,7 +224,7 @@ where
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_nested_attributes<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError>
+    pub fn get_nested_attributes<R>(&self) -> Result<AttrHandle<R>, DeError>
     where
         R: NlAttrType,
     {
@@ -243,7 +274,7 @@ pub enum AttrHandle<'a, T> {
     /// Owned vector
     Owned(Vec<Nlattr<T, Vec<u8>>>),
     /// Vector reference
-    Borrowed(&'a Vec<Nlattr<T, Vec<u8>>>),
+    Borrowed(&'a [Nlattr<T, Vec<u8>>]),
 }
 
 impl<'a, T> AttrHandle<'a, T>
@@ -256,15 +287,15 @@ where
     }
 
     /// Create new borrowed `AttrHandle`
-    pub fn new_borrowed(vec: &'a Vec<Nlattr<T, Vec<u8>>>) -> Self {
+    pub fn new_borrowed(vec: &'a [Nlattr<T, Vec<u8>>]) -> Self {
         AttrHandle::Borrowed(vec)
     }
 
     /// Get the underlying `Vec` as a reference
-    pub fn get_vec(&self) -> &Vec<Nlattr<T, Vec<u8>>> {
+    pub fn get_slice(&self) -> &[Nlattr<T, Vec<u8>>] {
         match *self {
             AttrHandle::Owned(ref v) => v,
-            AttrHandle::Borrowed(ref v) => v,
+            AttrHandle::Borrowed(v) => v,
         }
     }
 
@@ -278,12 +309,12 @@ where
 
     /// Get size of buffer required to hold attributes
     pub fn size(&self) -> usize {
-        self.get_vec().size()
+        self.get_slice().asize()
     }
 
     /// If attributes are parsed, pass back iterator over attributes
     pub fn iter(&self) -> slice::Iter<Nlattr<T, Vec<u8>>> {
-        self.get_vec().iter()
+        self.get_slice().iter()
     }
 
     /// Get the payload of an attribute as a handle for parsing nested attributes
@@ -295,7 +326,7 @@ where
             &mut StreamReadBuffer::new(
                 &self
                     .get_attribute(subattr)
-                    .ok_or(NlError::new("Couldn't find specified attribute"))?
+                    .ok_or_else(|| NlError::new("Couldn't find specified attribute"))?
                     .payload,
             ),
         )?))
@@ -303,7 +334,7 @@ where
 
     /// Get nested attributes from a parsed handle
     pub fn get_attribute<'b>(&'b self, t: T) -> Option<&'b Nlattr<T, Vec<u8>>> {
-        for item in self.get_vec().iter() {
+        for item in self.get_slice().iter() {
             if item.nla_type == t {
                 return Some(&item);
             }
@@ -371,7 +402,7 @@ mod test {
         nlattr_desired_serialized
             .write_u16::<NativeEndian>(4)
             .unwrap();
-        nlattr_desired_serialized.write(&[0, 0]).unwrap();
+        nlattr_desired_serialized.write_all(&[0, 0]).unwrap();
 
         assert_eq!(
             nlattr_serialized.as_ref(),
@@ -395,7 +426,7 @@ mod test {
         nlattr_deserialize_buffer
             .write_u16::<NativeEndian>(4)
             .unwrap();
-        nlattr_deserialize_buffer.write(&[0, 0]).unwrap();
+        nlattr_deserialize_buffer.write_all(&[0, 0]).unwrap();
         let mut reader = StreamReadBuffer::new(nlattr_deserialize_buffer.into_inner());
         let nlattr_deserialized = Nlattr::<CtrlAttr, u16>::deserialize(&mut reader).unwrap();
         assert_eq!(nlattr_deserialized, nlattr_desired_deserialized);
@@ -439,11 +470,13 @@ mod test {
 
         vec_nlattr_desired.write_u16::<NativeEndian>(12).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(1).unwrap();
-        vec_nlattr_desired.write(&[0, 1, 2, 3, 4, 5, 6, 7]).unwrap();
+        vec_nlattr_desired
+            .write_all(&[0, 1, 2, 3, 4, 5, 6, 7])
+            .unwrap();
 
         vec_nlattr_desired.write_u16::<NativeEndian>(8).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(2).unwrap();
-        vec_nlattr_desired.write(&[0, 1, 2, 3]).unwrap();
+        vec_nlattr_desired.write_all(&[0, 1, 2, 3]).unwrap();
 
         vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(3).unwrap();
@@ -451,15 +484,15 @@ mod test {
         vec_nlattr_desired.write_u16::<NativeEndian>(6).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(15).unwrap();
-        vec_nlattr_desired.write(&[0, 0]).unwrap();
+        vec_nlattr_desired.write_all(&[0, 0]).unwrap();
 
         vec_nlattr_desired.write_u16::<NativeEndian>(6).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(2).unwrap();
-        vec_nlattr_desired.write(&[0, 1, 0, 0]).unwrap();
+        vec_nlattr_desired.write_all(&[0, 1, 0, 0]).unwrap();
 
         vec_nlattr_desired.write_u16::<NativeEndian>(5).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(3).unwrap();
-        vec_nlattr_desired.write(&[5, 0, 0, 0]).unwrap();
+        vec_nlattr_desired.write_all(&[5, 0, 0, 0]).unwrap();
 
         let mut nlattr = Nlattr::new(None, 1u16, Vec::<u8>::new()).unwrap();
         nlattr
