@@ -2,13 +2,12 @@ language: rust
 services:
   - docker
 
-stage: fmt
-script:
-  - rustup component add rustfmt
-  - cargo fmt -- --check
-
 jobs:
   include:
+    - stage: fmt
+      script:
+        - rustup component add rustfmt
+        - cargo fmt -- --check
     - stage: test
       rust: stable
       script:
