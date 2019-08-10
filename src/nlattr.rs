@@ -225,7 +225,7 @@ where
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
     #[deprecated(since = "0.5.0", note = "Use get_attr_handle instead")]
-    pub fn get_nested_attributes<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError>
+    pub fn get_nested_attributes<R>(&self) -> Result<AttrHandle<R>, DeError>
     where
         R: NlAttrType,
     {
@@ -233,7 +233,7 @@ where
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_attr_handle<'a, R>(&'a self) -> Result<AttrHandle<'a, R>, DeError>
+    pub fn get_attr_handle<R>(&self) -> Result<AttrHandle<R>, DeError>
     where
         R: NlAttrType,
     {

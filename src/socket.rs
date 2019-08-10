@@ -79,7 +79,7 @@ where
 /// Conversion between multicast group IDs and the bitmask representation expected by the kernel
 #[inline]
 pub fn vec_to_bitmask(groups: Vec<u32>) -> u32 {
-    groups.iter().fold(0, |acc, grp| acc + 1 << (grp - 1))
+    groups.iter().fold(0, |acc, grp| acc | (1 << (grp - 1)))
 }
 
 /// Conversion between multicast group IDs and the bitmask expected by the kernel
@@ -338,7 +338,7 @@ impl NlSocket {
                 }
             })
             .nth(0)
-            .ok_or(NlError::new("Failed to resolve multicast group ID"))
+            .ok_or_else(|| NlError::new("Failed to resolve multicast group ID"))
     }
 
     /// Look up netlink family and multicast group name by ID
