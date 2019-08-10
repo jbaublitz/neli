@@ -12,9 +12,11 @@ use std::mem;
 use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 use libc;
 
-use Nl;
-use consts::{Af,Arphrd,IfaF,Iff,Ntf,Nud,RtaType,RtmF,Rtn,Rtprot,RtScope,RtTable};
-use err::{SerError,DeError};
+use crate::{
+    Nl,
+    consts::rtnl::*,
+    err::{SerError,DeError},
+};
 
 impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
@@ -50,7 +52,7 @@ impl<T, P> Nl for Vec<Rtattr<T, P>> where T: RtaType, P: Nl {
 /// Struct representing interface information messages
 pub struct Ifinfomsg<T> {
     /// Interface address family
-    pub ifi_family: Af,
+    pub ifi_family: RtAddrFamily,
     /// Interface type
     pub ifi_type: Arphrd,
     /// Interface index
@@ -64,7 +66,7 @@ pub struct Ifinfomsg<T> {
 
 impl<T> Ifinfomsg<T> where T: RtaType {
     /// Create a fully initialized interface info struct
-    pub fn new(ifi_family: Af, ifi_type: Arphrd, ifi_index: libc::c_int,
+    pub fn new(ifi_family: RtAddrFamily, ifi_type: Arphrd, ifi_index: libc::c_int,
                ifi_flags: Vec<Iff>, rtattrs: Vec<Rtattr<T, Vec<u8>>>) -> Self {
         Ifinfomsg { ifi_family, ifi_type, ifi_index, ifi_flags, ifi_change: 0xffffffff,
                     rtattrs, }
@@ -93,7 +95,7 @@ impl<T> Nl for Ifinfomsg<T> where T: RtaType {
         let mut size_hint = buf.take_size_hint().ok_or(DeError::new(
             "Ifinfomsg requires a size hint to deserialize",
         ))?;
-        let ifi_family = Af::deserialize(buf)?;
+        let ifi_family = RtAddrFamily::deserialize(buf)?;
         let padding = u8::deserialize(buf)?;
         let ifi_type = Arphrd::deserialize(buf)?;
         let ifi_index = libc::c_int::deserialize(buf)?;
@@ -135,59 +137,20 @@ impl<T> Nl for Ifinfomsg<T> where T: RtaType {
 
     fn size(&self) -> usize {
         self.ifi_family.size() + 
-        0u8.size() + // padding byte
+        // padding byte
+        0u8.size() + 
         self.ifi_type.size() + self.ifi_index.size() + 
-        mem::size_of::<libc::c_uint>() + // flags
+        // flags
+        mem::size_of::<libc::c_uint>() +
         self.ifi_change.size() + 
         self.rtattrs.asize()
-    }
-}
-
-#[cfg(test)]
-mod ifinfomsg_tests {
-    use super::*;
-    use crate::nl::Nlmsghdr;
-    use crate::consts::{Rtm,Ifla};
-
-    #[test]
-    fn can_ser_deser_straced_ip_link() {
-        // strace `ip link` to see what it asks for, and verify that we can deserialize it.
-        let request = [
-            // begin nlmsg
-            0x28,0x00,0x00,0x00,    // length
-            0x12,0x00,              // type = RTM_GETLINK
-            0x01,0x03,              // flags
-            0xe5,0xd8,0x35,0x5d,    // seq
-            0x00,0x00,0x00,0x00,    // pid
-            // begin ifinfomsg
-            0x11,                   // family AF_PACKET
-            0x00,                   // pad
-            0x00,0x00,              // type
-            0x00,0x00,0x00,0x00,    // index
-            0x00,0x00,0x00,0x00,    // flags
-            0x00,0x00,0x00,0x00,    // change
-            // begin attr
-            0x08,0x00,              // len = 8
-            0x1d,0x00,              // type = IFLA_EXT_MASK
-            0x01,0x00,0x00,0x00     // RTEXT_FILTER_VF
-        ];
-        let mut buf = StreamReadBuffer::new(&request[..]);
-        let nlmsg = Nlmsghdr::<Rtm, Ifinfomsg<Ifla>>::deserialize(&mut buf);
-        if let Err(e) = &nlmsg {
-            dbg!(e);
-        }
-        assert!(nlmsg.is_ok());
-
-        let mut bytes = StreamWriteBuffer::new_growable(None);
-        nlmsg.unwrap().serialize(&mut bytes).unwrap();
-        assert_eq!(bytes.as_ref(), &request[..]);
     }
 }
 
 /// Struct representing interface address messages
 pub struct Ifaddrmsg<T> {
     /// Interface address family
-    pub ifa_family: Af,
+    pub ifa_family: RtAddrFamily,
     /// Interface address prefix length
     pub ifa_prefixlen: libc::c_uchar,
     /// Interface address flags
@@ -216,7 +179,7 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
 
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let mut result = Ifaddrmsg {
-            ifa_family: Af::deserialize(buf)?,
+            ifa_family: RtAddrFamily::deserialize(buf)?,
             ifa_prefixlen: libc::c_uchar::deserialize(buf)?,
             ifa_flags: {
                 let flags = libc::c_uchar::deserialize(buf)?;
@@ -249,34 +212,10 @@ impl<T> Nl for Ifaddrmsg<T> where T: RtaType {
     }
 }
 
-#[cfg(test)]
-mod ifaddrmsg_tests {
-    use super::*;
-    use crate::nl::Nlmsghdr;
-    use crate::consts::{Rtm,Ifa};
-
-    #[test]
-    fn can_ser_deser_straced_ip_addr() {
-        // strace `ip addr` to see a sample reply.
-        let request = b"\x4c\x00\x00\x00\x14\x00\x02\x00\x04\x0b\x3a\x5d\x68\x1f\x00\x00\x02\x08\x80\xfe\x01\x00\x00\x00\x08\x00\x01\x00\x7f\x00\x00\x01\x08\x00\x02\x00\x7f\x00\x00\x01\x07\x00\x03\x00\x6c\x6f\x00\x00\x08\x00\x08\x00\x80\x00\x00\x00\x14\x00\x06\x00\xff\xff\xff\xff\xff\xff\xff\xff\xb0\x02\x00\x00\xb0\x02\x00\x00";
-        let mut buf = StreamReadBuffer::new(&request[..]);
-        let nlmsg = Nlmsghdr::<Rtm, Ifaddrmsg<Ifa>>::deserialize(&mut buf);
-        if let Err(e) = &nlmsg {
-            dbg!(e);
-        }
-        assert!(nlmsg.is_ok());
-
-        let mut bytes = StreamWriteBuffer::new_growable(None);
-        nlmsg.unwrap().serialize(&mut bytes).unwrap();
-        assert_eq!(bytes.as_ref(), &request[..]);
-    }
-
-}
-
 /// General form of address family dependent message.  Used for requesting things from via rtnetlink.
 pub struct Rtgenmsg {
     /// Address family for the request
-    pub rtgen_family: u8,
+    pub rtgen_family: RtAddrFamily,
 }
 
 impl Nl for Rtgenmsg {
@@ -285,7 +224,7 @@ impl Nl for Rtgenmsg {
     }
 
     fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
-        Ok(Self { rtgen_family: u8::deserialize(m)? })
+        Ok(Self { rtgen_family: RtAddrFamily::deserialize(m)? })
     }
 
     fn size(&self) -> usize {
@@ -296,7 +235,7 @@ impl Nl for Rtgenmsg {
 /// Route message
 pub struct Rtmsg<T> {
     /// Address family of route
-    pub rtm_family: libc::c_uchar,
+    pub rtm_family: RtAddrFamily,
     /// Length of destination
     pub rtm_dst_len: libc::c_uchar,
     /// Length of source
@@ -338,7 +277,7 @@ impl<T> Nl for Rtmsg<T> where T: RtaType {
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let size_hint = buf.take_size_hint().ok_or_else(|| DeError::new("Must provide size hint to deserialize Rtmsg"))?;
         
-        let rtm_family = libc::c_uchar::deserialize(buf)?;
+        let rtm_family = RtAddrFamily::deserialize(buf)?;
         let rtm_dst_len = libc::c_uchar::deserialize(buf)?;
         let rtm_src_len = libc::c_uchar::deserialize(buf)?;
         let rtm_tos = libc::c_uchar::deserialize(buf)?;
@@ -395,7 +334,7 @@ impl<T> Nl for Rtmsg<T> where T: RtaType {
 /// Represents an ARP (neighbor table) entry
 pub struct Ndmsg {
     /// Address family of entry
-    pub ndm_family: Af,
+    pub ndm_family: RtAddrFamily,
     /// Index of entry
     pub ndm_index: libc::c_int,
     /// State of entry
@@ -425,7 +364,7 @@ impl Nl for Ndmsg {
     fn deserialize<B>(buf: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
             where B: AsRef<[u8]> {
         Ok(Ndmsg {
-            ndm_family: Af::deserialize(buf)?,
+            ndm_family: RtAddrFamily::deserialize(buf)?,
             ndm_index: libc::c_int::deserialize(buf)?,
             ndm_state: {
                 let state = u16::deserialize(buf)?;
@@ -589,35 +528,38 @@ impl<T, P> Nl for Rtattr<T, P> where T: RtaType, P: Nl {
 }
 
 #[cfg(test)]
-mod test_rtattr {
+mod test {
     use super::*;
-    use consts::Rta;
+    use crate::consts::Rta;
 
     #[test]
-    fn deser_empty() {
+    fn test_rta_deserialize() {
         let mut buf = StreamReadBuffer::new(&[4u8,0,0,0]);
         assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_ok());
     }
 
     #[test]
-    fn deser_truncated() {
-        let mut buf = StreamReadBuffer::new(&[3u8,0,0,0]); // 3 bytes is below minimum length
+    fn test_rta_deserialize_err() {
+        // 3 bytes is below minimum length
+        let mut buf = StreamReadBuffer::new(&[3u8,0,0,0]);
         assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_err());
     }
 
     #[test]
-    fn deser_stripping() {
+    fn test_rtattr_deserialize_padding() {
         let mut buf = StreamReadBuffer::new(&[5u8,0,0,0,0,0,0,0,111]);
         assert!(Rtattr::<Rta,Vec<u8>>::deserialize(&mut buf).is_ok());
-        assert_eq!(u8::deserialize(&mut buf).unwrap(), 111); // should have stripped remainder of word.
+        // should have stripped remainder of word
+        assert_eq!(u8::deserialize(&mut buf).unwrap(), 111);
     }
 
     #[test]
-    fn ser_padding() {
+    fn test_rtattr_padding() {
         let attr = Rtattr { rta_len: 5, rta_type: Rta::Unspec, rta_payload: vec![0u8] };
         let mut buf = StreamWriteBuffer::new_growable(None);
     
         assert!(attr.serialize(&mut buf).is_ok());
-        assert_eq!(buf.as_ref().len(), 8); // padding check.
+        // padding check
+        assert_eq!(buf.as_ref().len(), 8);
     }
 }

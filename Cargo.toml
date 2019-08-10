@@ -18,7 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 byteorder = "1.2"
-libc = { git = "https://github.com/jbaublitz/libc", branch = "musl-netlink-support" }
+libc = { git = "https://github.com/rust-lang/libc", branch = "master" }
 
 [dependencies.tokio]
 version = "0.1"

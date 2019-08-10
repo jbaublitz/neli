@@ -14,6 +14,14 @@
 ### Deprecations
 * Deprecate `.size()` usage for `Vec<Nlattr>` - use `.asize()` instead
 
+### Structure changes
+* `consts.rs` is now `consts/` with a corresponding submodule for each category of constant -
+not a breaking change
+* Start enforcing rustfmt in CI and use cargo fmt to switch over to new formatting
+
+### Fixes
+* Merge PR fixing rtnetlink support
+
 ## 0.4.2
 ### Dependencies
 * Update buffering to 0.3.4 minimum to force stable channel support for neli
