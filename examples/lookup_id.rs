@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut sock = NlSocket::connect(NlFamily::Generic, None, None)?;
     let id = env::args()
         .nth(1)
-        .ok_or(NlError::new("Integer argument required"))
+        .ok_or_else(|| NlError::new("Integer argument required"))
         .and_then(|arg| {
             arg.parse::<u32>()
                 .map_err(|e| NlError::new(e.description()))
