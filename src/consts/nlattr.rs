@@ -1,6 +1,7 @@
 impl_trait!(
     /// Marker trait for types usable in `Nlattr.nla_type`
-    NlAttrType, u16
+    NlAttrType,
+    u16
 );
 
 impl_var_trait!(

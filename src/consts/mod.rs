@@ -40,7 +40,7 @@ pub use crate::consts::genl::*;
 /// Constants related to generic netlink attributes
 pub mod nlattr;
 pub use crate::consts::nlattr::*;
-/// Constants related to generic netlink top level headers 
+/// Constants related to generic netlink top level headers
 pub mod nl;
 pub use crate::consts::nl::*;
 /// Constants related to rtnetlink

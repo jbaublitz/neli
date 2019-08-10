@@ -9,7 +9,6 @@ use neli::nl::Nlmsghdr;
 use neli::rtnl::*;
 use neli::socket::*;
 
-
 fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
     // This sample is only interested in the main table.
     if rtm.nl_payload.rtm_table == RtTable::Main {
@@ -64,7 +63,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
 
-    let rtmsg : Rtmsg<Rta> = Rtmsg {
+    let rtmsg: Rtmsg<Rta> = Rtmsg {
         rtm_family: Af::Inet.into(),
         rtm_dst_len: 0,
         rtm_src_len: 0,

@@ -1,6 +1,7 @@
 impl_trait!(
     /// Trait marking constants valid for use in `Genlmsghdr.cmd`
-    Cmd, u8
+    Cmd,
+    u8
 );
 
 impl_var_trait!(

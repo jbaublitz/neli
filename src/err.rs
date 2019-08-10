@@ -16,17 +16,17 @@
 
 use std;
 use std::error::Error;
-use std::fmt::{self,Display};
+use std::fmt::{self, Display};
 use std::io;
 use std::str;
 use std::string;
 
+use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
 use libc;
-use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
 
-use Nl;
-use nl::{Nlmsghdr,NlEmpty};
 use consts::NlType;
+use nl::{NlEmpty, Nlmsghdr};
+use Nl;
 
 macro_rules! try_err_compat {
     ( $err_name:ident, $( $from_err_name:path ),* ) => {
@@ -48,7 +48,10 @@ pub struct Nlmsgerr<T> {
     pub nlmsg: Nlmsghdr<T, NlEmpty>,
 }
 
-impl<T> Nl for Nlmsgerr<T> where T: NlType {
+impl<T> Nl for Nlmsgerr<T>
+where
+    T: NlType,
+{
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.error.serialize(mem)?;
         self.nlmsg.serialize(mem)?;
@@ -56,7 +59,10 @@ impl<T> Nl for Nlmsgerr<T> where T: NlType {
         Ok(())
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         let nlmsg = Nlmsgerr {
             error: libc::c_int::deserialize(mem)?,
             nlmsg: Nlmsghdr::<T, NlEmpty>::deserialize(mem)?,
@@ -152,8 +158,13 @@ impl DeError {
     }
 }
 
-try_err_compat!(DeError, io::Error, str::Utf8Error, string::FromUtf8Error,
-                std::ffi::FromBytesWithNulError);
+try_err_compat!(
+    DeError,
+    io::Error,
+    str::Utf8Error,
+    string::FromUtf8Error,
+    std::ffi::FromBytesWithNulError
+);
 
 impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

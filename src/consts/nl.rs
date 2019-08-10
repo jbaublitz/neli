@@ -1,6 +1,7 @@
 impl_trait!(
     /// Trait marking constants valid for use in `Nlmsghdr.nl_type`
-    NlType, u16
+    NlType,
+    u16
 );
 
 impl_var_trait!(

@@ -10,14 +10,14 @@
 
 use std::mem;
 
-use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
+use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
 
+use consts::{NlType, NlmF};
+use err::{DeError, SerError};
 use Nl;
-use err::{SerError,DeError};
-use consts::{NlmF,NlType};
 
 /// Top level netlink header and payload
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Nlmsghdr<T, P> {
     /// Length of the netlink message
     pub nl_len: u32,
@@ -33,10 +33,20 @@ pub struct Nlmsghdr<T, P> {
     pub nl_payload: P,
 }
 
-impl<T, P> Nlmsghdr<T, P> where T: NlType, P: Nl {
+impl<T, P> Nlmsghdr<T, P>
+where
+    T: NlType,
+    P: Nl,
+{
     /// Create a new top level netlink packet with a payload
-    pub fn new(nl_len: Option<u32>, nl_type: T, nl_flags: Vec<NlmF>,
-           nl_seq: Option<u32>, nl_pid: Option<u32>, nl_payload: P) -> Self {
+    pub fn new(
+        nl_len: Option<u32>,
+        nl_type: T,
+        nl_flags: Vec<NlmF>,
+        nl_seq: Option<u32>,
+        nl_pid: Option<u32>,
+        nl_payload: P,
+    ) -> Self {
         let mut nl = Nlmsghdr {
             nl_type,
             nl_flags,
@@ -50,7 +60,11 @@ impl<T, P> Nlmsghdr<T, P> where T: NlType, P: Nl {
     }
 }
 
-impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
+impl<T, P> Nl for Nlmsghdr<T, P>
+where
+    T: NlType,
+    P: Nl,
+{
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nl_len.serialize(mem)?;
         self.nl_type.serialize(mem)?;
@@ -67,7 +81,10 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
         Ok(())
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         let nl_len = u32::deserialize(mem)?;
         let nl_type = T::deserialize(mem)?;
         let nl_flags = {
@@ -84,8 +101,8 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
         let nl_seq = u32::deserialize(mem)?;
         let nl_pid = u32::deserialize(mem)?;
         let nl_payload = {
-            let payload_len = nl_len as usize - (nl_len.size() + nl_type.size() + 0u16.size() +
-                                                 nl_seq.size() + nl_pid.size());
+            let payload_len = nl_len as usize
+                - (nl_len.size() + nl_type.size() + 0u16.size() + nl_seq.size() + nl_pid.size());
             mem.set_size_hint(payload_len);
             P::deserialize(mem)?
         };
@@ -104,13 +121,17 @@ impl<T, P> Nl for Nlmsghdr<T, P> where T: NlType, P: Nl {
     }
 
     fn size(&self) -> usize {
-        self.nl_len.size() + <T as Nl>::size(&self.nl_type) + mem::size_of::<u16>()
-            + self.nl_seq.size() + self.nl_pid.size() + self.nl_payload.size()
+        self.nl_len.size()
+            + <T as Nl>::size(&self.nl_type)
+            + mem::size_of::<u16>()
+            + self.nl_seq.size()
+            + self.nl_pid.size()
+            + self.nl_payload.size()
     }
 }
 
 /// Struct indicating an empty payload
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct NlEmpty;
 
 impl Nl for NlEmpty {
@@ -120,7 +141,10 @@ impl Nl for NlEmpty {
     }
 
     #[inline]
-    fn deserialize<B>(_cur: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(_cur: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         Ok(NlEmpty)
     }
 
@@ -133,15 +157,15 @@ impl Nl for NlEmpty {
 #[cfg(test)]
 mod test {
     use super::*;
+    use byteorder::{NativeEndian, WriteBytesExt};
     use consts::Nlmsg;
     use std::io::Cursor;
-    use byteorder::{NativeEndian,WriteBytesExt};
 
     #[test]
     fn test_nlhdr_serialize() {
         let mut mem = StreamWriteBuffer::new_growable(None);
-        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
-                                              Vec::new(), None, None, NlEmpty);
+        let nl =
+            Nlmsghdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop, Vec::new(), None, None, NlEmpty);
         nl.serialize(&mut mem).unwrap();
         let s: &mut [u8] = &mut [0; 16];
         {
@@ -163,7 +187,16 @@ mod test {
         }
         let mut mem = StreamReadBuffer::new(&*s);
         let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(&mut mem).unwrap();
-        assert_eq!(Nlmsghdr::<Nlmsg, NlEmpty>::new(None, Nlmsg::Noop,
-                                                 vec![NlmF::Ack], None, None, NlEmpty), nl);
+        assert_eq!(
+            Nlmsghdr::<Nlmsg, NlEmpty>::new(
+                None,
+                Nlmsg::Noop,
+                vec![NlmF::Ack],
+                None,
+                None,
+                NlEmpty
+            ),
+            nl
+        );
     }
 }

@@ -14,13 +14,21 @@ fn main() {
     let family_name = "your_family_name_here";
     let group_name = "your_group_name_here";
     let mut sock = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
-    let _id = sock.resolve_nl_mcast_group(family_name, group_name).unwrap();
+    let _id = sock
+        .resolve_nl_mcast_group(family_name, group_name)
+        .unwrap();
 
     // The following outlines how to parse netlink attributes
 
     // This was received from the socket
-    let nlmsg = neli::nl::Nlmsghdr::new(None, neli::consts::GenlId::Ctrl, Vec::new(), None, None,
-            Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, Vec::new()).unwrap());
+    let nlmsg = neli::nl::Nlmsghdr::new(
+        None,
+        neli::consts::GenlId::Ctrl,
+        Vec::new(),
+        None,
+        None,
+        Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, Vec::new()).unwrap(),
+    );
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type
     // to be provided

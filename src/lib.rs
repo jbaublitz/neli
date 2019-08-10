@@ -1,7 +1,7 @@
 //! # Type safety for the weary netlink user
-//! 
+//!
 //! ## Rationale
-//! 
+//!
 //! This crate aims to be a pure Rust implementation that defines
 //! the necessary constants and wraps them in enums to distinguish between various categories of
 //! constants in the context of netlink.
@@ -64,29 +64,29 @@ extern crate tokio;
 
 /// C constants defined as types
 pub mod consts;
-/// Wrapper for `libc` sockets
-pub mod socket;
-/// Netlink attribute handler
-pub mod nlattr;
-/// Top-level netlink header
-pub mod nl;
-/// Genetlink (generic netlink) header and attribute helpers
-pub mod genl;
-/// Route netlink bindings
-pub mod rtnl;
 /// Error module
 pub mod err;
+/// Genetlink (generic netlink) header and attribute helpers
+pub mod genl;
+/// Top-level netlink header
+pub mod nl;
+/// Netlink attribute handler
+pub mod nlattr;
+/// Route netlink bindings
+pub mod rtnl;
+/// Wrapper for `libc` sockets
+pub mod socket;
 
 use std::ffi::CString;
-use std::io::{Read,Write};
+use std::io::{Read, Write};
 use std::mem;
 use std::str;
 
-pub use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
-use byteorder::{NativeEndian,ReadBytesExt,WriteBytesExt};
+pub use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
 use consts::alignto;
-use err::{SerError,DeError};
+use err::{DeError, SerError};
 
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
@@ -100,7 +100,9 @@ pub trait Nl: Sized {
     fn serialize(&self, m: &mut StreamWriteBuffer) -> Result<(), SerError>;
 
     /// Stateless deserialization method
-    fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]>;
+    fn deserialize<T>(m: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>;
 
     /// The size of the binary representation of a struct - not aligned to word size
     fn size(&self) -> usize;
@@ -118,7 +120,10 @@ pub trait Nl: Sized {
     }
 
     /// Strip padding from the deserialization buffer
-    fn strip<T>(&self, m: &mut StreamReadBuffer<T>) -> Result<(), DeError> where T: AsRef<[u8]> {
+    fn strip<T>(&self, m: &mut StreamReadBuffer<T>) -> Result<(), DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         let padding_len = self.asize() - self.size();
         if padding_len > 0 {
             m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..padding_len])?;
@@ -132,7 +137,8 @@ pub trait Nl: Sized {
 pub trait NlBuf<'a>: Sized {
     /// Deserialization method
     fn deserialize_buf<T>(m: &mut StreamReadBuffer<T>, b: &'a mut [u8]) -> Result<Self, DeError>
-            where T: AsRef<[u8]>;
+    where
+        T: AsRef<[u8]>;
 }
 
 impl Nl for u8 {
@@ -141,7 +147,10 @@ impl Nl for u8 {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         Ok(mem.read_u8()?)
     }
 
@@ -156,7 +165,10 @@ impl Nl for u16 {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         Ok(mem.read_u16::<NativeEndian>()?)
     }
 
@@ -171,7 +183,10 @@ impl Nl for u32 {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         Ok(mem.read_u32::<NativeEndian>()?)
     }
 
@@ -186,7 +201,10 @@ impl Nl for i32 {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         Ok(mem.read_i32::<NativeEndian>()?)
     }
 
@@ -201,7 +219,10 @@ impl Nl for u64 {
         Ok(())
     }
 
-    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         Ok(mem.read_u64::<NativeEndian>()?)
     }
 
@@ -216,7 +237,10 @@ impl<'a> Nl for &'a [u8] {
         Ok(())
     }
 
-    fn deserialize<T>(_m: &mut StreamReadBuffer<T>) -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize<T>(_m: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         unimplemented!("Use deserialize_buf instead")
     }
 
@@ -226,8 +250,13 @@ impl<'a> Nl for &'a [u8] {
 }
 
 impl<'a> NlBuf<'a> for &'a [u8] {
-    fn deserialize_buf<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8]) -> Result<Self, DeError>
-            where T: AsRef<[u8]> {
+    fn deserialize_buf<T>(
+        mem: &mut StreamReadBuffer<T>,
+        input: &'a mut [u8],
+    ) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         mem.read_exact(input)?;
         Ok(input)
     }
@@ -245,18 +274,21 @@ impl Nl for Vec<u8> {
         Ok(())
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         let v = match mem.take_size_hint() {
             Some(sh) => {
                 let mut v = vec![0; sh];
                 let _ = mem.read(v.as_mut_slice())?;
                 v
-            },
+            }
             None => {
                 let mut v = Vec::new();
                 let _ = mem.read_to_end(&mut v)?;
                 v
-            },
+            }
         };
         Ok(v)
     }
@@ -279,7 +311,9 @@ impl<'a> Nl for &'a str {
     }
 
     fn deserialize<B>(_: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-            where B: AsRef<[u8]> {
+    where
+        B: AsRef<[u8]>,
+    {
         unimplemented!("Use deserialize_buf instead")
     }
 
@@ -289,12 +323,17 @@ impl<'a> Nl for &'a str {
 }
 
 impl<'a> NlBuf<'a> for &'a str {
-    fn deserialize_buf<T>(mem: &mut StreamReadBuffer<T>, input: &'a mut [u8])
-        -> Result<Self, DeError> where T: AsRef<[u8]> {
+    fn deserialize_buf<T>(
+        mem: &mut StreamReadBuffer<T>,
+        input: &'a mut [u8],
+    ) -> Result<Self, DeError>
+    where
+        T: AsRef<[u8]>,
+    {
         mem.read_exact(input)?;
         let idx = input.iter().position(|elem| *elem == 0);
         let slice_ref = if let Some(i) = idx {
-            &input[..(i as usize)] 
+            &input[..(i as usize)]
         } else {
             input
         };
@@ -305,9 +344,8 @@ impl<'a> NlBuf<'a> for &'a str {
 impl Nl for String {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let size_hint = mem.take_size_hint().unwrap_or(0);
-        let c_str = try!(CString::new(self.as_bytes()).map_err(|_| {
-            SerError::new("Unable to serialize string containing null byte")
-        }));
+        let c_str = try!(CString::new(self.as_bytes())
+            .map_err(|_| { SerError::new("Unable to serialize string containing null byte") }));
         let bytes = c_str.as_bytes_with_nul();
         let num_bytes = mem.write(bytes)?;
         if size_hint > num_bytes {
@@ -317,7 +355,9 @@ impl Nl for String {
     }
 
     fn deserialize<T>(mem: &mut StreamReadBuffer<T>) -> Result<Self, DeError>
-            where T: AsRef<[u8]> {
+    where
+        T: AsRef<[u8]>,
+    {
         let size_hint = match mem.take_size_hint() {
             Some(sh) => sh,
             None => return Err(DeError::new("Size hint required to deserialize strings")),
@@ -455,9 +495,7 @@ mod test {
             Vec::<u8>::deserialize(&mut mem).unwrap()
         };
         assert_eq!(v.as_slice(), &[1, 2, 3, 4, 5, 6, 7, 8]);
-        let v = {
-            Vec::<u8>::deserialize(&mut mem).unwrap()
-        };
+        let v = { Vec::<u8>::deserialize(&mut mem).unwrap() };
         assert_eq!(v.as_slice(), &[9, 0, 0, 0])
     }
 

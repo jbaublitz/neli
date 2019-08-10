@@ -139,7 +139,8 @@ impl_var!(
 
 impl_trait!(
     /// Marker trait for `Rtattr.rta_type` field
-    RtaType, libc::c_ushort
+    RtaType,
+    libc::c_ushort
 );
 
 impl_var_trait!(
