@@ -62,6 +62,7 @@ extern crate libc;
 extern crate mio;
 #[cfg(feature = "stream")]
 extern crate tokio;
+extern crate tokio_net;
 
 /// C constants defined as types
 pub mod consts;

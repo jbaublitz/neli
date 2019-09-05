@@ -423,12 +423,14 @@ pub mod tokio {
     use super::*;
 
     use mio::{self, Evented};
-    use tokio::prelude::{Async, AsyncRead, Stream};
-    use tokio::reactor::PollEvented2;
+    use tokio::prelude::{AsyncRead, Stream};
+    use tokio_net::util::PollEvented;
+    use std::task::{Context, Poll};
+    use std::pin::Pin;
 
     /// Tokio-enabled Netlink socket struct
     pub struct NlSocket<T, P> {
-        socket: PollEvented2<super::NlSocket>,
+        socket: PollEvented<super::NlSocket>,
         buffer: Option<StreamReadBuffer<Vec<u8>>>,
         type_data: PhantomData<T>,
         payload_data: PhantomData<P>,
@@ -444,7 +446,7 @@ pub mod tokio {
                 sock.nonblock()?;
             }
             Ok(NlSocket {
-                socket: PollEvented2::new(sock),
+                socket: PollEvented::new(sock),
                 buffer: None,
                 type_data: PhantomData,
                 payload_data: PhantomData,
@@ -461,32 +463,33 @@ pub mod tokio {
         }
     }
 
+    impl<T, P> Unpin for NlSocket<T, P> where T: NlType, P: Nl {}
+
     impl<T, P> Stream for NlSocket<T, P>
     where
         T: NlType,
         P: Nl,
     {
-        type Item = Nlmsghdr<T, P>;
-        type Error = io::Error;
+        type Item = std::io::Result<Nlmsghdr<T, P>>;
 
-        fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
             if self.empty() {
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_read = match self.socket.poll_read(mem.as_mut_slice()) {
-                    Ok(Async::Ready(0)) => return Ok(Async::Ready(None)),
-                    Ok(Async::Ready(i)) => i,
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(e) => return Err(e),
+                let bytes_read = match Pin::new(&mut self.socket).poll_read(cx,mem.as_mut_slice()) {
+                    Poll::Ready(Ok(0)) => return Poll::Ready(None),
+                    Poll::Ready(Ok(i)) => i,
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e)))
                 };
                 mem.truncate(bytes_read);
                 self.buffer = Some(StreamReadBuffer::new(mem));
             }
 
             match self.buffer {
-                Some(ref mut buf) => Ok(Async::Ready(Some(
-                    Nlmsghdr::<T, P>::deserialize(buf).map_err(|_| io::ErrorKind::InvalidData)?,
-                ))),
-                None => Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+                Some(ref mut buf) => Poll::Ready(Some(
+                    Ok(Nlmsghdr::<T, P>::deserialize(buf).map_err(|_| io::ErrorKind::InvalidData)?)
+                )),
+                None => Poll::Ready(Some(Err(io::Error::from(io::ErrorKind::UnexpectedEof)))),
             }
         }
     }
