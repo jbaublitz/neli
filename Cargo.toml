@@ -9,7 +9,6 @@ keywords = ["netlink"]
 include = [
     "**/*.rs",
     "Cargo.toml",
-    "Cargo.lock",
     "LICENSE",
 ]
 
