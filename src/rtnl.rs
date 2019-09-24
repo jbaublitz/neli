@@ -18,13 +18,57 @@ use crate::{
     Nl,
 };
 
-impl<T, P> Nl for Vec<Rtattr<T, P>>
+/// Set of `Rtattr` structs
+pub struct Rtattrs<T, P>(Vec<Rtattr<T, P>>);
+
+impl<T, P> Rtattrs<T, P> where T: RtaType, P: Nl {
+    /// Create an empty `Rtattrs` set
+    pub fn empty() -> Self {
+        Rtattrs(Vec::new())
+    }
+
+    /// Create an `Rtattrs` set initializing it with a vector
+    pub fn new(vec: Vec<Rtattr<T, P>>) -> Self {
+        Rtattrs(vec)
+    }
+
+    /// Return a reference iterator over underlying vector
+    pub fn iter(&self) -> std::slice::Iter<Rtattr<T, P>> {
+        self.0.iter()
+    }
+}
+
+impl<T, P> IntoIterator for Rtattrs<T, P> where T: RtaType, P: Nl {
+    type Item = Rtattr<T, P>;
+    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T> Rtattrs<T, Vec<u8>> where T: RtaType {
+    /// Get an attribute contained in the set as type `R`
+    pub fn get_attr_payload_as<R>(&self, attr_type: T) -> Result<Option<R>, DeError> where R: Nl {
+        let index = self.0.iter().position(|rtattr| rtattr.rta_type == attr_type);
+        let elem = match index {
+            Some(i) => self.0.get(i),
+            None => return Ok(None),
+        };
+        match elem {
+            Some(ref e) => e.get_payload_as::<R>().map(Some),
+            None => Ok(None),
+        }
+    }
+}
+
+impl<T, P> Nl for Rtattrs<T, P>
 where
     T: RtaType,
     P: Nl,
 {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        for item in self.iter() {
+        for item in self.0.iter() {
             item.serialize(buf)?;
         }
         Ok(())
@@ -49,11 +93,11 @@ where
             })?;
             vec.push(attr);
         }
-        Ok(vec)
+        Ok(Rtattrs::new(vec))
     }
 
     fn size(&self) -> usize {
-        self.iter().fold(0, |acc, item| acc + item.asize())
+        self.0.iter().fold(0, |acc, item| acc + item.asize())
     }
 }
 
@@ -69,7 +113,7 @@ pub struct Ifinfomsg<T> {
     pub ifi_flags: Vec<Iff>,
     ifi_change: libc::c_uint,
     /// Payload of `Rtattr`s
-    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+    pub rtattrs: Rtattrs<T, Vec<u8>>,
 }
 
 impl<T> Ifinfomsg<T>
@@ -82,7 +126,7 @@ where
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
         ifi_flags: Vec<Iff>,
-        rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+        rtattrs: Rtattrs<T, Vec<u8>>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
@@ -151,7 +195,7 @@ where
             )
             .ok_or_else(|| DeError::new(&format!("Truncated Ifinfomsg size_hint {}", size_hint)))?;
         buf.set_size_hint(size_hint);
-        let rtattrs = Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?;
+        let rtattrs = Rtattrs::<T, Vec<u8>>::deserialize(buf)?;
 
         Ok(Ifinfomsg {
             ifi_family,
@@ -188,7 +232,7 @@ pub struct Ifaddrmsg<T> {
     /// Interface address index
     pub ifa_index: libc::c_int,
     /// Payload of `Rtattr`s
-    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+    pub rtattrs: Rtattrs<T, Vec<u8>>,
 }
 
 impl<T> Nl for Ifaddrmsg<T>
@@ -231,7 +275,7 @@ where
             },
             ifa_scope: libc::c_uchar::deserialize(buf)?,
             ifa_index: libc::c_int::deserialize(buf)?,
-            rtattrs: vec![],
+            rtattrs: Rtattrs::empty(),
         };
 
         let size_hint = buf
@@ -240,7 +284,7 @@ where
             - result.asize();
         buf.set_size_hint(size_hint);
 
-        result.rtattrs = Vec::deserialize(buf)?;
+        result.rtattrs = Rtattrs::deserialize(buf)?;
         Ok(result)
     }
 
@@ -299,7 +343,7 @@ pub struct Rtmsg<T> {
     /// Routing flags
     pub rtm_flags: Vec<RtmF>,
     /// Payload of `Rtattr`s
-    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+    pub rtattrs: Rtattrs<T, Vec<u8>>,
 }
 
 impl<T> Nl for Rtmsg<T>
@@ -366,7 +410,7 @@ where
                 - rtm_type.size()
                 - mem::size_of::<libc::c_int>(),
         );
-        let rtattrs = Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?;
+        let rtattrs = Rtattrs::<T, Vec<u8>>::deserialize(buf)?;
 
         Ok(Rtmsg {
             rtm_family,
@@ -528,7 +572,7 @@ pub struct Tcmsg<T> {
     /// Info
     pub tcm_info: u32,
     /// Payload of `Rtattr`s
-    pub rtattrs: Vec<Rtattr<T, Vec<u8>>>,
+    pub rtattrs: Rtattrs<T, Vec<u8>>,
 }
 
 impl<T> Nl for Tcmsg<T>
@@ -555,7 +599,7 @@ where
             tcm_handle: u32::deserialize(buf)?,
             tcm_parent: u32::deserialize(buf)?,
             tcm_info: u32::deserialize(buf)?,
-            rtattrs: Vec::<Rtattr<T, Vec<u8>>>::deserialize(buf)?,
+            rtattrs: Rtattrs::<T, Vec<u8>>::deserialize(buf)?,
         })
     }
 
@@ -586,6 +630,19 @@ where
     /// Get the size of the payload only
     pub fn payload_size(&self) -> usize {
         self.rta_payload.size()
+    }
+}
+
+impl<T> Rtattr<T, Vec<u8>>
+where
+    T: RtaType,
+{
+    /// Get payload as type implementing `Nl`
+    pub fn get_payload_as<R>(&self) -> Result<R, DeError>
+    where
+        R: Nl,
+    {
+        R::deserialize(&mut StreamReadBuffer::new(&self.rta_payload))
     }
 }
 

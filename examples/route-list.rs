@@ -16,7 +16,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
         let mut dst = None;
         let mut gateway = None;
 
-        for attr in &rtm.nl_payload.rtattrs {
+        for attr in rtm.nl_payload.rtattrs.iter() {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
                 use std::convert::TryFrom;
                 if let Ok(tup) = <&[u8; 4]>::try_from(b) {
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         rtm_scope: RtScope::Universe,
         rtm_type: Rtn::Unspec,
         rtm_flags: vec![],
-        rtattrs: vec![],
+        rtattrs: Rtattrs::empty(),
     };
     let nlhdr = {
         let len = None;

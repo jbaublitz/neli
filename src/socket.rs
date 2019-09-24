@@ -234,8 +234,8 @@ impl NlSocket {
         groups: Option<Vec<u32>>,
         track_seq: bool,
     ) -> Result<Self, io::Error> {
-        let mut s = try!(NlSocket::new(proto, track_seq));
-        try!(s.bind(pid, groups));
+        let mut s = NlSocket::new(proto, track_seq)?;
+        s.bind(pid, groups)?;
         Ok(s)
     }
 
