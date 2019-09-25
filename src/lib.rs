@@ -345,7 +345,7 @@ impl Nl for String {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let size_hint = mem.take_size_hint().unwrap_or(0);
         let c_str = CString::new(self.as_bytes())
-            .map_err(|_| { SerError::new("Unable to serialize string containing null byte") })?;
+            .map_err(|_| SerError::new("Unable to serialize string containing null byte"))?;
         let bytes = c_str.as_bytes_with_nul();
         let num_bytes = mem.write(bytes)?;
         if size_hint > num_bytes {

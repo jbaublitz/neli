@@ -21,7 +21,11 @@ use crate::{
 /// Set of `Rtattr` structs
 pub struct Rtattrs<T, P>(Vec<Rtattr<T, P>>);
 
-impl<T, P> Rtattrs<T, P> where T: RtaType, P: Nl {
+impl<T, P> Rtattrs<T, P>
+where
+    T: RtaType,
+    P: Nl,
+{
     /// Create an empty `Rtattrs` set
     pub fn empty() -> Self {
         Rtattrs(Vec::new())
@@ -38,7 +42,11 @@ impl<T, P> Rtattrs<T, P> where T: RtaType, P: Nl {
     }
 }
 
-impl<T, P> IntoIterator for Rtattrs<T, P> where T: RtaType, P: Nl {
+impl<T, P> IntoIterator for Rtattrs<T, P>
+where
+    T: RtaType,
+    P: Nl,
+{
     type Item = Rtattr<T, P>;
     type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
 
@@ -47,10 +55,19 @@ impl<T, P> IntoIterator for Rtattrs<T, P> where T: RtaType, P: Nl {
     }
 }
 
-impl<T> Rtattrs<T, Vec<u8>> where T: RtaType {
+impl<T> Rtattrs<T, Vec<u8>>
+where
+    T: RtaType,
+{
     /// Get an attribute contained in the set as type `R`
-    pub fn get_attr_payload_as<R>(&self, attr_type: T) -> Result<Option<R>, DeError> where R: Nl {
-        let index = self.0.iter().position(|rtattr| rtattr.rta_type == attr_type);
+    pub fn get_attr_payload_as<R>(&self, attr_type: T) -> Result<Option<R>, DeError>
+    where
+        R: Nl,
+    {
+        let index = self
+            .0
+            .iter()
+            .position(|rtattr| rtattr.rta_type == attr_type);
         let elem = match index {
             Some(i) => self.0.get(i),
             None => return Ok(None),
