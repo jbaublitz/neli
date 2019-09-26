@@ -76,6 +76,8 @@ pub mod nlattr;
 pub mod rtnl;
 /// Wrapper for `libc` sockets
 pub mod socket;
+/// Module for high level stream interface
+pub mod stream;
 
 use std::ffi::CString;
 use std::io::{Read, Write};
