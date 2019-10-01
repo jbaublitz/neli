@@ -26,7 +26,7 @@ use std::marker::PhantomData;
 use std::mem::{size_of, zeroed};
 use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc::{self, c_int, c_void};
 
 use consts::{
