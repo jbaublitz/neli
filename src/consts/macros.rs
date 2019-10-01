@@ -99,7 +99,7 @@ macro_rules! impl_var {
         $name:ident, $ty:ty, $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
     ) => ( // with comments
         $(#[$outer])*
-        #[derive(Clone,Debug,Eq,PartialEq)]
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub enum $name {
             $(
                 $(
@@ -119,7 +119,7 @@ macro_rules! impl_var {
         $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
     ) => ( // without comments
         #[allow(missing_docs)]
-        #[derive(Clone,Debug,Eq,PartialEq)]
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub enum $name {
             #[allow(missing_docs)]
             $(
