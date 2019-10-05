@@ -9,7 +9,7 @@
 
 use std::mem;
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc;
 
 use crate::{

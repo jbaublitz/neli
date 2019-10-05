@@ -82,7 +82,7 @@ use std::io::{Read, Write};
 use std::mem;
 use std::str;
 
-pub use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+pub use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
 use consts::alignto;

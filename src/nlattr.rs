@@ -55,7 +55,7 @@
 
 use std::slice;
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 
 use consts::NlAttrType;
 use err::{DeError, NlError, SerError};

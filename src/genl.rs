@@ -12,7 +12,7 @@
 //! parsing at the top level when one `Nlattr` structure is not nested within another, a use case
 //! that is instead handled in `nlattr.rs`.
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 
 use consts::{Cmd, NlAttrType};
 use nlattr::{AttrHandle, Nlattr};

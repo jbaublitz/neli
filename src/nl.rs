@@ -10,7 +10,7 @@
 
 use std::mem;
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 
 use consts::{NlType, NlmF};
 use err::{DeError, SerError};

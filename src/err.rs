@@ -21,7 +21,7 @@ use std::io;
 use std::str;
 use std::string;
 
-use buffering::copy::{StreamReadBuffer, StreamWriteBuffer};
+use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc;
 
 use consts::NlType;
