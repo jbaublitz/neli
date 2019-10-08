@@ -351,10 +351,10 @@ impl NlSocket {
             // PID doesn't match
             Some(_) => return Err(NlError::BadPid),
         }
-        if self.seq.is_some() {
-            self.seq.map(|s| s + 1);
+        if let Some(seq) = self.seq.as_mut() {
+            *seq += 1;
         }
-        if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
+        if self.buffer.as_ref().map(|b| b.at_end()).unwrap_or(false) {
             self.buffer = None;
         }
         Ok(msg)
@@ -375,7 +375,12 @@ impl NlSocket {
                 if let Some(b) = self.buffer.as_mut() {
                     b.rewind()
                 }
-                Err(NlError::NoAck)
+                if ack.nl_type == consts::Nlmsg::Error {
+                    let err = std::io::Error::from_raw_os_error(-ack.nl_payload.error as _);
+                    Err(NlError::Msg(err.to_string()))
+                } else {
+                    Err(NlError::NoAck)
+                }
             }
         } else {
             Err(NlError::NoAck)
