@@ -19,6 +19,7 @@ use crate::{
 };
 
 /// Set of `Rtattr` structs
+#[derive(Debug)]
 pub struct Rtattrs<T, P>(Vec<Rtattr<T, P>>);
 
 impl<T, P> Rtattrs<T, P>
@@ -119,6 +120,7 @@ where
 }
 
 /// Struct representing interface information messages
+#[derive(Debug)]
 pub struct Ifinfomsg<T> {
     /// Interface address family
     pub ifi_family: RtAddrFamily,
@@ -237,6 +239,7 @@ where
 }
 
 /// Struct representing interface address messages
+#[derive(Debug)]
 pub struct Ifaddrmsg<T> {
     /// Interface address family
     pub ifa_family: RtAddrFamily,
@@ -315,6 +318,7 @@ where
 }
 
 /// General form of address family dependent message.  Used for requesting things from via rtnetlink.
+#[derive(Debug)]
 pub struct Rtgenmsg {
     /// Address family for the request
     pub rtgen_family: RtAddrFamily,
@@ -340,6 +344,7 @@ impl Nl for Rtgenmsg {
 }
 
 /// Route message
+#[derive(Debug)]
 pub struct Rtmsg<T> {
     /// Address family of route
     pub rtm_family: RtAddrFamily,
@@ -458,6 +463,7 @@ where
 }
 
 /// Represents an ARP (neighbor table) entry
+#[derive(Debug)]
 pub struct Ndmsg {
     /// Address family of entry
     pub ndm_family: RtAddrFamily,
@@ -536,6 +542,7 @@ impl Nl for Ndmsg {
 }
 
 /// Struct representing ARP cache info
+#[derive(Debug)]
 pub struct NdaCacheinfo {
     /// Confirmed
     pub ndm_confirmed: u32,
@@ -577,6 +584,7 @@ impl Nl for NdaCacheinfo {
 }
 
 /// Message in response to queuing discipline operations
+#[derive(Debug)]
 pub struct Tcmsg<T> {
     /// Family
     pub tcm_family: libc::c_uchar,
@@ -630,6 +638,7 @@ where
 }
 
 /// Struct representing route netlink attributes
+#[derive(Debug)]
 pub struct Rtattr<T, P> {
     /// Length of the attribute
     pub rta_len: libc::c_ushort,
