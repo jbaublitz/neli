@@ -359,7 +359,12 @@ impl NlSocket {
                 if let Some(b) = self.buffer.as_mut() {
                     b.rewind()
                 }
-                Err(NlError::NoAck)
+                if ack.nl_type == consts::Nlmsg::Error {
+                    let err = std::io::Error::from_raw_os_error(-ack.nl_payload.error as _);
+                    Err(NlError::Msg(err.to_string()))
+                } else {
+                    Err(NlError::NoAck)
+                }
             }
         } else {
             Err(NlError::NoAck)
