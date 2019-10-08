@@ -41,6 +41,7 @@ macro_rules! try_err_compat {
 }
 
 /// Struct representing netlink packets containing errors
+#[derive(Debug)]
 pub struct Nlmsgerr<T> {
     /// Error code
     pub error: libc::c_int,
