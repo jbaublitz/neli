@@ -341,8 +341,8 @@ impl NlSocket {
         } else if self.pid != Some(msg.nl_pid) {
             return Err(NlError::BadPid);
         }
-        if self.seq.is_some() {
-            self.seq.map(|s| s + 1);
+        if let Some(seq) = self.seq.as_mut() {
+            *seq += 1;
         }
         if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
             self.buffer = None;
