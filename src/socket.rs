@@ -354,16 +354,6 @@ impl NlSocket {
     pub fn recv_ack(&mut self) -> Result<(), NlError> {
         if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(None) {
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
-                if self.pid.is_none() {
-                    self.pid = Some(ack.nl_pid);
-                } else if self.pid != Some(ack.nl_pid) {
-                    return Err(NlError::BadPid);
-                }
-                if let Some(seq) = self.seq {
-                    if seq != ack.nl_seq {
-                        return Err(NlError::BadSeq);
-                    }
-                }
                 Ok(())
             } else {
                 if let Some(b) = self.buffer.as_mut() {
