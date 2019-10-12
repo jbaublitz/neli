@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Additions
+* NFLOG support, in the `netfilter` module.
+
 ## 0.4.3
 ### Breaking changes
 * Change `Nlattr.add_nested_attribute()` to take a reference

@@ -37,6 +37,7 @@ mod macros;
 /// Constants related to generic netlink
 pub mod genl;
 pub use crate::consts::genl::*;
+pub mod netfilter;
 /// Constants related to generic netlink attributes
 pub mod nlattr;
 pub use crate::consts::nlattr::*;
