@@ -336,9 +336,9 @@ impl NlSocket {
             Some(ref mut b) => Nlmsghdr::deserialize(b)?,
             None => unreachable!(),
         };
-        if self.pid.is_none() {
+        if self.pid.is_none() && msg.nl_pid != 0 {
             self.pid = Some(msg.nl_pid);
-        } else if self.pid != Some(msg.nl_pid) {
+        } else if self.pid != Some(msg.nl_pid) && msg.nl_pid != 0 {
             return Err(NlError::BadPid);
         }
         if self.seq.is_some() {
@@ -354,9 +354,9 @@ impl NlSocket {
     pub fn recv_ack(&mut self) -> Result<(), NlError> {
         if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(None) {
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
-                if self.pid.is_none() {
+                if self.pid.is_none() && ack.nl_pid != 0 {
                     self.pid = Some(ack.nl_pid);
-                } else if self.pid != Some(ack.nl_pid) {
+                } else if self.pid != Some(ack.nl_pid) && ack.nl_pid != 0 {
                     return Err(NlError::BadPid);
                 }
                 if let Some(seq) = self.seq {
