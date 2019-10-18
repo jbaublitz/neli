@@ -101,8 +101,9 @@ where
         let nl_seq = u32::deserialize(mem)?;
         let nl_pid = u32::deserialize(mem)?;
         let nl_payload = {
-            let payload_len = nl_len as usize
-                - (nl_len.size() + nl_type.size() + 0u16.size() + nl_seq.size() + nl_pid.size());
+            let payload_len = (nl_len as usize).checked_sub(
+                nl_len.size() + nl_type.size() + 0u16.size() + nl_seq.size() + nl_pid.size(),
+            ).ok_or_else(|| DeError::new("Packet reported shorter length than netlink header - make sure you are receiving the correct type from the socket"))?;
             mem.set_size_hint(payload_len);
             P::deserialize(mem)?
         };
