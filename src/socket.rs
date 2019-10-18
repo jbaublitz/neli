@@ -192,7 +192,7 @@ impl NlSocket {
 
     /// Send message encoded as byte slice to the netlink ID specified in the netlink header
     /// (`neli::nl::Nlmsghdr`)
-    pub fn send<B>(&mut self, buf: B, flags: i32) -> Result<libc::ssize_t, io::Error>
+    pub fn send<B>(&mut self, buf: B, flags: i32) -> Result<libc::size_t, io::Error>
     where
         B: AsRef<[u8]>,
     {
@@ -204,13 +204,13 @@ impl NlSocket {
                 flags,
             )
         } {
-            i if i >= 0 => Ok(i),
+            i if i >= 0 => Ok(i as libc::size_t),
             _ => Err(io::Error::last_os_error()),
         }
     }
 
     /// Receive message encoded as byte slice from the netlink socket
-    pub fn recv<B>(&mut self, mut buf: B, flags: i32) -> Result<libc::ssize_t, io::Error>
+    pub fn recv<B>(&mut self, mut buf: B, flags: i32) -> Result<libc::size_t, io::Error>
     where
         B: AsMut<[u8]>,
     {
@@ -222,7 +222,7 @@ impl NlSocket {
                 flags,
             )
         } {
-            i if i >= 0 => Ok(i),
+            i if i >= 0 => Ok(i as libc::size_t),
             _ => Err(io::Error::last_os_error()),
         }
     }
