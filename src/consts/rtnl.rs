@@ -243,8 +243,11 @@ impl_var_trait!(
     Port => libc::NDA_PORT,
     Vni => libc::NDA_VNI,
     Ifindex => libc::NDA_IFINDEX,
+    #[cfg(target_env="gnu")]
     Master => libc::NDA_MASTER,
+    #[cfg(target_env="gnu")]
     LinkNetnsid => libc::NDA_LINK_NETNSID,
+    #[cfg(target_env="gnu")]
     SrcVni => libc::NDA_SRC_VNI
 );
 
