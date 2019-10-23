@@ -121,7 +121,7 @@ where
 
 /// Struct representing interface information messages
 #[derive(Debug)]
-pub struct Ifinfomsg<T> {
+pub struct Ifinfomsg {
     /// Interface address family
     pub ifi_family: RtAddrFamily,
     /// Interface type
@@ -132,20 +132,17 @@ pub struct Ifinfomsg<T> {
     pub ifi_flags: Vec<Iff>,
     ifi_change: libc::c_uint,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<T, Vec<u8>>,
+    pub rtattrs: Rtattrs<Ifla, Vec<u8>>,
 }
 
-impl<T> Ifinfomsg<T>
-where
-    T: RtaType,
-{
+impl Ifinfomsg {
     /// Create a fully initialized interface info struct
     pub fn new(
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
         ifi_flags: Vec<Iff>,
-        rtattrs: Rtattrs<T, Vec<u8>>,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
@@ -158,10 +155,7 @@ where
     }
 }
 
-impl<T> Nl for Ifinfomsg<T>
-where
-    T: RtaType,
-{
+impl Nl for Ifinfomsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifi_family.serialize(buf)?;
         0u8.serialize(buf)?; // padding
@@ -214,7 +208,7 @@ where
             )
             .ok_or_else(|| DeError::new(&format!("Truncated Ifinfomsg size_hint {}", size_hint)))?;
         buf.set_size_hint(size_hint);
-        let rtattrs = Rtattrs::<T, Vec<u8>>::deserialize(buf)?;
+        let rtattrs = Rtattrs::<Ifla, Vec<u8>>::deserialize(buf)?;
 
         Ok(Ifinfomsg {
             ifi_family,
@@ -240,7 +234,7 @@ where
 
 /// Struct representing interface address messages
 #[derive(Debug)]
-pub struct Ifaddrmsg<T> {
+pub struct Ifaddrmsg {
     /// Interface address family
     pub ifa_family: RtAddrFamily,
     /// Interface address prefix length
@@ -252,13 +246,10 @@ pub struct Ifaddrmsg<T> {
     /// Interface address index
     pub ifa_index: libc::c_int,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<T, Vec<u8>>,
+    pub rtattrs: Rtattrs<Ifa, Vec<u8>>,
 }
 
-impl<T> Nl for Ifaddrmsg<T>
-where
-    T: RtaType,
-{
+impl Nl for Ifaddrmsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ifa_family.serialize(buf)?;
         self.ifa_prefixlen.serialize(buf)?;
@@ -345,7 +336,7 @@ impl Nl for Rtgenmsg {
 
 /// Route message
 #[derive(Debug)]
-pub struct Rtmsg<T> {
+pub struct Rtmsg {
     /// Address family of route
     pub rtm_family: RtAddrFamily,
     /// Length of destination
@@ -365,13 +356,10 @@ pub struct Rtmsg<T> {
     /// Routing flags
     pub rtm_flags: Vec<RtmF>,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<T, Vec<u8>>,
+    pub rtattrs: Rtattrs<Rta, Vec<u8>>,
 }
 
-impl<T> Nl for Rtmsg<T>
-where
-    T: RtaType,
-{
+impl Nl for Rtmsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.rtm_family.serialize(buf)?;
         self.rtm_dst_len.serialize(buf)?;
@@ -432,7 +420,7 @@ where
                 - rtm_type.size()
                 - mem::size_of::<libc::c_int>(),
         );
-        let rtattrs = Rtattrs::<T, Vec<u8>>::deserialize(buf)?;
+        let rtattrs = Rtattrs::<Rta, Vec<u8>>::deserialize(buf)?;
 
         Ok(Rtmsg {
             rtm_family,
@@ -585,7 +573,7 @@ impl Nl for NdaCacheinfo {
 
 /// Message in response to queuing discipline operations
 #[derive(Debug)]
-pub struct Tcmsg<T> {
+pub struct Tcmsg {
     /// Family
     pub tcm_family: libc::c_uchar,
     /// Interface index
@@ -597,13 +585,10 @@ pub struct Tcmsg<T> {
     /// Info
     pub tcm_info: u32,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<T, Vec<u8>>,
+    pub rtattrs: Rtattrs<Tca, Vec<u8>>,
 }
 
-impl<T> Nl for Tcmsg<T>
-where
-    T: RtaType,
-{
+impl Nl for Tcmsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.tcm_family.serialize(buf)?;
         self.tcm_ifindex.serialize(buf)?;
@@ -624,7 +609,7 @@ where
             tcm_handle: u32::deserialize(buf)?,
             tcm_parent: u32::deserialize(buf)?,
             tcm_info: u32::deserialize(buf)?,
-            rtattrs: Rtattrs::<T, Vec<u8>>::deserialize(buf)?,
+            rtattrs: Rtattrs::<Tca, Vec<u8>>::deserialize(buf)?,
         })
     }
 

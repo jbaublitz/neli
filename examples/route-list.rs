@@ -9,7 +9,7 @@ use neli::nl::Nlmsghdr;
 use neli::rtnl::*;
 use neli::socket::*;
 
-fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
+fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
     // This sample is only interested in the main table.
     if rtm.nl_payload.rtm_table == RtTable::Main {
         let mut src = None;
@@ -63,7 +63,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg<Rta>>) {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocket::connect(NlFamily::Route, None, None, true).unwrap();
 
-    let rtmsg: Rtmsg<Rta> = Rtmsg {
+    let rtmsg = Rtmsg {
         rtm_family: RtAddrFamily::Inet,
         rtm_dst_len: 0,
         rtm_src_len: 0,
@@ -87,11 +87,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     socket.send_nl(nlhdr).unwrap();
 
     // Provisionally deserialize as a Nlmsg first.
-    let nl = socket.recv_nl::<Rtm, Rtmsg<Rta>>(None)?;
+    let nl = socket.recv_nl::<Rtm, Rtmsg>(None)?;
     let multi_msg = nl.nl_flags.contains(&NlmF::Multi);
     parse_route_table(nl);
     if multi_msg {
-        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg<Rta>>(None) {
+        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg>(None) {
             match Nlmsg::from(nl.nl_type) {
                 Nlmsg::Done => return Ok(()),
                 Nlmsg::Error => return Err(Box::new(NlError::new("rtnetlink error."))),
