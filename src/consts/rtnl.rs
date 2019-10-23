@@ -144,7 +144,8 @@ impl_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `Rtattr.rta_type`
+    /// Enum for use with `Rtattr.rta_type`.
+    /// Values are interface information message attributes. Used with `Ifinfomsg`.
     Ifla, libc::c_ushort, RtaType,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
@@ -157,7 +158,8 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `Rtattr.rta_type`
+    /// Enum for use with `Rtattr.rta_type`.
+    /// Values are interface address message attributes. Used with `Ifaddrmsg`.
     Ifa, libc::c_ushort, RtaType,
     Unspec => libc::IFA_UNSPEC,
     Address => libc::IFA_ADDRESS,
@@ -172,8 +174,8 @@ impl_var_trait!(
 );
 
 impl_var_trait!(
-    /// Enum for use with `Rtattr.rta_type` -
-    /// Values are routing message attributes
+    /// Enum for use with `Rtattr.rta_type`.
+    /// Values are routing message attributes. Used with `Rtmsg`.
     Rta, libc::c_ushort, RtaType,
     Unspec => libc::RTA_UNSPEC,
     Dst => libc::RTA_DST,
@@ -215,7 +217,7 @@ impl_var_trait!(
 
 impl_var_trait!(
     /// Enum for use with `Rtattr.rta_type` -
-    /// Values specify queuing discipline attributes
+    /// Values specify queuing discipline attributes. Used with `Tcmsg`.
     Tca, libc::c_ushort, RtaType,
     Unspec => libc::TCA_UNSPEC,
     Kind => libc::TCA_KIND,
