@@ -344,7 +344,7 @@ impl NlSocket {
         if let Some(seq) = self.seq.as_mut() {
             *seq += 1;
         }
-        if let Some(true) = self.buffer.as_ref().map(|b| b.at_end()) {
+        if self.buffer.as_ref().map(|b| b.at_end()).unwrap_or(false) {
             self.buffer = None;
         }
         Ok(msg)
