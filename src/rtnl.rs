@@ -535,7 +535,7 @@ impl Nl for Ndmsg {
                 - ndm_index.size()
                 - mem::size_of::<u16>() // ndm_state
                 - mem::size_of::<u8>() // ndm_flags
-                - ndm_type.size()
+                - ndm_type.size(),
         );
 
         let rtattrs = Rtattrs::<Nda, Vec<u8>>::deserialize(buf)?;
