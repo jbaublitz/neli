@@ -146,6 +146,11 @@ impl NlSocket {
 
     /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
     /// man pages for more information on netlink IDs and groups.
+    ///
+    /// The pid parameter sets PID checking.
+    /// * `None` means checking is off.
+    /// * `Some(0)` turns checking on, but takes the PID from the first received message.
+    /// * `Some(pid)` uses the given PID.
     pub fn bind(&mut self, pid: Option<u32>, groups: Option<Vec<u32>>) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
@@ -336,10 +341,15 @@ impl NlSocket {
             Some(ref mut b) => Nlmsghdr::deserialize(b)?,
             None => unreachable!(),
         };
-        if self.pid.is_none() && msg.nl_pid != 0 {
-            self.pid = Some(msg.nl_pid);
-        } else if self.pid != Some(msg.nl_pid) && msg.nl_pid != 0 {
-            return Err(NlError::BadPid);
+        match self.pid {
+            // PID checking turned off.
+            None => (),
+            // No PID set yet, store the current one.
+            Some(0) => self.pid = Some(msg.nl_pid),
+            // PID check OK
+            Some(pid) if pid == msg.nl_pid => (),
+            // PID doesn't match
+            Some(_) => return Err(NlError::BadPid),
         }
         if self.seq.is_some() {
             self.seq.map(|s| s + 1);
@@ -354,11 +364,7 @@ impl NlSocket {
     pub fn recv_ack(&mut self) -> Result<(), NlError> {
         if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(None) {
             if ack.nl_type == consts::Nlmsg::Error && ack.nl_payload.error == 0 {
-                if self.pid.is_none() && ack.nl_pid != 0 {
-                    self.pid = Some(ack.nl_pid);
-                } else if self.pid != Some(ack.nl_pid) && ack.nl_pid != 0 {
-                    return Err(NlError::BadPid);
-                }
+                // PID check done as part of recv_nl already
                 if let Some(seq) = self.seq {
                     if seq != ack.nl_seq {
                         return Err(NlError::BadSeq);
