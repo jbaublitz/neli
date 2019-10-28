@@ -462,7 +462,7 @@ pub struct Ndmsg {
     /// Flags for entry
     pub ndm_flags: Vec<Ntf>,
     /// Type of entry
-    pub ndm_type: u8,
+    pub ndm_type: Rtn,
     /// Payload of `Rtattr`s
     pub rtattrs: Rtattrs<Nda, Vec<u8>>,
 }
@@ -526,7 +526,7 @@ impl Nl for Ndmsg {
             }
             ndm_flags
         };
-        let ndm_type = u8::deserialize(buf)?;
+        let ndm_type = Rtn::deserialize(buf)?;
 
         buf.set_size_hint(
             size_hint
