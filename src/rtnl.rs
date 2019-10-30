@@ -463,11 +463,15 @@ pub struct Ndmsg {
     pub ndm_flags: Vec<Ntf>,
     /// Type of entry
     pub ndm_type: Rtn,
+    /// Payload of `Rtattr`s
+    pub rtattrs: Rtattrs<Nda, Vec<u8>>,
 }
 
 impl Nl for Ndmsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.ndm_family.serialize(buf)?;
+        0u8.serialize(buf)?; // padding
+        0u16.serialize(buf)?; // padding
         self.ndm_index.serialize(buf)?;
         self.ndm_state
             .iter()
@@ -484,6 +488,7 @@ impl Nl for Ndmsg {
             })
             .serialize(buf)?;
         self.ndm_type.serialize(buf)?;
+        self.rtattrs.serialize(buf)?;
         Ok(())
     }
 
@@ -491,41 +496,68 @@ impl Nl for Ndmsg {
     where
         B: AsRef<[u8]>,
     {
+        let size_hint = buf
+            .take_size_hint()
+            .ok_or_else(|| DeError::new("Must provide size hint to deserialize Ndmsg"))?;
+
+        let ndm_family = RtAddrFamily::deserialize(buf)?;
+        u8::deserialize(buf)?; // padding
+        u16::deserialize(buf)?; // padding
+        let ndm_index = libc::c_int::deserialize(buf)?;
+        let ndm_state = {
+            let state = u16::deserialize(buf)?;
+            let mut ndm_state = Vec::new();
+            for i in 0..mem::size_of::<u16>() * 8 {
+                let bit = 1 << i;
+                if bit & state == bit {
+                    ndm_state.push((bit as u16).into());
+                }
+            }
+            ndm_state
+        };
+        let ndm_flags = {
+            let flags = u8::deserialize(buf)?;
+            let mut ndm_flags = Vec::new();
+            for i in 0..mem::size_of::<u8>() * 8 {
+                let bit = 1 << i;
+                if bit & flags == bit {
+                    ndm_flags.push((bit as u8).into());
+                }
+            }
+            ndm_flags
+        };
+        let ndm_type = Rtn::deserialize(buf)?;
+
+        buf.set_size_hint(
+            size_hint
+                - ndm_family.size()
+                - 3 // padding of u8 + u16
+                - ndm_index.size()
+                - mem::size_of::<u16>() // ndm_state
+                - mem::size_of::<u8>() // ndm_flags
+                - ndm_type.size(),
+        );
+
+        let rtattrs = Rtattrs::<Nda, Vec<u8>>::deserialize(buf)?;
+
         Ok(Ndmsg {
-            ndm_family: RtAddrFamily::deserialize(buf)?,
-            ndm_index: libc::c_int::deserialize(buf)?,
-            ndm_state: {
-                let state = u16::deserialize(buf)?;
-                let mut ndm_state = Vec::new();
-                for i in 0..mem::size_of::<u16>() * 8 {
-                    let bit = 1 << i;
-                    if bit & state == bit {
-                        ndm_state.push((bit as u16).into());
-                    }
-                }
-                ndm_state
-            },
-            ndm_flags: {
-                let flags = u8::deserialize(buf)?;
-                let mut ndm_flags = Vec::new();
-                for i in 0..mem::size_of::<u8>() * 8 {
-                    let bit = 1 << i;
-                    if bit & flags == bit {
-                        ndm_flags.push((bit as u8).into());
-                    }
-                }
-                ndm_flags
-            },
-            ndm_type: Rtn::deserialize(buf)?,
+            ndm_family,
+            ndm_index,
+            ndm_state,
+            ndm_flags,
+            ndm_type,
+            rtattrs,
         })
     }
 
     fn size(&self) -> usize {
         self.ndm_family.size()
+            + 3 // padding of u8 + u16
             + self.ndm_index.size()
-            + mem::size_of::<u16>()
-            + mem::size_of::<u8>()
+            + mem::size_of::<u16>() // ndm_state
+            + mem::size_of::<u8>() // ndm_flags
             + self.ndm_type.size()
+            + self.rtattrs.asize()
     }
 }
 

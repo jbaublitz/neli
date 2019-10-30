@@ -230,6 +230,27 @@ impl_var_trait!(
     Stab => libc::TCA_STAB
 );
 
+impl_var_trait!(
+    /// Enum for use with `Rtattr.rta_type` -
+    /// Values specify neighbor table attributes
+    Nda, libc::c_ushort, RtaType,
+    Unspec => libc::NDA_UNSPEC,
+    Dst => libc::NDA_DST,
+    Lladdr => libc::NDA_LLADDR,
+    Cacheinfo => libc::NDA_CACHEINFO,
+    Probes => libc::NDA_PROBES,
+    Vlan => libc::NDA_VLAN,
+    Port => libc::NDA_PORT,
+    Vni => libc::NDA_VNI,
+    Ifindex => libc::NDA_IFINDEX,
+    #[cfg(target_env="gnu")]
+    Master => libc::NDA_MASTER,
+    #[cfg(target_env="gnu")]
+    LinkNetnsid => libc::NDA_LINK_NETNSID,
+    #[cfg(target_env="gnu")]
+    SrcVni => libc::NDA_SRC_VNI
+);
+
 impl_var!(
     /// Interface types
     Arphrd, libc::c_ushort,
