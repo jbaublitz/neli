@@ -13,6 +13,7 @@
 //! code.
 //! * `genl` - This code provides parsing for the generic netlink subsystem of the netlink
 //! protocol.
+//! * `netfilter` - Netfilter related protocols (NFLOG, NFQUEUE, CONNTRACK).
 //! * `nlattr` - This code provides more granular parsing methods for the generic netlink
 //! attributes in the context of generic netlink requests and responses.
 //! * `nl` - This is the top level netlink header code that handles the header that all netlink
@@ -68,6 +69,7 @@ pub mod consts;
 pub mod err;
 /// Genetlink (generic netlink) header and attribute helpers
 pub mod genl;
+pub mod netfilter;
 /// Top-level netlink header
 pub mod nl;
 /// Netlink attribute handler
