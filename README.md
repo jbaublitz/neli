@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/jbaublitz/neli.svg?branch=master)](https://travis-ci.org/jbaublitz/neli) [![Latest Version](https://img.shields.io/crates/v/neli.svg)](https://crates.io/crates/neli) [![Documentation](https://docs.rs/neli)](https://docs.rs/neli/badge.svg)
+[![Build Status](https://travis-ci.org/jbaublitz/neli.svg?branch=master)](https://travis-ci.org/jbaublitz/neli) [![Latest Version](https://img.shields.io/crates/v/neli.svg)](https://crates.io/crates/neli) [![Documentation](https://docs.rs/neli/badge.svg)](https://docs.rs/neli)
 
 # neli
 Type safe netlink library for Rust
