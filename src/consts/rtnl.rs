@@ -8,6 +8,7 @@ impl_var!(
 impl_var!(
     /// General address families for sockets
     RtAddrFamily, u8,
+    Unspecified => libc::AF_UNSPEC as u8,
     UnixOrLocal => libc::AF_UNIX as u8,
     Inet => libc::AF_INET as u8,
     Inet6 => libc::AF_INET6 as u8,
