@@ -129,7 +129,8 @@ pub struct Ifinfomsg {
     pub ifi_index: libc::c_int,
     /// Interface flags
     pub ifi_flags: Vec<Iff>,
-    ifi_change: libc::c_uint,
+    /// Change mask
+    pub ifi_change: libc::c_uint,
     /// Payload of `Rtattr`s
     pub rtattrs: Rtattrs<Ifla, Vec<u8>>,
 }
@@ -151,6 +152,11 @@ impl Ifinfomsg {
             ifi_change: 0xffff_ffff,
             rtattrs,
         }
+    }
+
+    /// Set change mask
+    pub fn set_ifi_change(&mut self, ifi_change: libc::c_uint) {
+        self.ifi_change = ifi_change;
     }
 }
 
