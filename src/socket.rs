@@ -423,7 +423,6 @@ pub mod tokio {
     use super::*;
 
     use mio::{self, Evented};
-    use pin_project::pin_project;
     use std::io::Write;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -432,15 +431,20 @@ pub mod tokio {
     use tokio_net::util::PollEvented;
 
     /// Tokio-enabled Netlink socket struct
-    #[pin_project]
     pub struct NlSocket<T, P> {
-        #[pin]
         socket: PollEvented<super::NlSocket>,
         buffer: Option<StreamReadBuffer<Vec<u8>>>,
         write_buffer: Vec<u8>,
         write_pos: usize,
         type_data: PhantomData<T>,
         payload_data: PhantomData<P>,
+    }
+
+    impl<T, P> Unpin for NlSocket<T, P>
+    where
+        T: NlType,
+        P: Nl,
+    {
     }
 
     impl<T, P> NlSocket<T, P>
@@ -479,24 +483,22 @@ pub mod tokio {
     {
         type Item = std::io::Result<Nlmsghdr<T, P>>;
 
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
             let empty = self.empty();
-            let this = self.project();
-            let socket = this.socket;
-            let buffer = this.buffer;
             if empty {
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_read = match socket.poll_read(cx, mem.as_mut_slice()) {
+                let bytes_read = match Pin::new(&mut self.socket).poll_read(cx, mem.as_mut_slice())
+                {
                     Poll::Ready(Ok(0)) => return Poll::Ready(None),
                     Poll::Ready(Ok(i)) => i,
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
                 };
                 mem.truncate(bytes_read);
-                *buffer = Some(StreamReadBuffer::new(mem));
+                self.buffer = Some(StreamReadBuffer::new(mem));
             }
 
-            match buffer {
+            match self.buffer {
                 Some(ref mut buf) => {
                     Poll::Ready(Some(Ok(Nlmsghdr::<T, P>::deserialize(buf)
                         .map_err(|_| io::ErrorKind::InvalidData)?)))
@@ -513,10 +515,11 @@ pub mod tokio {
     {
         type Error = io::Error;
 
-        fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            let this = self.project();
-            let socket = this.socket;
-            match socket.poll_write_ready(cx) {
+        fn poll_ready(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            match Pin::new(&mut self.socket).poll_write_ready(cx) {
                 Poll::Ready(Ok(_)) => Poll::Ready(Ok(())),
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
@@ -534,16 +537,24 @@ pub mod tokio {
             Ok(())
         }
 
-        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            let this = self.project();
-            let socket = this.socket;
-            let buffer = this.write_buffer;
-            let write_pos = this.write_pos;
-            let buffer: &[u8] = buffer.as_ref();
-            match socket.poll_write(cx, &buffer[0..*write_pos]) {
-                Poll::Ready(Ok(size)) if size <= *write_pos => {
-                    *write_pos -= size;
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            let write_pos = self.write_pos;
+            let mut l_buffer: Vec<u8> = vec![];
+            std::mem::swap(&mut l_buffer, &mut self.write_buffer);
+            let buffer: &[u8] = l_buffer.as_ref();
+            match Pin::new(&mut self.socket).poll_write(cx, &buffer[0..write_pos]) {
+                Poll::Ready(Ok(size)) if size == write_pos => {
+                    self.write_pos = 0;
+                    std::mem::swap(&mut l_buffer, &mut self.write_buffer);
                     Poll::Ready(Ok(()))
+                }
+                Poll::Ready(Ok(size)) if size < write_pos => {
+                    self.write_pos -= size;
+                    std::mem::swap(&mut l_buffer, &mut self.write_buffer);
+                    Poll::Pending
                 }
                 Poll::Ready(Ok(_)) => unreachable!(),
                 Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
