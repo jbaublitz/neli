@@ -61,9 +61,11 @@ extern crate libc;
 #[cfg(feature = "stream")]
 extern crate mio;
 #[cfg(feature = "stream")]
+extern crate pin_project;
+#[cfg(feature = "stream")]
 extern crate tokio;
+#[cfg(feature = "stream")]
 extern crate tokio_net;
-
 /// C constants defined as types
 pub mod consts;
 /// Error module

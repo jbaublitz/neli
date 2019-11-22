@@ -20,12 +20,16 @@ path = "src/lib.rs"
 byteorder = "1.2"
 libc = "0.2.66"
 
+[dependencies.pin-project]
+version = "0.4"
+optional = true
+
 [dependencies.tokio]
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.6"
 optional = true
 
 [dependencies.tokio-net]
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.6"
 optional = true
 
 [dependencies.mio]
@@ -38,4 +42,4 @@ features = ["copy"]
 
 [features]
 default = []
-stream = ["tokio", "mio", "tokio-net"]
+stream = ["tokio", "mio", "tokio-net", "pin-project"]
