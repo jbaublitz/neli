@@ -8,7 +8,7 @@ use neli::consts;
 use neli::genl::Genlmsghdr;
 use neli::socket;
 #[cfg(feature = "stream")]
-use tokio::prelude::{Future, Stream};
+use tokio::prelude::*;
 
 #[cfg(feature = "stream")]
 fn debug_stream() -> Result<(), neli::err::NlError> {
@@ -27,13 +27,13 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
     let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s)?;
-    tokio::run(
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(
         ss.for_each(|next| {
             println!("{:?}", next);
-            Ok(())
+            tokio::future::ready(())
         })
-        .map(|_| ())
-        .map_err(|_| ()),
+        .map(|_| ()),
     );
     Ok(())
 }
