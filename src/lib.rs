@@ -57,13 +57,18 @@
 
 extern crate buffering;
 extern crate byteorder;
+#[cfg(feature = "stream")]
+extern crate futures_core;
+#[cfg(feature = "stream")]
+extern crate futures_sink;
 extern crate libc;
 #[cfg(feature = "stream")]
 extern crate mio;
 #[cfg(feature = "stream")]
-extern crate tokio;
+extern crate pin_project_lite;
 #[cfg(feature = "stream")]
-extern crate tokio_net;
+extern crate tokio;
+
 /// C constants defined as types
 pub mod consts;
 /// Error module
