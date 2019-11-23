@@ -422,29 +422,27 @@ pub mod tokio {
     //! This module contains a struct that wraps `NlSocket` for async IO.
     use super::*;
 
+    use futures_core::Stream;
+    use futures_sink::Sink;
     use mio::{self, Evented};
-    use std::io::Write;
+    use pin_project_lite::pin_project;
+    use std::io::{Error, Write};
     use std::pin::Pin;
     use std::task::{Context, Poll};
-    use tokio::io::Error;
-    use tokio::prelude::{AsyncRead, AsyncWrite, Sink, Stream};
-    use tokio_net::util::PollEvented;
+    use tokio::io::PollEvented;
+    use tokio::io::{AsyncRead, AsyncWrite};
 
-    /// Tokio-enabled Netlink socket struct
-    pub struct NlSocket<T, P> {
-        socket: PollEvented<super::NlSocket>,
-        buffer: Option<StreamReadBuffer<Vec<u8>>>,
-        write_buffer: Vec<u8>,
-        write_pos: usize,
-        type_data: PhantomData<T>,
-        payload_data: PhantomData<P>,
-    }
-
-    impl<T, P> Unpin for NlSocket<T, P>
-    where
-        T: NlType,
-        P: Nl,
-    {
+    pin_project! {
+        /// Tokio-enabled Netlink socket struct
+        pub struct NlSocket<T, P> {
+            #[pin]
+            socket: PollEvented<super::NlSocket>,
+            buffer: Option<StreamReadBuffer<Vec<u8>>>,
+            write_buffer: Vec<u8>,
+            write_pos: usize,
+            type_data: PhantomData<T>,
+            payload_data: PhantomData<P>,
+        }
     }
 
     impl<T, P> NlSocket<T, P>
@@ -457,7 +455,7 @@ pub mod tokio {
                 sock.nonblock()?;
             }
             Ok(NlSocket {
-                socket: PollEvented::new(sock),
+                socket: PollEvented::new(sock)?,
                 buffer: None,
                 write_buffer: vec![0u8; MAX_NL_LENGTH],
                 write_pos: 0,
@@ -483,22 +481,24 @@ pub mod tokio {
     {
         type Item = std::io::Result<Nlmsghdr<T, P>>;
 
-        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
             let empty = self.empty();
+            let this = self.project();
+            let socket = this.socket;
+            let buffer = this.buffer;
             if empty {
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_read = match Pin::new(&mut self.socket).poll_read(cx, mem.as_mut_slice())
-                {
+                let bytes_read = match socket.poll_read(cx, mem.as_mut_slice()) {
                     Poll::Ready(Ok(0)) => return Poll::Ready(None),
                     Poll::Ready(Ok(i)) => i,
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
                 };
                 mem.truncate(bytes_read);
-                self.buffer = Some(StreamReadBuffer::new(mem));
+                *buffer = Some(StreamReadBuffer::new(mem));
             }
 
-            match self.buffer {
+            match buffer {
                 Some(ref mut buf) => {
                     Poll::Ready(Some(Ok(Nlmsghdr::<T, P>::deserialize(buf)
                         .map_err(|_| io::ErrorKind::InvalidData)?)))
@@ -537,24 +537,16 @@ pub mod tokio {
             Ok(())
         }
 
-        fn poll_flush(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            let write_pos = self.write_pos;
-            let mut l_buffer: Vec<u8> = vec![];
-            std::mem::swap(&mut l_buffer, &mut self.write_buffer);
-            let buffer: &[u8] = l_buffer.as_ref();
-            match Pin::new(&mut self.socket).poll_write(cx, &buffer[0..write_pos]) {
-                Poll::Ready(Ok(size)) if size == write_pos => {
-                    self.write_pos = 0;
-                    std::mem::swap(&mut l_buffer, &mut self.write_buffer);
+        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            let this = self.project();
+            let socket = this.socket;
+            let buffer = this.write_buffer;
+            let write_pos = this.write_pos;
+            let buffer: &[u8] = buffer.as_ref();
+            match socket.poll_write(cx, &buffer[0..*write_pos]) {
+                Poll::Ready(Ok(size)) if size <= *write_pos => {
+                    *write_pos -= size;
                     Poll::Ready(Ok(()))
-                }
-                Poll::Ready(Ok(size)) if size < write_pos => {
-                    self.write_pos -= size;
-                    std::mem::swap(&mut l_buffer, &mut self.write_buffer);
-                    Poll::Pending
                 }
                 Poll::Ready(Ok(_)) => unreachable!(),
                 Poll::Ready(Err(err)) => Poll::Ready(Err(err)),

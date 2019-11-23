@@ -1,14 +1,16 @@
+#[cfg(feature = "stream")]
+extern crate futures_util;
 extern crate neli;
 #[cfg(feature = "stream")]
 extern crate tokio;
 
 use std::env;
 
+#[cfg(feature = "stream")]
+use futures_util::{FutureExt, StreamExt};
 use neli::consts;
 use neli::genl::Genlmsghdr;
 use neli::socket;
-#[cfg(feature = "stream")]
-use tokio::prelude::*;
 
 #[cfg(feature = "stream")]
 fn debug_stream() -> Result<(), neli::err::NlError> {
@@ -27,11 +29,11 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
     let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s)?;
-    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(
         ss.for_each(|next| {
             println!("{:?}", next);
-            tokio::future::ready(())
+            futures_util::future::ready(())
         })
         .map(|_| ()),
     );
