@@ -154,9 +154,38 @@ impl Ifinfomsg {
         }
     }
 
-    /// Set change mask
-    pub fn set_ifi_change(&mut self, ifi_change: libc::c_uint) {
-        self.ifi_change = ifi_change;
+    /// Set the link with the given index up (equivalent to `ip link set dev DEV up`)
+    pub fn up(
+        ifi_family: RtAddrFamily,
+        ifi_type: Arphrd,
+        ifi_index: libc::c_int,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    ) -> Self {
+        Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags: vec![Iff::Up],
+            ifi_change: Iff::Up.into(),
+            rtattrs,
+        }
+    }
+
+    /// Set the link with the given index down (equivalent to `ip link set dev DEV down`)
+    pub fn down(
+        ifi_family: RtAddrFamily,
+        ifi_type: Arphrd,
+        ifi_index: libc::c_int,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    ) -> Self {
+        Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags: Vec::new(),
+            ifi_change: Iff::Up.into(),
+            rtattrs,
+        }
     }
 }
 
