@@ -21,7 +21,7 @@ byteorder = "1.2"
 libc = "0.2.66"
 
 [dependencies.tokio]
-git = "https://github.com/tokio-rs/tokio.git"
+version = "0.2"
 features = ["io-driver"]
 optional = true
 
@@ -30,15 +30,15 @@ version = "0.6.20"
 optional = true
 
 [dependencies.futures-core]
-version = "0.3.0"
+version = "0.3"
 optional = true
 
 [dependencies.futures-sink]
-version = "0.3.0"
+version = "0.3"
 optional = true
 
 [dependencies.futures-util]
-version = "0.3.0"
+version = "0.3"
 default-features = false
 optional = true
 
