@@ -157,6 +157,24 @@ impl_var_trait!(
     Stats => libc::IFLA_STATS
 );
 
+impl_trait!(
+    /// Marker trait for `Rtattr.rta_type` field
+    IflaInfoType,
+    libc::c_ushort
+);
+
+impl_var_trait!(
+    /// Enum for use with `Rtattr.rta_type`.
+    /// Values are nested attributes to IFLA_LINKMODE.
+    IflaInfo, libc::c_ushort, IflaInfoType,
+    Unspec => libc::IFLA_INFO_UNSPEC,
+    Kind => libc::IFLA_INFO_KIND,
+    Data => libc::IFLA_INFO_DATA,
+    Xstats => libc::IFLA_INFO_XSTATS,
+    SlaveKind => libc::IFLA_INFO_SLAVE_KIND,
+    SlaveData => libc::IFLA_INFO_SLAVE_DATA
+);
+
 impl_var_trait!(
     /// Enum for use with `Rtattr.rta_type`.
     /// Values are interface address message attributes. Used with `Ifaddrmsg`.
