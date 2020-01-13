@@ -24,7 +24,7 @@
 use std::io;
 use std::marker::PhantomData;
 use std::mem::{size_of, zeroed};
-use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc::{self, c_int, c_void};
@@ -404,8 +404,21 @@ impl AsRawFd for NlSocket {
 }
 
 impl IntoRawFd for NlSocket {
-    fn into_raw_fd(self) -> RawFd {
-        self.fd
+    fn into_raw_fd(mut self) -> RawFd {
+        let fd = self.fd;
+        self.fd = -1; // Prevent drop from closing it.
+        fd
+    }
+}
+
+impl FromRawFd for NlSocket {
+    unsafe fn from_raw_fd(fd: RawFd) -> Self {
+        NlSocket {
+            fd,
+            buffer: None,
+            pid: None,
+            seq: None,
+        }
     }
 }
 
@@ -531,8 +544,10 @@ pub mod tokio {
 impl Drop for NlSocket {
     /// Closes underlying file descriptor to avoid file descriptor leaks.
     fn drop(&mut self) {
-        unsafe {
-            libc::close(self.fd);
+        if self.fd != -1 {
+            unsafe {
+                libc::close(self.fd);
+            }
         }
     }
 }
@@ -561,6 +576,15 @@ mod test {
                 panic!("Should not return data");
             }
         }
+    }
+
+    #[test]
+    fn test_into_from_raw_fd() {
+        let s1 = NlSocket::connect(NlFamily::Generic, None, None, false).unwrap();
+        let fd = s1.into_raw_fd();
+        let s2 = unsafe { NlSocket::from_raw_fd(fd) };
+        // We send nonsense to the kernel, but we should still be able to send it
+        s2.send(b"X", 0).unwrap();
     }
 
     #[test]
