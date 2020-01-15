@@ -80,14 +80,15 @@ where
         let mut vec = Vec::new();
         let mut size_hint = mem.take_size_hint();
         while size_hint > Some(0) || (size_hint == None && !mem.at_end()) {
+            if let Some(hint) = size_hint {
+                mem.set_size_hint(hint);
+            }
             let next = Nlattr::<T, P>::deserialize(mem)?;
             if let Some(val) = size_hint {
-                if val > 0 {
-                    let result = val.checked_sub(next.asize()).ok_or_else(|| {
-                        DeError::new("Deserialization read passed the end of the specified buffer")
-                    })?;
-                    size_hint = Some(result);
-                }
+                // Exceeding it by a small bit is fine - asize includes padding to align to word
+                // size, but the kernel sometimes doesn't include it after the last attribute at
+                // the end of message. In such case, we get 0 and terminate.
+                size_hint = Some(val.saturating_sub(next.asize()));
             }
             vec.push(next);
         }
@@ -253,7 +254,7 @@ where
     {
         let nla_len = u16::deserialize(mem)?;
         let nla_type = T::deserialize(mem)?;
-        mem.set_size_hint(nla_len as usize - (nla_len.size() + nla_type.size()));
+        mem.set_size_hint((nla_len as usize).saturating_sub(nla_len.size() + nla_type.size()));
         let payload = P::deserialize(mem)?;
         let nla = Nlattr {
             nla_len,

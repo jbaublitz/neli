@@ -128,7 +128,9 @@ pub trait Nl: Sized {
     {
         let padding_len = self.asize() - self.size();
         if padding_len > 0 {
-            m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..padding_len])?;
+            // Ignore result - the padding is mandatory between attributes, but not after the last
+            // one, so we can get a short read at the very end.
+            let _ = m.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..padding_len]);
         }
         Ok(())
     }
