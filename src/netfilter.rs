@@ -51,6 +51,15 @@ impl Into<SystemTime> for Timestamp {
 /// Note that further fields will be added over time.
 #[derive(Clone, Debug)]
 pub struct LogPacket {
+    /// The logging group this packet was received on.
+    ///
+    /// As it is possible to bind the same socket to multiple groups, this allows distinguishing
+    /// them.
+    pub group: u16,
+    /// The address family.
+    ///
+    /// Eg. `libc::AF_INET` or `libc::AF_INET6`, casted to `u8`.
+    pub family: u8,
     /// No idea what this is :-(
     pub hw_protocol: u16,
     /// No idea what this is :-(
@@ -103,6 +112,8 @@ impl LogPacket {
     /// make much sense.
     pub fn dummy_instance() -> Self {
         Self {
+            group: 0,
+            family: 0,
             hw_protocol: 0,
             hook: 0,
             mark: 0,
@@ -127,19 +138,26 @@ impl Nl for LogPacket {
     }
     fn deserialize<B: AsRef<[u8]>>(m: &mut StreamReadBuffer<B>) -> Result<Self, DeError> {
         let hint = m.take_size_hint().map(|h| h.saturating_sub(4));
-        let hw_protocol = u16::from_be(Nl::deserialize(m)?);
-        let hook = Nl::deserialize(m)?;
-        let _pad: u8 = Nl::deserialize(m)?;
+        let family = u8::deserialize(m)?;
+        // TODO: Should we check that the version is 0? Can we do anything if it is not? Should we?
+        let _version = u8::deserialize(m)?;
+        let group = u16::from_be(Nl::deserialize(m)?);
         m.set_size_hint(hint.unwrap_or_default());
         let attrs = Nlattrs::deserialize(m)?;
         let attr_len = attrs.asize();
         let mut result = Self::dummy_instance();
-        result.hw_protocol = hw_protocol;
-        result.hook = hook;
+        result.family = family;
+        result.group = group;
         result.attr_len = attr_len;
 
         for attr in attrs {
             match attr.nla_type {
+                NfLogAttr::PacketHdr => {
+                    let mut buffer = StreamReadBuffer::new(&attr.payload);
+                    let b = &mut buffer;
+                    result.hw_protocol = u16::from_be(Nl::deserialize(b)?);
+                    result.hook = Nl::deserialize(b)?;
+                }
                 NfLogAttr::Mark => result.mark = attr.get_payload_as()?,
                 NfLogAttr::Timestamp => {
                     result.timestamp = attr.get_payload_as::<Timestamp>()?.into();
