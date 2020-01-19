@@ -10,25 +10,25 @@ impl_var_trait! {
     ///
     /// These are send by the kernel and describe a logged packet.
     NfLogAttr, u16, NlAttrType,
-    PacketHdr => 1,
-    Mark => 2,
-    Timestamp => 3,
-    IfindexIndev => 4,
-    IfindexOutdev => 5,
-    IfindexPhyindev => 6,
-    IfindexPhyoutdev => 7,
-    Hwaddr => 8,
-    Payload => 9,
-    Prefix => 10,
-    Uid => 11,
-    Seq => 12,
-    SeqGlobal => 13,
-    Gid => 14,
-    Hwtype => 15,
-    Hwheader => 16,
-    Hwlen => 17,
-    Ct => 18,
-    CtInfo => 19
+    PacketHdr => libc::NFULA_PACKET_HDR as u16,
+    Mark => libc::NFULA_MARK as u16,
+    Timestamp => libc::NFULA_TIMESTAMP as u16,
+    IfindexIndev => libc::NFULA_IFINDEX_INDEV as u16,
+    IfindexOutdev => libc::NFULA_IFINDEX_OUTDEV as u16,
+    IfindexPhyindev => libc::NFULA_IFINDEX_PHYSINDEV as u16,
+    IfindexPhyoutdev => libc::NFULA_IFINDEX_PHYSOUTDEV as u16,
+    Hwaddr => libc::NFULA_HWADDR as u16,
+    Payload => libc::NFULA_PAYLOAD as u16,
+    Prefix => libc::NFULA_PREFIX as u16,
+    Uid => libc::NFULA_UID as u16,
+    Seq => libc::NFULA_SEQ as u16,
+    SeqGlobal => libc::NFULA_SEQ_GLOBAL as u16,
+    Gid => libc::NFULA_GID as u16,
+    Hwtype => libc::NFULA_HWTYPE as u16,
+    Hwheader => libc::NFULA_HWHEADER as u16,
+    Hwlen => libc::NFULA_HWLEN as u16,
+    Ct => libc::NFULA_CT as u16,
+    CtInfo => libc::NFULA_CT_INFO as u16
 }
 
 impl_var_trait! {
@@ -36,12 +36,16 @@ impl_var_trait! {
     ///
     /// See [LogConfigReq][crate::netfilter::LogConfigReq]
     NfLogCfg, u16, NlAttrType,
-    Cmd => 1,
-    Mode => 2,
-    NlBufSize => 3,
-    Timeout => 4,
-    QThresh => 5,
-    Flags => 6
+    Cmd => libc::NFULA_CFG_CMD as u16,
+    Mode => libc::NFULA_CFG_MODE as u16,
+    NlBufSize => libc::NFULA_CFG_NLBUFSIZ as u16,
+    Timeout => libc::NFULA_CFG_TIMEOUT as u16,
+    QThresh => libc::NFULA_CFG_QTHRESH as u16,
+    Flags => libc::NFULA_CFG_FLAGS as u16
+}
+
+const fn nfnl_msg_type(subsys: u8, msg: u8) -> u16 {
+    ((subsys as u16) << 8) | (msg as u16)
 }
 
 impl_var_trait! {
@@ -50,9 +54,9 @@ impl_var_trait! {
     /// These appear on the [NlFamily::Netfilter][super::NlFamily::Netfilter] sockets.
     NetfilterMsg, u16, NlType,
     // TODO: Docs here /// A logged packet, going from kernel to userspace.
-    LogPacket => 0x0400,
+    LogPacket => nfnl_msg_type(libc::NFNL_SUBSYS_ULOG as u8, libc::NFULNL_MSG_PACKET as u8),
     // TODO: Docs here /// A logging configuration request, going from userspace to kernel.
-    LogConfig => 0x0401
+    LogConfig => nfnl_msg_type(libc::NFNL_SUBSYS_ULOG as u8, libc::NFULNL_MSG_CONFIG as u8)
 }
 
 impl_trait! {
@@ -63,16 +67,16 @@ impl_trait! {
 impl_var_trait! {
     /// Command value for the [NfLogCfg::Cmd].
     LogCmd, u8, LogCfgCmd,
-    Bind => 1,
-    Unbind => 2,
-    PfBind => 3,
-    PfUnbind => 4
+    Bind => libc::NFULNL_CFG_CMD_BIND as u8,
+    Unbind => libc::NFULNL_CFG_CMD_UNBIND as u8,
+    PfBind => libc::NFULNL_CFG_CMD_PF_BIND as u8,
+    PfUnbind => libc::NFULNL_CFG_CMD_PF_UNBIND as u8
 }
 
 impl_var! {
     /// Copy mode of the logged packets.
     LogCopyMode, u8,
-    None => 0,
-    Meta => 1,
-    Packet => 2
+    None => libc::NFULNL_COPY_NONE as u8,
+    Meta => libc::NFULNL_COPY_META as u8,
+    Packet => libc::NFULNL_COPY_PACKET as u8
 }
