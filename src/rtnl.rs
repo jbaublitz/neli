@@ -556,6 +556,8 @@ impl Nl for NdaCacheinfo {
 pub struct Tcmsg {
     /// Family
     pub tcm_family: libc::c_uchar,
+    padding1: libc::c_uchar,
+    padding2: libc::c_ushort,
     /// Interface index
     pub tcm_ifindex: libc::c_int,
     /// Queuing discipline handle
@@ -573,6 +575,8 @@ impl Nl for Tcmsg {
         Ok(serialize! {
             mem;
             self.tcm_family;
+            self.padding1;
+            self.padding2;
             self.tcm_ifindex;
             self.tcm_handle;
             self.tcm_parent;
@@ -586,6 +590,8 @@ impl Nl for Tcmsg {
             mem;
             Tcmsg {
                 tcm_family: libc::c_uchar,
+                padding1: libc::c_uchar,
+                padding2: libc::c_ushort,
                 tcm_ifindex: libc::c_int,
                 tcm_handle: u32,
                 tcm_parent: u32,
@@ -605,6 +611,8 @@ impl Nl for Tcmsg {
 
     fn size(&self) -> usize {
         self.tcm_family.size()
+            + self.padding1.size()
+            + self.padding2.size()
             + self.tcm_ifindex.size()
             + self.tcm_handle.size()
             + self.tcm_parent.size()
