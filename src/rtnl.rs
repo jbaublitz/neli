@@ -130,7 +130,7 @@ pub struct Ifinfomsg {
     /// Interface flags
     pub ifi_flags: Vec<Iff>,
     /// Change mask
-    pub ifi_change: libc::c_uint,
+    pub ifi_change: Iff,
     /// Payload of `Rtattr`s
     pub rtattrs: Rtattrs<Ifla, Vec<u8>>,
 }
@@ -149,7 +149,7 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags,
-            ifi_change: 0xffff_ffff,
+            ifi_change: Iff::from(0xffff_ffff),
             rtattrs,
         }
     }
@@ -229,7 +229,7 @@ impl Nl for Ifinfomsg {
             }
             nl_flags
         };
-        let ifi_change = libc::c_uint::deserialize(buf)?;
+        let ifi_change: Iff = libc::c_uint::deserialize(buf)?.into();
 
         size_hint = size_hint
             .checked_sub(
