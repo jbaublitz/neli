@@ -167,7 +167,7 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags: vec![Iff::Up],
-            ifi_change: Iff::Up.into(),
+            ifi_change: Iff::Up,
             rtattrs,
         }
     }
@@ -184,7 +184,7 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags: Vec::new(),
-            ifi_change: Iff::Up.into(),
+            ifi_change: Iff::Up,
             rtattrs,
         }
     }
