@@ -658,6 +658,8 @@ pub struct Tcmsg {
 impl Nl for Tcmsg {
     fn serialize(&self, buf: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.tcm_family.serialize(buf)?;
+        (0 as libc::c_uchar).serialize(buf)?;
+        (0 as libc::c_ushort).serialize(buf)?;
         self.tcm_ifindex.serialize(buf)?;
         self.tcm_handle.serialize(buf)?;
         self.tcm_parent.serialize(buf)?;
@@ -670,18 +672,46 @@ impl Nl for Tcmsg {
     where
         B: AsRef<[u8]>,
     {
+        let mut size_hint = buf
+            .take_size_hint()
+            .ok_or_else(|| DeError::new("Tcmsg requires a size hint to deserialize"))?;
+
+        let tcm_family = libc::c_uchar::deserialize(buf)?;
+        libc::c_uchar::deserialize(buf)?;
+        libc::c_ushort::deserialize(buf)?;
+        let tcm_ifindex = libc::c_int::deserialize(buf)?;
+        let tcm_handle = u32::deserialize(buf)?;
+        let tcm_parent = u32::deserialize(buf)?;
+        let tcm_info = u32::deserialize(buf)?;
+
+        size_hint = size_hint
+            .checked_sub(
+                tcm_family.size()
+                    + mem::size_of::<libc::c_uchar>()
+                    + mem::size_of::<libc::c_ushort>()
+                    + tcm_ifindex.size()
+                    + tcm_handle.size()
+                    + tcm_parent.size()
+                    + tcm_info.size(),
+            )
+            .ok_or_else(|| DeError::new(&format!("Truncated Tcmsg size_hint {}", size_hint)))?;
+        buf.set_size_hint(size_hint);
+        let rtattrs = Rtattrs::<Tca, Vec<u8>>::deserialize(buf)?;
+
         Ok(Tcmsg {
-            tcm_family: libc::c_uchar::deserialize(buf)?,
-            tcm_ifindex: libc::c_int::deserialize(buf)?,
-            tcm_handle: u32::deserialize(buf)?,
-            tcm_parent: u32::deserialize(buf)?,
-            tcm_info: u32::deserialize(buf)?,
-            rtattrs: Rtattrs::<Tca, Vec<u8>>::deserialize(buf)?,
+            tcm_family,
+            tcm_ifindex,
+            tcm_handle,
+            tcm_parent,
+            tcm_info,
+            rtattrs,
         })
     }
 
     fn size(&self) -> usize {
         self.tcm_family.size()
+            + mem::size_of::<libc::c_uchar>()
+            + mem::size_of::<libc::c_ushort>()
             + self.tcm_ifindex.size()
             + self.tcm_handle.size()
             + self.tcm_parent.size()
