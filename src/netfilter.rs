@@ -59,7 +59,7 @@ pub struct LogPacket {
     ///
     /// A mark used through the netfilter, working as kind of scratch memory. 0 and no mark set are
     /// considered equivalent.
-    pub mark: u16,
+    pub mark: u32,
     /// A timestamp when the packet has been captured.
     pub timestamp: SystemTime,
     /// Source hardware address (eg. MAC).
@@ -140,7 +140,7 @@ impl Nl for LogPacket {
 
         for attr in attrs {
             match attr.nla_type {
-                NfLogAttr::Mark => result.mark = attr.get_payload_as()?,
+                NfLogAttr::Mark => result.mark = u32::from_be(attr.get_payload_as()?),
                 NfLogAttr::Timestamp => {
                     result.timestamp = attr.get_payload_as::<Timestamp>()?.into();
                 }
