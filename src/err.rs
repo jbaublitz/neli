@@ -33,7 +33,7 @@ macro_rules! try_err_compat {
         $(
             impl From<$from_err_name> for $err_name {
                 fn from(v: $from_err_name) -> Self {
-                    $err_name::new(v.description())
+                    $err_name::new(&v.to_string())
                 }
             }
         )*

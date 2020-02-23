@@ -302,7 +302,7 @@ impl NlSocket {
                     None
                 }
             })
-            .nth(0)
+            .next()
             .ok_or_else(|| NlError::new("Failed to resolve multicast group ID"))
     }
 
