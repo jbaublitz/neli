@@ -351,9 +351,6 @@ impl NlSocket {
             // PID doesn't match
             Some(_) => return Err(NlError::BadPid),
         }
-        if let Some(seq) = self.seq.as_mut() {
-            *seq += 1;
-        }
         if self.buffer.as_ref().map(|b| b.at_end()).unwrap_or(false) {
             self.buffer = None;
         }
