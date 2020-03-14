@@ -79,6 +79,8 @@ use std::{
 
 pub use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
+#[cfg(feature = "logging")]
+use lazy_static::lazy_static;
 
 use crate::{
     consts::alignto,
@@ -87,6 +89,30 @@ use crate::{
 
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
+
+#[cfg(feature = "logging")]
+lazy_static! {
+    static ref LOGGING_INITIALIZED: bool =
+        if let Err(e) = simple_logger::init_with_level(log::Level::Trace) {
+            println!("Logger failed to initialize: {}; neli logging disabled.", e);
+            false
+        } else {
+            true
+        };
+}
+
+/// Logging mechanism for neli for debugging
+#[cfg(feature = "logging")]
+#[macro_export]
+macro_rules! log {
+    ($fmt:tt, $($args:expr),*) => {
+        if *$crate::LOGGING_INITIALIZED {
+            log::debug!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
+        } else {
+            println!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
+        }
+    }
+}
 
 /// Trait defining basic actions required for netlink communication.
 /// Implementations for basic and `neli`'s types are provided (see below). Create new
