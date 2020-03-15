@@ -1,6 +1,7 @@
 [package]
 name = "neli"
 version = "0.4.3"
+edition = "2018"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
 license = "BSD-3-Clause"
@@ -22,28 +23,11 @@ libc = "0.2.66"
 
 [dependencies.tokio]
 version = "0.2"
-features = ["io-driver"]
+features = ["io-driver", "stream"]
 optional = true
 
 [dependencies.mio]
 version = "0.6.20"
-optional = true
-
-[dependencies.futures-core]
-version = "0.3"
-optional = true
-
-[dependencies.futures-sink]
-version = "0.3"
-optional = true
-
-[dependencies.futures-util]
-version = "0.3"
-default-features = false
-optional = true
-
-[dependencies.pin-project-lite]
-version = "0.1"
 optional = true
 
 [dependencies.buffering]
@@ -52,4 +36,4 @@ features = ["copy"]
 
 [features]
 default = []
-stream = ["tokio", "mio","futures-core","futures-sink","pin-project-lite","futures-util"]
+stream = ["tokio", "mio"]

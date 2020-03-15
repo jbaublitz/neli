@@ -14,19 +14,19 @@
 //! no ACK received, one for a bad PID that does not correspond to that assigned to the socket, or
 //! one for a bad sequence number that does not correspond to the request sequence number.
 
-use std;
-use std::error::Error;
-use std::fmt::{self, Display};
-use std::io;
-use std::str;
-use std::string;
+use std::{
+    error::Error,
+    fmt::{self, Display},
+    io, str, string,
+};
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
-use libc;
 
-use consts::NlType;
-use nl::{NlEmpty, Nlmsghdr};
-use Nl;
+use crate::{
+    consts::NlType,
+    nl::{NlEmpty, Nlmsghdr},
+    Nl,
+};
 
 macro_rules! try_err_compat {
     ( $err_name:ident, $( $from_err_name:path ),* ) => {

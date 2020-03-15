@@ -21,23 +21,27 @@
 //! and other convenience functions so see if your use case is supported. If it isn't, please open
 //! a Github issue and submit a feature request.
 
-use std::io;
-use std::marker::PhantomData;
-use std::mem::{size_of, zeroed};
-use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
+use std::{
+    io,
+    marker::PhantomData,
+    mem::{size_of, zeroed},
+    os::unix::io::{AsRawFd, IntoRawFd, RawFd},
+};
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc::{self, c_int, c_void};
 
-use consts::{
-    self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, NlAttrType, NlFamily, NlType,
-    NlmF,
+use crate::{
+    consts::{
+        self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, NlAttrType, NlFamily,
+        NlType, NlmF,
+    },
+    err::{NlError, Nlmsgerr},
+    genl::Genlmsghdr,
+    nl::Nlmsghdr,
+    nlattr::Nlattr,
+    Nl, MAX_NL_LENGTH,
 };
-use err::{NlError, Nlmsgerr};
-use genl::Genlmsghdr;
-use nl::Nlmsghdr;
-use nlattr::Nlattr;
-use {Nl, MAX_NL_LENGTH};
 
 /// Iterator over messages returned from a `recv_nl` call
 pub struct NlMessageIter<'a, T, P> {
@@ -406,12 +410,6 @@ impl IntoRawFd for NlSocket {
     }
 }
 
-impl io::Read for NlSocket {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.recv(buf, 0).map(|i| i as usize)
-    }
-}
-
 #[cfg(feature = "stream")]
 pub mod tokio {
     //! Tokio-specific features for neli
@@ -419,43 +417,45 @@ pub mod tokio {
     //! This module contains a struct that wraps `NlSocket` for async IO.
     use super::*;
 
-    use futures_core::Stream;
-    use futures_sink::Sink;
-    use mio::{self, Evented};
-    use pin_project_lite::pin_project;
-    use std::io::{Error, Write};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
-    use tokio::io::PollEvented;
-    use tokio::io::{AsyncRead, AsyncWrite};
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
 
-    pin_project! {
-        /// Tokio-enabled Netlink socket struct
-        pub struct NlSocket<T, P> {
-            #[pin]
-            socket: PollEvented<super::NlSocket>,
-            buffer: Option<StreamReadBuffer<Vec<u8>>>,
-            write_buffer: Vec<u8>,
-            write_pos: usize,
-            type_data: PhantomData<T>,
-            payload_data: PhantomData<P>,
-        }
+    use ::tokio::{
+        io::{AsyncRead, PollEvented},
+        stream::Stream,
+    };
+    use mio::{self, Evented};
+
+    fn poll_read_priv(
+        socket: &mut PollEvented<super::NlSocket>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(socket).poll_read(cx, buf)
     }
 
-    impl<T, P> NlSocket<T, P>
+    /// Tokio-enabled Netlink socket struct
+    pub struct NlSocket<T, P> {
+        socket: PollEvented<super::NlSocket>,
+        buffer: Option<StreamReadBuffer<Vec<u8>>>,
+        type_data: PhantomData<T>,
+        payload_data: PhantomData<P>,
+    }
+
+    impl<'a, T, P> NlSocket<T, P>
     where
         T: NlType,
     {
         /// Setup NlSocket for use with tokio - set to nonblocking state and wrap in polling mechanism
-        pub fn new(mut sock: super::NlSocket) -> io::Result<Self> {
-            if sock.is_blocking()? {
-                sock.nonblock()?;
+        pub fn new(mut socket: super::NlSocket) -> io::Result<Self> {
+            if socket.is_blocking()? {
+                socket.nonblock()?;
             }
             Ok(NlSocket {
-                socket: PollEvented::new(sock)?,
+                socket: PollEvented::new(socket)?,
                 buffer: None,
-                write_buffer: vec![0u8; MAX_NL_LENGTH],
-                write_pos: 0,
                 type_data: PhantomData,
                 payload_data: PhantomData,
             })
@@ -471,6 +471,39 @@ pub mod tokio {
         }
     }
 
+    impl io::Read for super::NlSocket {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.is_blocking()? {
+                self.nonblock()?;
+            }
+            self.recv(buf, 0).map(|i| i as usize)
+        }
+    }
+
+    impl io::Write for super::NlSocket {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if self.is_blocking()? {
+                self.nonblock()?;
+            }
+            self.send(buf, 0)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<T, P> AsyncRead for NlSocket<T, P> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let mut mut_ref = self.as_mut();
+            poll_read_priv(&mut mut_ref.socket, cx, buf)
+        }
+    }
+
     impl<T, P> Stream for NlSocket<T, P>
     where
         T: NlType,
@@ -478,24 +511,22 @@ pub mod tokio {
     {
         type Item = std::io::Result<Nlmsghdr<T, P>>;
 
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-            let empty = self.empty();
-            let this = self.project();
-            let socket = this.socket;
-            let buffer = this.buffer;
-            if empty {
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+            if self.empty() {
                 let mut mem = vec![0; MAX_NL_LENGTH];
-                let bytes_read = match socket.poll_read(cx, mem.as_mut_slice()) {
+                let mut mut_ref = self.as_mut();
+                let bytes_read = match poll_read_priv(&mut mut_ref.socket, cx, &mut mem) {
                     Poll::Ready(Ok(0)) => return Poll::Ready(None),
                     Poll::Ready(Ok(i)) => i,
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
                 };
                 mem.truncate(bytes_read);
-                *buffer = Some(StreamReadBuffer::new(mem));
+
+                mut_ref.buffer = Some(StreamReadBuffer::new(mem));
             }
 
-            match buffer {
+            match self.as_mut().buffer {
                 Some(ref mut buf) => {
                     Poll::Ready(Some(Ok(Nlmsghdr::<T, P>::deserialize(buf)
                         .map_err(|_| io::ErrorKind::InvalidData)?)))
@@ -505,67 +536,7 @@ pub mod tokio {
         }
     }
 
-    impl<T, P> Sink<Nlmsghdr<T, P>> for NlSocket<T, P>
-    where
-        T: NlType,
-        P: Nl,
-    {
-        type Error = io::Error;
-
-        fn poll_ready(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            match Pin::new(&mut self.socket).poll_write_ready(cx) {
-                Poll::Ready(Ok(_)) => Poll::Ready(Ok(())),
-                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                Poll::Pending => Poll::Pending,
-            }
-        }
-
-        fn start_send(mut self: Pin<&mut Self>, item: Nlmsghdr<T, P>) -> Result<(), Self::Error> {
-            let write_pos = self.write_pos as u64;
-            let mut writer = StreamWriteBuffer::new_sized(self.write_buffer.as_mut_slice());
-            writer.set_position(write_pos);
-            let len = item.nl_len as usize;
-            item.serialize(&mut writer)
-                .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-            self.write_pos += len;
-            Ok(())
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            let this = self.project();
-            let socket = this.socket;
-            let buffer = this.write_buffer;
-            let write_pos = this.write_pos;
-            let buffer: &[u8] = buffer.as_ref();
-            match socket.poll_write(cx, &buffer[0..*write_pos]) {
-                Poll::Ready(Ok(size)) if size <= *write_pos => {
-                    *write_pos -= size;
-                    Poll::Ready(Ok(()))
-                }
-                Poll::Ready(Ok(_)) => unreachable!(),
-                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
-                Poll::Pending => Poll::Pending,
-            }
-        }
-
-        fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            self.poll_flush(cx)
-        }
-    }
-
-    impl Write for super::NlSocket {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-            self.send(buf, 0)
-        }
-
-        fn flush(&mut self) -> Result<(), Error> {
-            // todo
-            Ok(())
-        }
-    }
+    impl<T, P> Unpin for NlSocket<T, P> {}
 
     impl Evented for super::NlSocket {
         fn register(
@@ -602,6 +573,59 @@ pub mod tokio {
             poll.deregister(&mio::unix::EventedFd(&self.as_raw_fd()))
         }
     }
+
+    impl Evented for &mut super::NlSocket {
+        fn register(
+            &self,
+            poll: &mio::Poll,
+            token: mio::Token,
+            interest: mio::Ready,
+            opts: mio::PollOpt,
+        ) -> io::Result<()> {
+            <super::NlSocket as Evented>::register(self, poll, token, interest, opts)
+        }
+
+        fn reregister(
+            &self,
+            poll: &mio::Poll,
+            token: mio::Token,
+            interest: mio::Ready,
+            opts: mio::PollOpt,
+        ) -> io::Result<()> {
+            <super::NlSocket as Evented>::reregister(self, poll, token, interest, opts)
+        }
+
+        fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
+            <super::NlSocket as Evented>::deregister(self, poll)
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use std::io::Read;
+
+        use crate::socket::NlSocket;
+
+        use super::*;
+
+        #[test]
+        fn test_socket_nonblock() {
+            let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+            s.nonblock().unwrap();
+            assert_eq!(s.is_blocking().unwrap(), false);
+            let buf = &mut [0; 4];
+            match s.read(buf) {
+                Err(e) => {
+                    if e.kind() != io::ErrorKind::WouldBlock {
+                        panic!("Error: {}", e);
+                    }
+                }
+                Ok(_) => {
+                    panic!("Should not return data");
+                }
+            }
+        }
+    }
 }
 
 impl Drop for NlSocket {
@@ -617,27 +641,7 @@ impl Drop for NlSocket {
 mod test {
     use super::*;
 
-    use std::io::Read;
-
     use consts::Nlmsg;
-
-    #[test]
-    fn test_socket_nonblock() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
-        s.nonblock().unwrap();
-        assert_eq!(s.is_blocking().unwrap(), false);
-        let buf = &mut [0; 4];
-        match s.read(buf) {
-            Err(e) => {
-                if e.kind() != io::ErrorKind::WouldBlock {
-                    panic!("Error: {}", e);
-                }
-            }
-            Ok(_) => {
-                panic!("Should not return data");
-            }
-        }
-    }
 
     #[test]
     fn multi_msg_iter() {
