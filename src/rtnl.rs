@@ -154,6 +154,25 @@ impl Ifinfomsg {
         }
     }
 
+    /// Create a fully initialized interface info struct
+    pub fn new2(
+        ifi_family: RtAddrFamily,
+        ifi_type: Arphrd,
+        ifi_index: libc::c_int,
+        ifi_flags: Vec<Iff>,
+        ifi_change: Iff,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    ) -> Self {
+        Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags,
+            ifi_change,
+            rtattrs,
+        }
+    }
+
     /// Set the link with the given index up (equivalent to `ip link set dev DEV up`)
     pub fn up(
         ifi_family: RtAddrFamily,
