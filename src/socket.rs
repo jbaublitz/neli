@@ -420,9 +420,9 @@ impl AsRawFd for NlSocket {
 }
 
 impl IntoRawFd for NlSocket {
-    fn into_raw_fd(mut self) -> RawFd {
+    fn into_raw_fd(self) -> RawFd {
         let fd = self.fd;
-        self.fd = -1; // Prevent drop from closing it.
+        std::mem::forget(self);
         fd
     }
 }
@@ -689,15 +689,6 @@ mod test {
                 panic!("Should not return data");
             }
         }
-    }
-
-    #[test]
-    fn test_into_from_raw_fd() {
-        let s1 = NlSocket::connect(NlFamily::Generic, None, None, false).unwrap();
-        let fd = s1.into_raw_fd();
-        let s2 = unsafe { NlSocket::from_raw_fd(fd) };
-        // We send nonsense to the kernel, but we should still be able to send it
-        s2.send(b"X", 0).unwrap();
     }
 
     #[test]
