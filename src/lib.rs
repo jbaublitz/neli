@@ -93,12 +93,8 @@ pub const MAX_NL_LENGTH: usize = 32768;
 #[cfg(feature = "logging")]
 lazy_static! {
     static ref LOGGING_INITIALIZED: bool =
-        if let Err(e) = simple_logger::init_with_level(log::Level::Trace) {
-            println!("Logger failed to initialize: {}; neli logging disabled.", e);
-            false
-        } else {
-            true
-        };
+        simple_logger::init_with_level(log::Level::Debug).is_ok();
+    static ref SHOW_LOGS: bool = std::env::var("NELI_LOG").is_ok();
 }
 
 /// Logging mechanism for neli for debugging
@@ -106,10 +102,10 @@ lazy_static! {
 #[macro_export]
 macro_rules! log {
     ($fmt:tt, $($args:expr),*) => {
-        if *$crate::LOGGING_INITIALIZED {
+        if *$crate::LOGGING_INITIALIZED && *$crate::SHOW_LOGS {
             log::debug!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
         } else {
-            println!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
+            ()
         }
     }
 }
