@@ -22,6 +22,7 @@
 //! a Github issue and submit a feature request.
 
 use std::{
+    fmt::Debug,
     io,
     marker::PhantomData,
     mem::{size_of, zeroed},
@@ -31,6 +32,8 @@ use std::{
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use libc::{self, c_int, c_void};
 
+#[cfg(feature = "logging")]
+use crate::log;
 use crate::{
     consts::{
         self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, NlAttrType, NlFamily,
@@ -67,8 +70,8 @@ where
 
 impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
 where
-    T: Nl + NlType,
-    P: Nl,
+    T: Nl + NlType + Debug,
+    P: Nl + Debug,
 {
     type Item = Result<Nlmsghdr<T, P>, NlError>;
 
@@ -253,7 +256,7 @@ impl NlSocket {
         family_name: &str,
     ) -> Result<Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, T>>, NlError>
     where
-        T: NlAttrType,
+        T: NlAttrType + Debug,
     {
         let attrs = vec![Nlattr::new(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
@@ -313,24 +316,32 @@ impl NlSocket {
     /// Convenience function to send an `Nlmsghdr` struct
     pub fn send_nl<T, P>(&mut self, mut msg: Nlmsghdr<T, P>) -> Result<(), NlError>
     where
-        T: Nl + NlType,
-        P: Nl,
+        T: Nl + NlType + Debug,
+        P: Nl + Debug,
     {
-        let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
         if let Some(ref mut seq) = self.seq {
-            *seq += 1;
             msg.nl_seq = *seq;
         }
+
+        #[cfg(feature = "logging")]
+        log!("Message sent:\n{:#?}", msg);
+
+        let mut mem = StreamWriteBuffer::new_growable(Some(msg.asize()));
         msg.serialize(&mut mem)?;
         self.send(mem, 0)?;
+
+        if let Some(ref mut seq) = self.seq {
+            *seq += 1;
+        }
+
         Ok(())
     }
 
     /// Convenience function to begin receiving a stream of `Nlmsghdr` structs
     pub fn recv_nl<T, P>(&mut self, buf_sz: Option<usize>) -> Result<Nlmsghdr<T, P>, NlError>
     where
-        T: Nl + NlType,
-        P: Nl,
+        T: Nl + NlType + Debug,
+        P: Nl + Debug,
     {
         if self.buffer.is_none() {
             let mut mem = vec![0; buf_sz.unwrap_or(MAX_NL_LENGTH)];
@@ -345,6 +356,10 @@ impl NlSocket {
             Some(ref mut b) => Nlmsghdr::deserialize(b)?,
             None => unreachable!(),
         };
+
+        #[cfg(feature = "logging")]
+        log!("Message received:\n{:#?}", msg);
+
         match self.pid {
             // PID checking turned off.
             None => (),

@@ -17,15 +17,23 @@ jobs:
       script:
         - cargo build
         - cargo build --features=stream
+        - cargo build --features=logging
+        - cargo build --all-features
         - cargo test
         - cargo test --features=stream
+        - cargo test --features=logging
+        - cargo test --all-features
     - stage: test
       rust: nightly
       script:
         - cargo build
         - cargo build --features=stream
+        - cargo build --features=logging
+        - cargo build --all-features
         - cargo test
         - cargo test --features=stream
+        - cargo test --features=logging
+        - cargo test --all-features
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -36,8 +44,12 @@ jobs:
           /root/.cargo/bin/rustup default stable-x86_64-unknown-linux-musl &&
           /root/.cargo/bin/cargo build &&
           /root/.cargo/bin/cargo build --features=stream &&
+          /root/.cargo/bin/cargo build --features=logging &&
+          /root/.cargo/bin/cargo build --all-features &&
           /root/.cargo/bin/cargo test &&
-          /root/.cargo/bin/cargo test --features=stream"
+          /root/.cargo/bin/cargo test --features=stream &&
+          /root/.cargo/bin/cargo test --features=logging &&
+          /root/.cargo/bin/cargo test --all-features"
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -48,5 +60,9 @@ jobs:
           /root/.cargo/bin/rustup default nightly-x86_64-unknown-linux-musl &&
           /root/.cargo/bin/cargo build &&
           /root/.cargo/bin/cargo build --features=stream &&
+          /root/.cargo/bin/cargo build --features=logging &&
+          /root/.cargo/bin/cargo build --all-features &&
           /root/.cargo/bin/cargo test &&
-          /root/.cargo/bin/cargo test --features=stream"
+          /root/.cargo/bin/cargo test --features=stream &&
+          /root/.cargo/bin/cargo test --features=logging &&
+          /root/.cargo/bin/cargo test --all-features"
