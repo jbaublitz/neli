@@ -659,10 +659,8 @@ pub mod tokio {
 impl Drop for NlSocket {
     /// Closes underlying file descriptor to avoid file descriptor leaks.
     fn drop(&mut self) {
-        if self.fd != -1 {
-            unsafe {
-                libc::close(self.fd);
-            }
+        unsafe {
+            libc::close(self.fd);
         }
     }
 }
