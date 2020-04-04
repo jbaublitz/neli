@@ -12,9 +12,11 @@ use std::mem;
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
 
-use consts::{NlType, NlmF};
-use err::{DeError, SerError};
-use Nl;
+use crate::{
+    consts::{NlType, NlmF},
+    err::{DeError, SerError},
+    Nl,
+};
 
 /// Top level netlink header and payload
 #[derive(Debug, PartialEq)]
@@ -158,9 +160,12 @@ impl Nl for NlEmpty {
 #[cfg(test)]
 mod test {
     use super::*;
-    use byteorder::{NativeEndian, WriteBytesExt};
-    use consts::Nlmsg;
+
     use std::io::Cursor;
+
+    use byteorder::{NativeEndian, WriteBytesExt};
+
+    use crate::consts::Nlmsg;
 
     #[test]
     fn test_nlhdr_serialize() {

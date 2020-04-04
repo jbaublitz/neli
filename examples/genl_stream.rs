@@ -1,14 +1,8 @@
-extern crate neli;
-#[cfg(feature = "stream")]
-extern crate tokio;
+use std::{env, error::Error};
 
-use std::env;
-
-use neli::consts;
-use neli::genl::Genlmsghdr;
-use neli::socket;
+use neli::{consts, genl::Genlmsghdr, socket};
 #[cfg(feature = "stream")]
-use tokio::prelude::{Future, Stream};
+use tokio::stream::StreamExt;
 
 #[cfg(feature = "stream")]
 fn debug_stream() -> Result<(), neli::err::NlError> {
@@ -26,15 +20,19 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
     let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, None, true)?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
-    let ss = neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s)?;
-    tokio::run(
-        ss.for_each(|next| {
-            println!("{:?}", next);
-            Ok(())
-        })
-        .map(|_| ())
-        .map_err(|_| ()),
-    );
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(async {
+        let mut ss = match neli::socket::tokio::NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
+            Ok(s) => s,
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        };
+        while let Ok(Some(next)) = ss.try_next().await {
+            println!("{:#?}", next);
+        }
+    });
     Ok(())
 }
 
@@ -55,24 +53,15 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.set_mcast_groups(vec![id])?;
     for next in s.iter::<u16, Genlmsghdr<u8, u16>>() {
-        println!("{:?}", next?);
+        println!("{:#?}", next?);
     }
     Ok(())
 }
 
-pub fn main() {
+pub fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "stream")]
-    match debug_stream() {
-        Ok(_) => (),
-        Err(e) => {
-            println!("{}", e);
-        }
-    };
+    debug_stream()?;
     #[cfg(not(feature = "stream"))]
-    match debug_stream() {
-        Ok(_) => (),
-        Err(e) => {
-            println!("{}", e);
-        }
-    };
+    debug_stream()?;
+    Ok(())
 }

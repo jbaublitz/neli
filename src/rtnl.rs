@@ -10,7 +10,6 @@
 use std::mem;
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
-use libc;
 
 use crate::{
     consts::rtnl::*,

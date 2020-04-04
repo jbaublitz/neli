@@ -57,9 +57,11 @@ use std::slice;
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
 
-use consts::NlAttrType;
-use err::{DeError, NlError, SerError};
-use Nl;
+use crate::{
+    consts::NlAttrType,
+    err::{DeError, NlError, SerError},
+    Nl,
+};
 
 impl<T, P> Nl for Vec<Nlattr<T, P>>
 where
@@ -370,14 +372,11 @@ where
 mod test {
     use super::*;
 
-    extern crate byteorder;
-
     use std::io::{Cursor, Write};
 
     use byteorder::{NativeEndian, WriteBytesExt};
-    use nl::NlEmpty;
 
-    use consts::CtrlAttr;
+    use crate::{consts::CtrlAttr, nl::NlEmpty};
 
     #[test]
     fn test_padding_size_calculation() {

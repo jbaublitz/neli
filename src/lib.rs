@@ -55,14 +55,6 @@
 
 #![deny(missing_docs)]
 
-extern crate buffering;
-extern crate byteorder;
-extern crate libc;
-#[cfg(feature = "stream")]
-extern crate mio;
-#[cfg(feature = "stream")]
-extern crate tokio;
-
 /// C constants defined as types
 pub mod consts;
 /// Error module
@@ -79,16 +71,19 @@ pub mod rtnl;
 /// Wrapper for `libc` sockets
 pub mod socket;
 
-use std::ffi::CString;
-use std::io::{Read, Write};
-use std::mem;
-use std::str;
+use std::{
+    ffi::CString,
+    io::{Read, Write},
+    mem, str,
+};
 
 pub use buffering::{StreamReadBuffer, StreamWriteBuffer};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
-use consts::alignto;
-use err::{DeError, SerError};
+use crate::{
+    consts::alignto,
+    err::{DeError, SerError},
+};
 
 /// Max supported message length for netlink messages supported by the kernel
 pub const MAX_NL_LENGTH: usize = 32768;
