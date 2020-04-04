@@ -26,7 +26,7 @@ use std::{
     io,
     marker::PhantomData,
     mem::{size_of, zeroed},
-    os::unix::io::{AsRawFd, IntoRawFd, RawFd},
+    os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
 
 use buffering::{StreamReadBuffer, StreamWriteBuffer};
@@ -421,7 +421,20 @@ impl AsRawFd for NlSocket {
 
 impl IntoRawFd for NlSocket {
     fn into_raw_fd(self) -> RawFd {
-        self.fd
+        let fd = self.fd;
+        std::mem::forget(self);
+        fd
+    }
+}
+
+impl FromRawFd for NlSocket {
+    unsafe fn from_raw_fd(fd: RawFd) -> Self {
+        NlSocket {
+            fd,
+            buffer: None,
+            pid: None,
+            seq: None,
+        }
     }
 }
 
@@ -656,7 +669,25 @@ impl Drop for NlSocket {
 mod test {
     use super::*;
 
-    use consts::Nlmsg;
+    use crate::consts::Nlmsg;
+
+    #[test]
+    fn test_socket_nonblock() {
+        let mut s = NlSocket::connect(NlFamily::Generic, None, None, true).unwrap();
+        s.nonblock().unwrap();
+        assert_eq!(s.is_blocking().unwrap(), false);
+        let buf = &mut [0; 4];
+        match s.recv(buf, 0) {
+            Err(e) => {
+                if e.kind() != io::ErrorKind::WouldBlock {
+                    panic!("Error: {}", e);
+                }
+            }
+            Ok(_) => {
+                panic!("Should not return data");
+            }
+        }
+    }
 
     #[test]
     fn multi_msg_iter() {
