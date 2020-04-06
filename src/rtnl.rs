@@ -129,7 +129,8 @@ pub struct Ifinfomsg {
     pub ifi_index: libc::c_int,
     /// Interface flags
     pub ifi_flags: Vec<Iff>,
-    ifi_change: libc::c_uint,
+    /// Change mask
+    pub ifi_change: Iff,
     /// Payload of `Rtattr`s
     pub rtattrs: Rtattrs<Ifla, Vec<u8>>,
 }
@@ -141,6 +142,7 @@ impl Ifinfomsg {
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
         ifi_flags: Vec<Iff>,
+        ifi_change: Iff,
         rtattrs: Rtattrs<Ifla, Vec<u8>>,
     ) -> Self {
         Ifinfomsg {
@@ -148,7 +150,41 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags,
-            ifi_change: 0xffff_ffff,
+            ifi_change,
+            rtattrs,
+        }
+    }
+
+    /// Set the link with the given index up (equivalent to `ip link set dev DEV up`)
+    pub fn up(
+        ifi_family: RtAddrFamily,
+        ifi_type: Arphrd,
+        ifi_index: libc::c_int,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    ) -> Self {
+        Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags: vec![Iff::Up],
+            ifi_change: Iff::Up,
+            rtattrs,
+        }
+    }
+
+    /// Set the link with the given index down (equivalent to `ip link set dev DEV down`)
+    pub fn down(
+        ifi_family: RtAddrFamily,
+        ifi_type: Arphrd,
+        ifi_index: libc::c_int,
+        rtattrs: Rtattrs<Ifla, Vec<u8>>,
+    ) -> Self {
+        Ifinfomsg {
+            ifi_family,
+            ifi_type,
+            ifi_index,
+            ifi_flags: Vec::new(),
+            ifi_change: Iff::Up,
             rtattrs,
         }
     }
@@ -194,7 +230,7 @@ impl Nl for Ifinfomsg {
             }
             nl_flags
         };
-        let ifi_change = libc::c_uint::deserialize(buf)?;
+        let ifi_change: Iff = libc::c_uint::deserialize(buf)?.into();
 
         size_hint = size_hint
             .checked_sub(
