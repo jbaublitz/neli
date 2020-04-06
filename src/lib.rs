@@ -554,6 +554,6 @@ mod test {
 
         let s = "AAAAAA\0";
         let string = String::deserialize(Bytes::from(s.as_bytes())).unwrap();
-        assert_eq!(s[..s.len() - 1], string.to_string())
+        assert_eq!(s[..s.len() - 1], string)
     }
 }

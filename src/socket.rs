@@ -841,7 +841,7 @@ mod test {
         let bytes_len = bytes.len();
         let mut s = NlSocket {
             fd: -1,
-            buffer: BytesMut::from(bytes),
+            buffer: bytes,
             position: 0,
             end: bytes_len,
         };
