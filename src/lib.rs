@@ -446,66 +446,55 @@ impl Nl for String {
 mod test {
     use super::*;
 
-    use byteorder::NativeEndian;
-
     #[test]
     fn test_nl_u8() {
-        let v: u8 = 5;
-        let mut s = BytesMut::from(&[0u8] as &[u8]);
-        s = v.serialize(s).unwrap();
-        assert_eq!(s[0], v);
+        let v = 5u8;
+        let mut ser_buffer = BytesMut::from(&[0u8] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer[0], v);
 
-        let mem = Bytes::from(&[5u8] as &[u8]);
-        let v = u8::deserialize(mem).unwrap();
-        assert_eq!(v, 5)
+        let s = Bytes::from(&[5u8] as &[u8]);
+        let de = u8::deserialize(s).unwrap();
+        assert_eq!(de, 5)
     }
 
     #[test]
     fn test_nl_u16() {
-        let v: u16 = 6000;
-        let mut desired_buffer = [0u8; 2];
-        NativeEndian::write_u16(&mut desired_buffer, 6000);
-
+        let v = 6000u16;
+        let desired_buffer = v.to_ne_bytes();
         let mut ser_buffer = BytesMut::from(&[0u8; 2] as &[u8]);
         ser_buffer = v.serialize(ser_buffer).unwrap();
         assert_eq!(ser_buffer.as_ref(), &desired_buffer);
 
-        let mut s = BytesMut::from(&[0u8; 2] as &[u8]);
-        NativeEndian::write_u16(s.as_mut(), 6000);
-        u16::deserialize(s.freeze()).unwrap();
-        assert_eq!(v, 6000);
+        let s = Bytes::from(&v.to_ne_bytes() as &[u8]);
+        let de = u16::deserialize(s).unwrap();
+        assert_eq!(de, 6000);
     }
 
     #[test]
     fn test_nl_u32() {
-        let v: u32 = 600_000;
-        let mut s = [0u8; 4];
-        NativeEndian::write_u32(&mut s, 600_000);
+        let v = 600_000u32;
+        let desired_buffer = v.to_ne_bytes();
+        let mut ser_buffer = BytesMut::from(&[0u8; 4] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
 
-        let mut s_test = BytesMut::from(&[0u8; 4] as &[u8]);
-        s_test = v.serialize(s_test).unwrap();
-        assert_eq!(&s, s_test.as_ref());
-
-        let mut s = BytesMut::from(&[0u8; 4] as &[u8]);
-        NativeEndian::write_u32(s.as_mut(), 600_000);
-        let v = u32::deserialize(s.freeze()).unwrap();
-        assert_eq!(v, 600_000)
+        let s = Bytes::from(&v.to_ne_bytes() as &[u8]);
+        let de = u32::deserialize(s).unwrap();
+        assert_eq!(de, 600_000)
     }
 
     #[test]
     fn test_nl_u64() {
-        let test_int: u64 = 12_345_678_901_234;
-        let mut expected_serial = [0u8; 8];
-        NativeEndian::write_u64(&mut expected_serial, test_int);
+        let v = 12_345_678_901_234u64;
+        let desired_buffer = v.to_ne_bytes();
+        let mut ser_buffer = BytesMut::from(&[0u8; 8] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
 
-        let mut test_serial = BytesMut::from(&[0u8; 8] as &[u8]);
-        test_serial = test_int.serialize(test_serial).unwrap();
-        assert_eq!(&expected_serial, test_serial.as_ref());
-
-        let mut buffer = [0u8; 8];
-        NativeEndian::write_u64(&mut buffer, test_int);
-        let deserialed_int = u64::deserialize(Bytes::from(&buffer as &[u8])).unwrap();
-        assert_eq!(test_int, deserialed_int);
+        let s = Bytes::from(&v.to_ne_bytes() as &[u8]);
+        let de = u64::deserialize(s).unwrap();
+        assert_eq!(de, 12_345_678_901_234);
     }
 
     #[test]
