@@ -49,6 +49,7 @@ use crate::{
     },
     err::{DeError, NlError, Nlmsgerr},
     genl::Genlmsghdr,
+    neli_constants::MAX_NL_LENGTH,
     nl::Nlmsghdr,
     nlattr::Nlattr,
     utils::{packet_length, U32Bitmask},
@@ -120,15 +121,19 @@ pub struct NlSocket {
 impl NlSocket {
     /// Wrapper around `socket()` syscall filling in the netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
-        let fd =
-            match unsafe { libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into()) }
-            {
-                i if i >= 0 => Ok(i),
-                _ => Err(io::Error::last_os_error()),
-            }?;
+        let fd = match unsafe {
+            libc::socket(
+                AddrFamily::Netlink.into(),
+                libc::SOCK_RAW | libc::SOCK_CLOEXEC,
+                proto.into(),
+            )
+        } {
+            i if i >= 0 => Ok(i),
+            _ => Err(io::Error::last_os_error()),
+        }?;
         Ok(NlSocket {
             fd,
-            buffer: BytesMut::from(&[0u8; crate::neli_constants::MAX_NL_LENGTH] as &[u8]),
+            buffer: BytesMut::from(&[0u8; MAX_NL_LENGTH] as &[u8]),
             position: 0,
             end: 0,
         })
