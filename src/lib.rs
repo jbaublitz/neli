@@ -472,6 +472,29 @@ mod test {
     }
 
     #[test]
+    fn test_nl_i32() {
+        let v = 600_000i32;
+        let desired_buffer = v.to_ne_bytes();
+        let mut ser_buffer = BytesMut::from(&[0u8; 4] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+
+        let s = Bytes::from(&v.to_ne_bytes() as &[u8]);
+        let de = i32::deserialize(s).unwrap();
+        assert_eq!(de, 600_000);
+
+        let v = -600_000i32;
+        let desired_buffer = v.to_ne_bytes();
+        let mut ser_buffer = BytesMut::from(&[0u8; 4] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+
+        let s = Bytes::from(&v.to_ne_bytes() as &[u8]);
+        let de = i32::deserialize(s).unwrap();
+        assert_eq!(de, -600_000)
+    }
+
+    #[test]
     fn test_nl_u32() {
         let v = 600_000u32;
         let desired_buffer = v.to_ne_bytes();
@@ -498,51 +521,61 @@ mod test {
     }
 
     #[test]
+    fn test_nl_be_u64() {
+        let v = 571_987_654u64;
+        let desired_buffer = v.to_be_bytes();
+        let mut ser_buffer = BytesMut::from(&[0u8; 8] as &[u8]);
+        ser_buffer = BeU64(v).serialize(ser_buffer).unwrap();
+        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+    }
+
+    #[test]
     fn test_nl_slice() {
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut s = BytesMut::from(&[0u8; 9] as &[u8]);
-        s = v.serialize(s).unwrap();
-        assert_eq!(v, s.as_ref());
+        let mut ser_buffer = BytesMut::from(&[0u8; 9] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(v, ser_buffer.as_ref());
 
-        let s: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
-        let v = <&[u8]>::deserialize_from_slice(s).unwrap();
-        assert_eq!(v, s);
+        let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0];
+        let de = <&[u8]>::deserialize_from_slice(v).unwrap();
+        assert_eq!(v, de);
     }
 
     #[test]
     fn test_nl_vec() {
         let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut s = BytesMut::from(&[0u8; 9] as &[u8]);
-        s = v.serialize(s).unwrap();
-        assert_eq!(v, s.to_vec());
+        let mut ser_buffer = BytesMut::from(&[0u8; 9] as &[u8]);
+        ser_buffer = v.serialize(ser_buffer).unwrap();
+        assert_eq!(v.as_slice(), ser_buffer.as_ref());
 
-        let s: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let v = Vec::<u8>::deserialize(Bytes::from(s)).unwrap();
-        assert_eq!(v.as_slice(), s);
+        let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let de = Vec::<u8>::deserialize(Bytes::from(v)).unwrap();
+        assert_eq!(v, de.as_slice());
     }
 
     #[test]
     fn test_nl_str() {
         let s = "AAAAA";
-        let mut sl = BytesMut::from(&[0u8; 6] as &[u8]);
-        sl = s.serialize(sl).unwrap();
-        assert_eq!(&[65, 65, 65, 65, 65, 0], sl.as_ref());
+        let mut ser_buffer = BytesMut::from(&[0u8; 6] as &[u8]);
+        ser_buffer = s.serialize(ser_buffer).unwrap();
+        assert_eq!(&[65, 65, 65, 65, 65, 0], ser_buffer.as_ref());
 
-        let s = &[65u8, 65, 65, 65, 65, 65, 0] as &[u8];
-        let string = <&str>::deserialize_from_slice(s).unwrap();
-        assert_eq!(string, "AAAAAA")
+        let v = &[65u8, 65, 65, 65, 65, 65, 0] as &[u8];
+        let de = <&str>::deserialize_from_slice(v).unwrap();
+        assert_eq!(de, "AAAAAA")
     }
 
     #[test]
     fn test_nl_string() {
-        let mut s = "AAAAA".to_string();
-        let mut sl = BytesMut::from(&[0u8; 6] as &[u8]);
-        sl = s.serialize(sl).unwrap();
-        s.push('\0');
-        assert_eq!(s.as_bytes(), sl.as_ref());
+        let s = "AAAAA".to_string();
+        let desired_s = "AAAAA\0";
+        let mut ser_buffer = BytesMut::from(&[0u8; 6] as &[u8]);
+        ser_buffer = s.serialize(ser_buffer).unwrap();
+        assert_eq!(desired_s.as_bytes(), ser_buffer.as_ref());
 
         let s = "AAAAAA\0";
-        let string = String::deserialize(Bytes::from(s.as_bytes())).unwrap();
-        assert_eq!(s[..s.len() - 1], string)
+        let de_s = "AAAAAA".to_string();
+        let de = String::deserialize(Bytes::from(s.as_bytes())).unwrap();
+        assert_eq!(de_s, de)
     }
 }
