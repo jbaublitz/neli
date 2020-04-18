@@ -70,7 +70,7 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
         }
     };
     s.add_mcast_membership(U32Bitmask::from(flag))?;
-    for next in s.iter::<u16, Genlmsghdr<u8, u16>>() {
+    for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
         println!("{:#?}", next?);
     }
     Ok(())

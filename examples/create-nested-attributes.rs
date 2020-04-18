@@ -12,8 +12,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     // let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs)?;
     // let nlmsg = Nlmsghdr::new(None, consts::Nlmsg::Noop, vec![consts::NlmF::Request], None, None,
-    //                           genlmsg);
-    // let mut buffer = neli::StreamWriteBuffer::new_growable(Some(nlmsg.asize()));
+    //                           Some(genlmsg));
+    // let mut buffer = neli::BytesMut::from(vec![0; nlmsg.asize()]);
     // nlmsg.serialize(&mut buffer)?;
     // println!("Serialized homogeneous nested attributes: {:?}", buffer.as_ref());
 
@@ -49,7 +49,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         consts::NlmFFlags::new(&[consts::NlmF::Request]),
         None,
         None,
-        genlmsg,
+        Some(genlmsg),
     );
     let mut buffer = BytesMut::with_capacity(nlmsg.asize());
     buffer = nlmsg.serialize(buffer)?;

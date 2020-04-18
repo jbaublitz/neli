@@ -1,4 +1,4 @@
-extern crate neli;
+use std::error::Error;
 
 use neli::{
     consts::{NlFamily, NlmFFlags},
@@ -7,7 +7,7 @@ use neli::{
     SmallVec, U32Bitmask,
 };
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
     let mut sock = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
@@ -30,16 +30,21 @@ fn main() {
         NlmFFlags::empty(),
         None,
         None,
-        Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, SmallVec::new()),
+        Some(Genlmsghdr::new(
+            neli::consts::CtrlCmd::Unspec,
+            2,
+            SmallVec::new(),
+        )),
     );
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type
     // to be provided
-    let mut handle = nlmsg.nl_payload.get_attr_handle();
+    let mut handle = nlmsg.get_payload()?.get_attr_handle();
     // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
     // a handler containing only this nested attribute internally
     let next = handle.get_nested_attributes::<u16>(1).unwrap();
     // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
     // the payload of this attribute as a u32
     let _thirty_two_bit_integer = next.get_attr_payload_as::<u32>(1).unwrap();
+    Ok(())
 }

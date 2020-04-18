@@ -20,7 +20,7 @@ use std::{
 use bytes::{Bytes, BytesMut};
 
 use crate::{
-    consts::NlType,
+    consts::nl::{NlType, NlmFFlags},
     nl::{NlEmpty, Nlmsghdr},
     Nl,
 };
@@ -48,7 +48,6 @@ where
 {
     fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
         Ok(serialize! {
-            PAD self;
             mem;
             self.error;
             self.nlmsg
@@ -56,15 +55,24 @@ where
     }
 
     fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        Ok(deserialize! {
-            STRIP Self;
-            mem;
-            Nlmsgerr {
-                error: libc::c_int,
-                nlmsg: Nlmsghdr<T, NlEmpty> => mem.len().checked_sub(libc::c_int::type_size()
-                    .expect("Integers have static sizes"))
-                    .ok_or_else(|| DeError::UnexpectedEOB)?
-            } => mem.len()
+        let pos = 0;
+        let (error, pos) = drive_deserialize!(libc::c_int, mem, pos);
+        let (nl_len, pos) = drive_deserialize!(u32, mem, pos);
+        let (nl_type, pos) = drive_deserialize!(T, mem, pos);
+        let (nl_flags, pos) = drive_deserialize!(NlmFFlags, mem, pos);
+        let (nl_seq, pos) = drive_deserialize!(u32, mem, pos);
+        let (nl_pid, pos) = drive_deserialize!(u32, mem, pos);
+        drive_deserialize!(END mem, pos);
+        Ok(Nlmsgerr {
+            error,
+            nlmsg: Nlmsghdr {
+                nl_len,
+                nl_type,
+                nl_flags,
+                nl_seq,
+                nl_pid,
+                nl_payload: None,
+            },
         })
     }
 

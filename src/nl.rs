@@ -13,8 +13,8 @@ use smallvec::SmallVec;
 
 use crate::{
     consts::{alignto, NlType, NlmFFlags},
-    err::{DeError, SerError},
-    utils::packet_length,
+    err::{DeError, NlError, SerError},
+    utils::packet_length_u32,
     Nl, NlBuffer,
 };
 
@@ -37,9 +37,9 @@ where
         let mut nlhdrs = SmallVec::new();
         let mut pos = 0;
         while pos < mem.len() {
-            let packet_len = packet_length(mem.as_ref(), pos);
+            let packet_len = packet_length_u32(mem.as_ref(), pos);
             let (nlhdr, pos_tmp) = drive_deserialize!(
-                Nlmsghdr<T, P>, mem, pos, packet_len
+                Nlmsghdr<T, P>, mem, pos, alignto(packet_len)
             );
             pos = pos_tmp;
             nlhdrs.push(nlhdr);
@@ -57,6 +57,38 @@ where
     }
 }
 
+impl<P> Nl for Option<P>
+where
+    P: Nl,
+{
+    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+        match *self {
+            Some(ref p) => p.serialize(mem),
+            None => NlEmpty(None).serialize(mem),
+        }
+    }
+
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        let empty_result = NlEmpty::deserialize(mem.clone());
+        if empty_result.is_err() {
+            P::deserialize(mem).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn size(&self) -> usize {
+        match *self {
+            Some(ref p) => p.size(),
+            None => 0,
+        }
+    }
+
+    fn type_size() -> Option<usize> {
+        None
+    }
+}
+
 /// Top level netlink header and payload
 #[derive(Debug, PartialEq)]
 pub struct Nlmsghdr<T, P> {
@@ -71,7 +103,7 @@ pub struct Nlmsghdr<T, P> {
     /// ID of the netlink destination for requests and source for responses
     pub nl_pid: u32,
     /// Payload of netlink message
-    pub nl_payload: P,
+    pub nl_payload: Option<P>,
 }
 
 impl<T, P> Nlmsghdr<T, P>
@@ -86,7 +118,7 @@ where
         nl_flags: NlmFFlags,
         nl_seq: Option<u32>,
         nl_pid: Option<u32>,
-        nl_payload: P,
+        nl_payload: Option<P>,
     ) -> Self {
         let mut nl = Nlmsghdr {
             nl_type,
@@ -98,6 +130,13 @@ where
         };
         nl.nl_len = nl_len.unwrap_or(nl.size() as u32);
         nl
+    }
+
+    /// Get the payload if there is one or return an error.
+    pub fn get_payload(&self) -> Result<&P, NlError> {
+        self.nl_payload
+            .as_ref()
+            .ok_or_else(|| NlError::new("This packet does not have a payload."))
     }
 }
 
@@ -129,7 +168,7 @@ where
                 nl_flags: NlmFFlags,
                 nl_seq: u32,
                 nl_pid: u32,
-                nl_payload: P => (nl_len as usize).checked_sub(
+                nl_payload: Option<P> => (nl_len as usize).checked_sub(
                     u32::type_size().expect("Must be a static size") * 3
                     + T::type_size().expect("Must be a static size")
                     + NlmFFlags::type_size().expect("Must be a static size")
@@ -160,27 +199,52 @@ where
 
 /// Struct indicating an empty payload
 #[derive(Debug, PartialEq)]
-pub struct NlEmpty;
+pub struct NlEmpty(pub Option<usize>);
 
 impl Nl for NlEmpty {
     #[inline]
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
+        match self.0 {
+            Some(len) => {
+                match mem.len() {
+                    i if len > i => return Err(SerError::UnexpectedEOB(mem)),
+                    i if len < i => return Err(SerError::BufferNotFilled(mem)),
+                    _ => (),
+                };
+                for i in 0..len {
+                    mem[i] = 0;
+                }
+            }
+            None => {
+                for i in 0..mem.len() {
+                    mem[i] = 0;
+                }
+            }
+        };
         Ok(mem)
     }
 
     #[inline]
-    fn deserialize(_mem: Bytes) -> Result<Self, DeError> {
-        Ok(NlEmpty)
+    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+        for byte in mem.as_ref() {
+            if *byte != 0u8 {
+                return Err(DeError::new("All bytes must be zeroed"));
+            }
+        }
+        Ok(NlEmpty(Some(mem.len())))
     }
 
     #[inline]
     fn size(&self) -> usize {
-        0
+        match self.0 {
+            Some(len) => len,
+            None => 0,
+        }
     }
 
     #[inline]
     fn type_size() -> Option<usize> {
-        Some(0)
+        None
     }
 }
 
@@ -202,7 +266,7 @@ mod test {
             NlmFFlags::empty(),
             None,
             None,
-            NlEmpty,
+            None,
         );
         let mut mem = BytesMut::from(vec![0u8; nl.asize()]);
         mem = nl.serialize(mem).unwrap();
@@ -232,7 +296,7 @@ mod test {
                 NlmFFlags::new(&[NlmF::Ack]),
                 None,
                 None,
-                NlEmpty
+                None,
             ),
             nl
         );

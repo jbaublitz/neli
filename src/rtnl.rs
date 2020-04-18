@@ -15,7 +15,7 @@ use smallvec::SmallVec;
 use crate::{
     consts::{alignto, rtnl::*},
     err::{DeError, SerError},
-    utils::packet_length,
+    utils::packet_length_u16,
     Buffer, Nl, RtBuffer,
 };
 
@@ -100,12 +100,12 @@ where
         let mut rtattrs = SmallVec::new();
         let mut pos = 0;
         while pos < mem.len() {
-            let packet_len = packet_length(mem.as_ref(), pos);
+            let packet_len = packet_length_u16(mem.as_ref(), pos);
             let (nlhdr, pos_tmp) = drive_deserialize!(
-                Rtattr<T, P>, mem, pos, packet_len
+                Rtattr<T, P>, mem, pos, alignto(packet_len)
             );
-            pos = pos_tmp;
             rtattrs.push(nlhdr);
+            pos = pos_tmp;
         }
         drive_deserialize!(END mem, pos);
         Ok(Rtattrs::new(rtattrs))
@@ -629,17 +629,6 @@ pub struct Rtattr<T, P> {
     pub rta_type: T,
     /// Payload of the attribute
     pub rta_payload: P,
-}
-
-impl<T, P> Rtattr<T, P>
-where
-    T: RtaType,
-    P: Nl,
-{
-    /// Get the size of the payload only
-    pub fn payload_size(&self) -> usize {
-        self.rta_payload.size()
-    }
 }
 
 impl<T> Rtattr<T, Buffer>

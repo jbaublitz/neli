@@ -1,5 +1,5 @@
 use neli::{
-    consts::{CtrlAttr, CtrlCmd, GenlId, NlFamily, NlmF, NlmFFlags, Nlmsg},
+    consts::{genl::*, nl::*, nlattr::*, socket::*},
     err::NlError,
     genl::Genlmsghdr,
     nl::Nlmsghdr,
@@ -24,25 +24,24 @@ fn main() -> Result<(), NlError> {
         let seq = None;
         let pid = None;
         let payload = genlhdr;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, payload)
+        Nlmsghdr::new(len, nl_type, flags, seq, pid, Some(payload))
     };
     socket.send_nl(nlhdr)?;
 
-    let mut iter = socket.iter::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>();
-    while let Some(Ok(response)) = iter.next() {
-        match response.nl_type {
-            // This example could be improved by reinterpreting the payload as an Nlmsgerr struct
-            // and printing the specific error encountered.
-            Nlmsg::Error => {
-                return Err(NlError::new(
-                    "An error occurred while retrieving available families",
-                ))
-            }
-            Nlmsg::Done => break,
-            _ => (),
-        };
+    let iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+    for response_result in iter {
+        let response = response_result?;
 
-        let handle = response.nl_payload.get_attr_handle();
+        // FIXME: This example could be improved by
+        // reinterpreting the payload as an Nlmsgerr struct
+        // and printing the specific error encountered.
+        if let NlTypeWrapper::Nlmsg(Nlmsg::Error) = response.nl_type {
+            return Err(NlError::new(
+                "An error occurred while retrieving available families",
+            ));
+        }
+
+        let handle = response.get_payload()?.get_attr_handle();
 
         for attr in handle.iter() {
             match &attr.nla_type {
@@ -56,7 +55,7 @@ fn main() -> Result<(), NlError> {
                     let id = u16::deserialize(mem)?;
                     println!("\tID: 0x{:x}", id);
                 }
-                _ => {}
+                _ => (),
             }
         }
     }

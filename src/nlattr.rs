@@ -7,12 +7,12 @@
 //! ```no_run
 //! // This was received from the socket
 //! let nlmsg = neli::nl::Nlmsghdr::new(None, neli::consts::GenlId::Ctrl, neli::consts::NlmFFlags::empty(), None, None,
-//!         neli::genl::Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, neli::SmallVec::new()));
+//!         Some(neli::genl::Genlmsghdr::new(neli::consts::CtrlCmd::Unspec, 2, neli::SmallVec::new())));
 //!
 //! // Get parsing handler for the attributes in this message where the next call
 //! // to either get_nested_attributes() or get_payload_with() will expect a u16 type
 //! // to be provided
-//! let mut handle = nlmsg.nl_payload.get_attr_handle();
+//! let mut handle = nlmsg.get_payload().unwrap().get_attr_handle();
 //!
 //! // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
 //! // a handler containing only this nested attribute internally
@@ -61,7 +61,7 @@ use smallvec::SmallVec;
 use crate::{
     consts::{alignto, NlAttrType},
     err::{DeError, NlError, SerError},
-    utils::packet_length,
+    utils::packet_length_u16,
     Buffer, GenlBuffer, Nl,
 };
 
@@ -82,7 +82,7 @@ where
                 Nlattr<T, P>,
                 mem,
                 pos,
-                alignto(packet_length(mem.as_ref(), pos))
+                alignto(packet_length_u16(mem.as_ref(), pos))
             );
             vec.push(attr);
             pos = pos_tmp;
@@ -569,7 +569,7 @@ mod test {
             .add_nested_attribute(&Nlattr::new(None, 2u16, &[0u8, 1, 2, 3] as &[u8]).unwrap())
             .unwrap();
         nlattr
-            .add_nested_attribute(&Nlattr::new(None, 3u16, NlEmpty).unwrap())
+            .add_nested_attribute(&Nlattr::new(None, 3u16, NlEmpty(None)).unwrap())
             .unwrap();
         nlattr
             .add_nested_attribute(&Nlattr::new(None, 4u16, 15u16).unwrap())

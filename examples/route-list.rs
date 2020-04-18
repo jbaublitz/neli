@@ -4,14 +4,15 @@ use std::{error::Error, net::IpAddr};
 
 use neli::{consts::*, err::NlError, nl::Nlmsghdr, rtnl::*, socket::*, U32Bitmask};
 
-fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
+fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError> {
+    let payload = rtm.get_payload()?;
     // This sample is only interested in the main table.
-    if rtm.nl_payload.rtm_table == RtTable::Main {
+    if payload.rtm_table == RtTable::Main {
         let mut src = None;
         let mut dst = None;
         let mut gateway = None;
 
-        for attr in rtm.nl_payload.rtattrs.iter() {
+        for attr in payload.rtattrs.iter() {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
                 use std::convert::TryFrom;
                 if let Ok(tup) = <&[u8; 4]>::try_from(b) {
@@ -32,7 +33,7 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
         }
 
         if let Some(dst) = dst {
-            print!("{}/{} ", dst, rtm.nl_payload.rtm_dst_len);
+            print!("{}/{} ", dst, payload.rtm_dst_len);
         } else {
             print!("default ");
             if let Some(gateway) = gateway {
@@ -40,10 +41,10 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
             }
         }
 
-        if rtm.nl_payload.rtm_scope != RtScope::Universe {
+        if payload.rtm_scope != RtScope::Universe {
             print!(
                 " proto {:?}  scope {:?} ",
-                rtm.nl_payload.rtm_protocol, rtm.nl_payload.rtm_scope
+                payload.rtm_protocol, payload.rtm_scope
             )
         }
         if let Some(src) = src {
@@ -51,6 +52,8 @@ fn parse_route_table(rtm: Nlmsghdr<Rtm, Rtmsg>) {
         }
         println!();
     }
+
+    Ok(())
 }
 
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
@@ -77,33 +80,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         let seq = None;
         let pid = None;
         let payload = rtmsg;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, payload)
+        Nlmsghdr::new(len, nl_type, flags, seq, pid, Some(payload))
     };
     socket.send_nl(nlhdr).unwrap();
 
-    // Provisionally deserialize as a Nlmsg first.
-    let nl = socket.recv_nl::<Rtm, Rtmsg>(OnError::FastForward)?;
-    let multi_msg = nl.nl_flags.contains(&NlmF::Multi);
-    parse_route_table(nl);
-    if multi_msg {
-        while let Ok(nl) = socket.recv_nl::<u16, Rtmsg>(OnError::FastForward) {
-            match Nlmsg::from(nl.nl_type) {
-                Nlmsg::Done => return Ok(()),
-                Nlmsg::Error => return Err(Box::new(NlError::new("rtnetlink error."))),
-                _ => {
-                    let rtm = Nlmsghdr {
-                        nl_len: nl.nl_len,
-                        nl_type: Rtm::from(nl.nl_type),
-                        nl_flags: nl.nl_flags,
-                        nl_seq: nl.nl_seq,
-                        nl_pid: nl.nl_pid,
-                        nl_payload: nl.nl_payload,
-                    };
-
-                    // Some other message type, so let's try to deserialize as a Rtm.
-                    parse_route_table(rtm)
-                }
-            }
+    for rtm_result in socket.iter(false) {
+        let rtm = rtm_result?;
+        if let NlTypeWrapper::Rtm(_) = rtm.nl_type {
+            parse_route_table(rtm)?;
         }
     }
     Ok(())

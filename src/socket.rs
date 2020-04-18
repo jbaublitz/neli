@@ -31,7 +31,6 @@
 use std::{
     fmt::Debug,
     io,
-    marker::PhantomData,
     mem::{size_of, zeroed},
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
@@ -44,23 +43,33 @@ use smallvec::SmallVec;
 use crate::log;
 use crate::{
     consts::{
-        self, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, Index, NlAttrType, NlFamily,
-        NlType, NlmF, NlmFFlags, Nlmsg,
+        self, nl::*, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, Index, NlAttrType,
+        NlFamily, NlType, NlmF, NlmFFlags, Nlmsg,
     },
     err::{DeError, NlError, Nlmsgerr},
     genl::Genlmsghdr,
     nl::Nlmsghdr,
     nlattr::Nlattr,
-    utils::{packet_length, U32Bitmask},
+    utils::{packet_length_u32, U32Bitmask},
     Nl, NlBuffer,
 };
 
-/// Iterator over messages returned from a `recv_nl` call
+/// Iterator over messages in an `NlSocket` type.
+///
+/// This iterator has two options:
+/// * Iterate indefinitely over messages. This is most
+/// useful in the case of subscribing to messages in a
+/// multicast group.
+/// * Iterate until a message is returned with `Nlmsg::Done`
+/// is set. This is most useful in the case of request-response
+/// workflows where the iterator will parse and iterate through
+/// all of the messages with `NlmF::Multi` set until a message
+/// with `Nlmsg::Done` is received at which point `None` will
+/// be returned indicating the end of the response.
 pub struct NlMessageIter<'a, T, P> {
     socket_ref: &'a mut NlSocket,
     stored: NlBuffer<T, P>,
-    data_type: PhantomData<T>,
-    data_payload: PhantomData<P>,
+    next_is_none: Option<bool>,
 }
 
 impl<'a, T, P> NlMessageIter<'a, T, P>
@@ -68,25 +77,42 @@ where
     T: Nl + NlType,
     P: Nl,
 {
-    /// Construct a new iterator that yields `Nlmsghdr` structs from the provided buffer
-    pub fn new(socket_ref: &'a mut NlSocket) -> Self {
+    /// Construct a new iterator that yields `Nlmsghdr` structs
+    /// from the provided buffer. `iterate_indefinitely` set to
+    /// `true` will treat messages as a never-ending stream.
+    /// `false` will cause `NlMessageIter` to respect the
+    /// netlink identifiers [`NlmF::Multi`] and [`Nlmsg::Done`].
+    ///
+    /// If `iterate_indefinitely` is `false`, this means that
+    /// `NlMessageIter` will iterate through either exactly one
+    /// message if [`NlmF::Multi`] is not set, or through all
+    /// consecutive messages with [`NlmF::Multi`] set until
+    /// a terminating message with [`Nlmsg::Done`] is reached
+    /// at which point `None` will be returned by the iterator.
+    pub fn new(socket_ref: &'a mut NlSocket, iterate_indefinitely: bool) -> Self {
         NlMessageIter {
             socket_ref,
             stored: SmallVec::new(),
-            data_type: PhantomData,
-            data_payload: PhantomData,
+            next_is_none: if iterate_indefinitely {
+                None
+            } else {
+                Some(false)
+            },
         }
     }
 }
 
-impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
+impl<'a, P> Iterator for NlMessageIter<'a, NlTypeWrapper, P>
 where
-    T: Nl + NlType + Debug,
     P: Nl + Debug,
 {
-    type Item = Result<Nlmsghdr<T, P>, NlError>;
+    type Item = Result<Nlmsghdr<NlTypeWrapper, P>, NlError>;
 
-    fn next(&mut self) -> Option<Result<Nlmsghdr<T, P>, NlError>> {
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(true) = self.next_is_none {
+            return None;
+        }
+
         if self.stored.is_empty() {
             match self.socket_ref.recv_all_nl() {
                 Ok(mut rn) => {
@@ -97,7 +123,16 @@ where
                 Err(e) => return Some(Err(e)),
             }
         }
-        self.stored.pop().map(Ok)
+        let next = self.stored.pop();
+        if let Some(ref n) = next {
+            if self.next_is_none.is_some() && !n.nl_flags.contains(&NlmF::Multi) {
+                self.next_is_none = Some(true);
+            }
+            if n.nl_type == NlTypeWrapper::Nlmsg(Nlmsg::Done) {
+                return None;
+            }
+        }
+        next.map(Ok)
     }
 }
 
@@ -307,7 +342,7 @@ impl NlSocket {
     fn get_genl_family<T>(
         &mut self,
         family_name: &str,
-    ) -> Result<NlBuffer<GenlId, Genlmsghdr<CtrlCmd, T>>, NlError>
+    ) -> Result<NlBuffer<NlTypeWrapper, Genlmsghdr<CtrlCmd, T>>, NlError>
     where
         T: NlAttrType + Debug,
     {
@@ -320,13 +355,16 @@ impl NlSocket {
             NlmFFlags::new(&[NlmF::Request, NlmF::Ack]),
             None,
             None,
-            genlhdr,
+            Some(genlhdr),
         );
         self.send_nl(nlhdr)?;
 
-        let msg = self.recv_all_nl()?;
+        let mut buffer = NlBuffer::new();
+        for msg in self.iter(false) {
+            buffer.push(msg?);
+        }
         self.recv_ack(OnError::FastForward)?;
-        Ok(msg)
+        Ok(buffer)
     }
 
     /// Convenience function for resolving a `&str` containing the multicast group name to a
@@ -334,7 +372,11 @@ impl NlSocket {
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs.iter() {
-            let handle = nlhdr.nl_payload.get_attr_handle();
+            let attrs = nlhdr
+                .nl_payload
+                .as_ref()
+                .ok_or_else(|| NlError::new("No attributes were returned in this message."))?;
+            let handle = attrs.get_attr_handle();
             if let Ok(u) = handle.get_attr_payload_as::<u16>(CtrlAttr::FamilyId) {
                 return Ok(u);
             }
@@ -354,7 +396,10 @@ impl NlSocket {
     ) -> Result<u32, NlError> {
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs {
-            let mut handle = nlhdr.nl_payload.get_attr_handle();
+            let attrs = nlhdr
+                .nl_payload
+                .ok_or_else(|| NlError::new("No attributes were returned in this message."))?;
+            let mut handle = attrs.get_attr_handle();
             let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
             if let Some(id) = mcast_groups
                 .iter()
@@ -389,17 +434,18 @@ impl NlSocket {
             NlmFFlags::new(&[NlmF::Request, NlmF::Dump]),
             None,
             None,
-            genlhdr,
+            Some(genlhdr),
         );
 
         self.send_nl(nlhdr)?;
-        for res_msg in self.iter::<Nlmsg, Genlmsghdr<u8, CtrlAttr>>() {
+        for res_msg in self.iter::<Genlmsghdr<u8, CtrlAttr>>(false) {
             let msg = res_msg?;
-            if msg.nl_type == Nlmsg::Done {
-                break;
-            }
 
-            let mut attributes = msg.nl_payload.get_attr_handle();
+            let mut attributes = msg
+                .nl_payload
+                .as_ref()
+                .ok_or_else(|| NlError::new("No attributes were returned in this message."))?
+                .get_attr_handle();
             let name = attributes.get_attr_payload_as::<String>(CtrlAttr::FamilyName)?;
             let groups = match attributes.get_nested_attributes::<Index>(CtrlAttr::McastGroups) {
                 Ok(grps) => grps,
@@ -451,11 +497,12 @@ impl NlSocket {
             if mem_read == 0 {
                 return Err(NlError::new("No data could be read from the socket"));
             }
+            self.end = mem_read;
         }
 
         // Get the next packet length at the current position of the
         // buffer for the next read operation.
-        let next_packet_len = packet_length(self.buffer.as_ref(), self.position);
+        let next_packet_len = packet_length_u32(self.buffer.as_ref(), self.position);
         // If the packet extends past the end of the number of bytes
         // read into the buffer, return an error; something
         // has gone wrong.
@@ -473,6 +520,10 @@ impl NlSocket {
             // for the next read.
             Ok(packet) => {
                 self.position += next_packet_len;
+
+                #[cfg(feature = "logging")]
+                log!("Message received: {:#?}", packet);
+
                 packet
             }
             // If failed, choose the handling of the buffer state.
@@ -511,8 +562,8 @@ impl NlSocket {
     /// `NlSocket::recv_nl` or `NlSocket::iter`.
     pub fn recv_all_nl<T, P>(&mut self) -> Result<NlBuffer<T, P>, NlError>
     where
-        T: Nl + NlType,
-        P: Nl,
+        T: Nl + NlType + Debug,
+        P: Nl + Debug,
     {
         if self.position == self.end {
             let mut buffer = self.buffer.split_off(0);
@@ -524,6 +575,10 @@ impl NlSocket {
             self.end = mem_read;
         }
         let vec = NlBuffer::deserialize(Bytes::from(&self.buffer.as_ref()[0..self.end]))?;
+
+        #[cfg(feature = "logging")]
+        log!("Messages received: {:#?}", vec);
+
         self.position = 0;
         self.end = 0;
         Ok(vec)
@@ -531,28 +586,38 @@ impl NlSocket {
 
     /// Consume an ACK and return an error if an ACK is not found
     pub fn recv_ack(&mut self, on_error: OnError) -> Result<(), NlError> {
-        if let Ok(ack) = self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(on_error) {
-            if ack.nl_type == consts::Nlmsg::Error {
-                if ack.nl_payload.error == 0 {
-                    // PID check done as part of recv_nl already
-                    return Ok(());
+        match self.recv_nl::<consts::Nlmsg, Nlmsgerr<consts::Nlmsg>>(on_error) {
+            Ok(ack) => {
+                if ack.nl_type == consts::Nlmsg::Error {
+                    let error = ack.nl_payload.ok_or_else(|| {
+                        NlError::new(
+                            "The error expected due to the nl_type field \
+                            was not returned",
+                        )
+                    })?;
+                    if error.error == 0 {
+                        Ok(())
+                    } else {
+                        let err = std::io::Error::from_raw_os_error(-error.error as _);
+                        Err(NlError::Msg(err.to_string()))
+                    }
                 } else {
-                    let err = std::io::Error::from_raw_os_error(-ack.nl_payload.error as _);
-                    return Err(NlError::Msg(err.to_string()));
+                    Err(NlError::NoAck)
                 }
             }
+            Err(e) => Err(e),
         }
-
-        Err(NlError::NoAck)
     }
 
     /// Return an iterator object
-    pub fn iter<T, P>(&mut self) -> NlMessageIter<T, P>
+    ///
+    /// The argument `iterate_indefinitely` is documented
+    /// in more detail in [`NlMessageIter`]
+    pub fn iter<P>(&mut self, iterate_indefinitely: bool) -> NlMessageIter<NlTypeWrapper, P>
     where
-        T: NlType,
         P: Nl,
     {
-        NlMessageIter::new(self)
+        NlMessageIter::new(self, iterate_indefinitely)
     }
 }
 
@@ -806,35 +871,35 @@ mod test {
     fn multi_msg_iter() -> Result<(), SerError> {
         let nl1 = Nlmsghdr::new(
             None,
-            Nlmsg::Noop,
+            NlTypeWrapper::Nlmsg(Nlmsg::Noop),
             NlmFFlags::new(&[NlmF::Multi]),
             None,
             None,
-            Genlmsghdr::new(
+            Some(Genlmsghdr::new(
                 CtrlCmd::Unspec,
                 2,
                 SmallVec::from_vec(vec![
                     Nlattr::new(None, CtrlAttr::FamilyId, 5u32).unwrap(),
                     Nlattr::new(None, CtrlAttr::FamilyName, "my_family_name").unwrap(),
                 ]),
-            ),
+            )),
         );
         let nl2 = Nlmsghdr::new(
             None,
-            Nlmsg::Noop,
+            NlTypeWrapper::Nlmsg(Nlmsg::Noop),
             NlmFFlags::new(&[NlmF::Multi]),
             None,
             None,
-            Genlmsghdr::new(
+            Some(Genlmsghdr::new(
                 CtrlCmd::Unspec,
                 2,
                 SmallVec::from(vec![
                     Nlattr::new(None, CtrlAttr::FamilyId, 6u32).unwrap(),
                     Nlattr::new(None, CtrlAttr::FamilyName, "my_other_family_name").unwrap(),
                 ]),
-            ),
+            )),
         );
-        let v = NlBuffer::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>::from(vec![nl1, nl2]);
+        let v = NlBuffer::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>::from(vec![nl1, nl2]);
         let mut bytes = BytesMut::from(vec![0; v.asize()]);
         bytes = v.serialize(bytes)?;
 
@@ -845,7 +910,7 @@ mod test {
             position: 0,
             end: bytes_len,
         };
-        let mut iter = s.iter();
+        let mut iter = s.iter(false);
         if let Some(Ok(nl_next)) = iter.next() {
             assert_eq!(nl_next, v[0]);
         } else {
