@@ -8,6 +8,8 @@
 //! ```
 //!
 //! Both this example and the above command needs to be run as root.
+#![cfg(feature = "netfilter")]
+
 extern crate neli;
 
 use neli::consts::netfilter::{LogCmd, LogCopyMode, NetfilterMsg, NfLogCfg};

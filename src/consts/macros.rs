@@ -1,8 +1,6 @@
-// This is to facillitate the two different ways to call
-// `impl_var`: one with doc comments and one without.
 #[macro_export]
 #[doc(hidden)]
-macro_rules! impl_var_base {
+macro_rules! impl_var_impls {
     ($name:ident, $ty:ty, $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => {
         impl From<$ty> for $name {
             fn from(v: $ty) -> Self {
@@ -96,8 +94,13 @@ macro_rules! impl_var_base {
 macro_rules! impl_var {
     (
         $( #[$outer:meta] )*
-        $name:ident, $ty:ty, $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
-    ) => ( // with comments
+        $name:ident,
+        $ty:ty,
+        $(
+            $( #[cfg($meta:meta)] )*
+            $var:ident => $val:expr
+        ),*
+    ) => (
         $(#[$outer])*
         #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub enum $name {
@@ -112,28 +115,14 @@ macro_rules! impl_var {
             UnrecognizedVariant($ty),
         }
 
-        impl_var_base!($name, $ty, $( $( #[cfg($meta)] )* $var => $val),* );
-    );
-    (
-        $name:ident, $ty:ty,
-        $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),*
-    ) => ( // without comments
-        #[allow(missing_docs)]
-        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-        pub enum $name {
-            #[allow(missing_docs)]
+        impl_var_impls!(
+            $name,
+            $ty,
             $(
-                $(
-                    #[cfg($meta)]
-                )*
-                #[allow(missing_docs)]
-                $var,
-            )*
-            /// Variant that signifies an invalid value while deserializing
-            UnrecognizedVariant($ty),
-        }
-
-        impl_var_base!($name, $ty, $( $( #[cfg($meta:meta)] )* $var => $val),* );
+                $( #[cfg($meta)] )*
+                $var => $val
+            ),*
+        );
     );
 }
 
@@ -146,14 +135,8 @@ macro_rules! impl_var {
 /// is the generic type and then use `impl_var_trait` to flag the new enum as usable in
 /// this field. See the examples below for more details.
 macro_rules! impl_trait {
-    ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => { // with comments
+    ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => {
         $(#[$outer])*
-        pub trait $trait_name: $crate::Nl + PartialEq + Clone + From<$to_from_ty> + Into<$to_from_ty> {}
-
-        impl $trait_name for $to_from_ty {}
-    };
-    ( $trait_name:ident, $to_from_ty:ty ) => { // without comments
-        #[allow(missing_docs)]
         pub trait $trait_name: $crate::Nl + PartialEq + Clone + From<$to_from_ty> + Into<$to_from_ty> {}
 
         impl $trait_name for $to_from_ty {}
@@ -166,17 +149,19 @@ macro_rules! impl_trait {
 /// deserialization conversions, as well as value conversions
 /// for serialization and deserialization.
 macro_rules! impl_var_trait {
-    ( $( #[$outer:meta] )* $name:ident, $ty:ty, $impl_name:ident,
-      $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => ( // with comments
+    (
+        $( #[$outer:meta] )*
+        $name:ident,
+        $ty:ty,
+        $impl_name:ident,
+        $(
+            $( #[cfg($meta:meta)] )*
+            $var:ident => $val:expr
+        ),*
+    ) => (
         impl_var!( $(#[$outer])*
             $name, $ty, $( $( #[cfg($meta)] )* $var => $val ),*
         );
-
-        impl $impl_name for $name {}
-    );
-    ( $name:ident, $ty:ty, $impl_name:ident,
-      $( $( #[cfg($meta:meta)] )* $var:ident => $val:expr ),* ) => ( // without comments
-        impl_var!($name, $ty, $( $( #[cfg($meta)] )* $var => $val ),* );
 
         impl $impl_name for $name {}
     );

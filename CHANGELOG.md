@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
-
+## 0.5.0-rc1
 ### Additions
-* NFLOG support, in the `netfilter` module.
+* Feature flagged NFLOG support, in the `netfilter` module.
+
+### Resolved issues
+* Resolved issue relating to allowing documentation annotations in
+  macros for enum variants representing netlink constants.
 
 ## 0.4.3
 ### Breaking changes

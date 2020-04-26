@@ -61,6 +61,7 @@ pub mod consts;
 pub mod err;
 /// Genetlink (generic netlink) header and attribute helpers
 pub mod genl;
+#[cfg(feature = "netfilter")]
 pub mod netfilter;
 /// Top-level netlink header
 pub mod nl;
