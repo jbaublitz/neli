@@ -150,6 +150,10 @@ where
 pub struct Nlattr<T, P> {
     /// Length of the attribute header and payload together
     pub nla_len: u16,
+    /// If true, the payload contains nested attributes.
+    pub nla_nested: bool,
+    /// If true, the payload is in net work byte order.
+    pub nla_network_order: bool,
     /// Enum representing the type of the attribute payload
     pub nla_type: T,
     /// Payload of the attribute - either parsed or a binary buffer
@@ -176,8 +180,25 @@ where
     where
         P: Nl,
     {
+        Nlattr::new_with_bitflags(nla_len, false, false, nla_type, payload)
+    }
+
+    /// Create a new `Nlattr` with parameters for setting bitflags
+    /// in the header.
+    pub fn new_with_bitflags<P>(
+        nla_len: Option<u16>,
+        nla_nested: bool,
+        nla_network_order: bool,
+        nla_type: T,
+        payload: P,
+    ) -> Result<Self, SerError>
+    where
+        P: Nl,
+    {
         let mut attr = Nlattr {
             nla_len: nla_len.unwrap_or(0),
+            nla_nested,
+            nla_network_order,
             nla_type,
             payload: Vec::new(),
         };
@@ -236,6 +257,22 @@ where
     }
 }
 
+/// Generate the bitflag mask for `nla_type`.
+fn to_nla_type_bit_flags(nla_nested: bool, nla_network_order: bool, nla_type: u16) -> u16 {
+    (if nla_nested { 1 << 15 } else { 0u16 })
+        | (if nla_network_order { 1 << 14 } else { 0u16 })
+        | nla_type
+}
+
+/// Get the bitflags from `nla_type`.
+fn from_nla_type_bit_flags(nla_type: u16) -> (bool, bool, u16) {
+    (
+        nla_type & (1 << 15) != 0,
+        nla_type & (1 << 14) != 0,
+        nla_type & !(3 << 14),
+    )
+}
+
 impl<T, P> Nl for Nlattr<T, P>
 where
     T: NlAttrType,
@@ -243,7 +280,12 @@ where
 {
     fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.nla_len.serialize(mem)?;
-        self.nla_type.serialize(mem)?;
+        let nla_type = to_nla_type_bit_flags(
+            self.nla_nested,
+            self.nla_network_order,
+            self.nla_type.clone().into(),
+        );
+        nla_type.serialize(mem)?;
         self.payload.serialize(mem)?;
         self.pad(mem)?;
         Ok(())
@@ -254,12 +296,16 @@ where
         B: AsRef<[u8]>,
     {
         let nla_len = u16::deserialize(mem)?;
-        let nla_type = T::deserialize(mem)?;
+        let nla_type = u16::deserialize(mem)?;
+        let (nested, nb_order, nla_type) = from_nla_type_bit_flags(nla_type);
+
         mem.set_size_hint(nla_len as usize - (nla_len.size() + nla_type.size()));
         let payload = P::deserialize(mem)?;
         let nla = Nlattr {
             nla_len,
-            nla_type,
+            nla_nested: nested,
+            nla_network_order: nb_order,
+            nla_type: T::from(nla_type),
             payload,
         };
         nla.strip(mem)?;
@@ -386,6 +432,12 @@ mod test {
     }
 
     #[test]
+    fn test_nlattr_bitflags() {
+        let type_ = 3 << 14;
+        assert_eq!((true, true, 0), from_nla_type_bit_flags(type_))
+    }
+
+    #[test]
     fn test_nl_nlattr() {
         let nlattr = Nlattr::new(None, CtrlAttr::Unspec, 4u16).unwrap();
         let mut nlattr_serialized = StreamWriteBuffer::new_growable(Some(nlattr.asize()));
@@ -410,6 +462,8 @@ mod test {
 
         let nlattr_desired_deserialized = Nlattr {
             nla_len: 6,
+            nla_nested: false,
+            nla_network_order: false,
             nla_type: CtrlAttr::Unspec,
             payload: 4u16,
         };

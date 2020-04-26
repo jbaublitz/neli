@@ -148,13 +148,13 @@ macro_rules! impl_var {
 macro_rules! impl_trait {
     ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => { // with comments
         $(#[$outer])*
-        pub trait $trait_name: $crate::Nl + PartialEq + From<$to_from_ty> + Into<$to_from_ty> {}
+        pub trait $trait_name: $crate::Nl + PartialEq + Clone + From<$to_from_ty> + Into<$to_from_ty> {}
 
         impl $trait_name for $to_from_ty {}
     };
     ( $trait_name:ident, $to_from_ty:ty ) => { // without comments
         #[allow(missing_docs)]
-        pub trait $trait_name: $crate::Nl + PartialEq + From<$to_from_ty> + Into<$to_from_ty> {}
+        pub trait $trait_name: $crate::Nl + PartialEq + Clone + From<$to_from_ty> + Into<$to_from_ty> {}
 
         impl $trait_name for $to_from_ty {}
     };
