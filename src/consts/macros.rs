@@ -84,10 +84,10 @@ macro_rules! impl_var_impls {
 ///  impl_var!(
 ///     /// These are the attributes returned
 ///     /// by a fake netlink protocol.
-///     ( MyNetlinkProtoAttrs, u16,
+///     MyNetlinkProtoAttrs, u16,
 ///     Id => 16 as u16,
 ///     Name => 17 as u16,
-///     Size => 18 as u16 )
+///     Size => 18 as u16
 ///  );
 /// ```
 ///
@@ -133,7 +133,7 @@ macro_rules! impl_var {
 /// implement the marker trait that corresponds to the given marker trait. The current
 /// convention is to use `impl_trait` to create the trait with the name of the field that
 /// is the generic type and then use `impl_var_trait` to flag the new enum as usable in
-/// this field. See the examples below for more details.
+/// this field.
 macro_rules! impl_trait {
     ( $(#[$outer:meta])* $trait_name:ident, $to_from_ty:ty ) => {
         $(#[$outer])*

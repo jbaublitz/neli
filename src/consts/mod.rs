@@ -17,10 +17,10 @@
 //!   your custom netlink data type into the existing library support.
 //! * Enums are used so that:
 //!   * Values can be checked based on a finite number of inputs as opposed to the range of
-//!     whatever integer data type C defines as the struct member type. This hopefully makes it
+//!     whatever integer data type C defines as the struct member type. This makes it
 //!     easier to catch garbage responses and corruption when an invalid netlink message is sent to
 //!     the kernel.
-//!   * Only the enum or an enum implementing a marker trait in the case of generics can be used
+//!   * Only the enum or an enum implementing a marker trait in the case of type parameters can be used
 //!     in the appropriate places when constructing netlink messages. This takes guess work out
 //!     of which constants can be used where. Netlink documentation is not always complete
 //!     and sometimes takes a bit of trial and error actually sending messages to the kernel
@@ -61,7 +61,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_documented_conversions() {
+    fn test_generated_enum_into_from() {
         let unspec: u8 = CtrlCmd::Unspec.into();
         assert_eq!(unspec, libc::CTRL_CMD_UNSPEC as u8);
 
