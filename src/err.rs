@@ -16,7 +16,7 @@
 
 use std::{
     error::Error,
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     io, str, string,
 };
 
@@ -48,6 +48,14 @@ pub struct Nlmsgerr<T> {
     /// Packet header for request that failed
     pub nlmsg: Nlmsghdr<T, NlEmpty>,
 }
+
+impl<T> Display for Nlmsgerr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", io::Error::from_raw_os_error(self.error))
+    }
+}
+
+impl<T> Error for Nlmsgerr<T> where T: Debug {}
 
 impl<T> Nl for Nlmsgerr<T>
 where
@@ -82,6 +90,8 @@ where
 pub enum NlError {
     /// Type indicating a message from a converted error
     Msg(String),
+    /// An error packet sent back by netlink
+    Nlmsgerr(Nlmsgerr<u16>),
     /// No ack was received when `NlmF::Ack` was specified in the request
     NoAck,
     /// The sequence number for the response did not match the request
@@ -102,26 +112,19 @@ impl NlError {
 /// Netlink protocol error
 impl Display for NlError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let msg = match *self {
-            NlError::Msg(ref msg) => msg,
-            NlError::NoAck => "No ack received",
-            NlError::BadSeq => "Sequence number does not match the request",
-            NlError::BadPid => "PID does not match the socket",
-        };
-        write!(f, "{}", msg)
-    }
-}
-
-impl Error for NlError {
-    fn description(&self) -> &str {
         match *self {
-            NlError::Msg(ref msg) => msg.as_str(),
-            NlError::NoAck => "No ack received",
-            NlError::BadSeq => "Sequence number does not match the request",
-            NlError::BadPid => "PID does not match the socket",
+            NlError::Msg(ref msg) => write!(f, "{}", msg),
+            NlError::Nlmsgerr(ref err) => {
+                write!(f, "Error response received from netlink: {}", err)
+            }
+            NlError::NoAck => write!(f, "No ack received"),
+            NlError::BadSeq => write!(f, "Sequence number does not match the request"),
+            NlError::BadPid => write!(f, "PID does not match the socket"),
         }
     }
 }
+
+impl Error for NlError {}
 
 /// Serialization error
 #[derive(Debug)]
@@ -142,11 +145,7 @@ impl Display for SerError {
     }
 }
 
-impl Error for SerError {
-    fn description(&self) -> &str {
-        self.0.as_str()
-    }
-}
+impl Error for SerError {}
 
 /// Deserialization error
 #[derive(Debug)]
@@ -173,8 +172,4 @@ impl Display for DeError {
     }
 }
 
-impl Error for DeError {
-    fn description(&self) -> &str {
-        self.0.as_str()
-    }
-}
+impl Error for DeError {}
