@@ -253,18 +253,10 @@ impl NlSocket {
     {
         let attrs = vec![Nlattr::new(None, CtrlAttr::FamilyName, family_name)?];
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
-        let nlhdr = Nlmsghdr::new(
-            None,
-            GenlId::Ctrl,
-            vec![NlmF::Request, NlmF::Ack],
-            None,
-            None,
-            genlhdr,
-        );
+        let nlhdr = Nlmsghdr::new(None, GenlId::Ctrl, vec![NlmF::Request], None, None, genlhdr);
         self.send_nl(nlhdr)?;
 
         let msg = self.recv_nl(None)?;
-        self.recv_ack()?;
         Ok(msg)
     }
 
