@@ -2,9 +2,11 @@ use neli::{
     consts::{genl::*, nl::*, nlattr::*, socket::*},
     err::NlError,
     genl::Genlmsghdr,
-    nl::Nlmsghdr,
-    socket::NlSocket,
-    Buffer, Bytes, GenlBuffer, Nl, SmallVec, U32Bitmask,
+    nl::{NlPayload, Nlmsghdr},
+    socket::NlSocketHandle,
+    types::{Buffer, DeBuffer, GenlBuffer, GenlBufferOps},
+    utils::U32Bitmask,
+    Nl,
 };
 
 const GENL_VERSION: u8 = 2;
@@ -13,9 +15,9 @@ const GENL_VERSION: u8 = 2;
 // the name and identifier of each generic netlink family.
 
 fn main() -> Result<(), NlError> {
-    let mut socket = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
 
-    let attrs: GenlBuffer<CtrlAttr, Buffer> = SmallVec::new();
+    let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
     let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs);
     let nlhdr = {
         let len = None;
@@ -23,10 +25,9 @@ fn main() -> Result<(), NlError> {
         let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
         let seq = None;
         let pid = None;
-        let payload = genlhdr;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, Some(payload))
+        Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(genlhdr))
     };
-    socket.send_nl(nlhdr)?;
+    socket.send(nlhdr)?;
 
     let iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
     for response_result in iter {
@@ -46,13 +47,13 @@ fn main() -> Result<(), NlError> {
         for attr in handle.iter() {
             match &attr.nla_type {
                 CtrlAttr::FamilyName => {
-                    let mem = Bytes::from(attr.payload.as_ref());
-                    let name = String::deserialize(mem)?;
+                    let mem = DeBuffer::from(attr.payload.as_ref());
+                    let name = String::deserialize(mem).map_err(NlError::new)?;
                     println!("{}", name);
                 }
                 CtrlAttr::FamilyId => {
-                    let mem = Bytes::from(attr.payload.as_ref());
-                    let id = u16::deserialize(mem)?;
+                    let mem = DeBuffer::from(attr.payload.as_ref());
+                    let id = u16::deserialize(mem).map_err(NlError::new)?;
                     println!("\tID: 0x{:x}", id);
                 }
                 _ => (),

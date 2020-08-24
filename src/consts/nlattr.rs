@@ -1,8 +1,7 @@
-use bytes::{Bytes, BytesMut};
-
 use crate::{
     consts::netfilter::{NfLogAttr, NfLogCfg},
     err::{DeError, SerError},
+    types::{DeBuffer, SerBuffer},
     Nl,
 };
 
@@ -63,11 +62,11 @@ impl From<u16> for Index {
 }
 
 impl Nl for Index {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         self.0.serialize(mem)
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(Index::from(u16::deserialize(mem)?))
     }
 

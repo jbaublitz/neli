@@ -9,86 +9,22 @@
 
 use std::mem;
 
-use bytes::{Bytes, BytesMut};
-use smallvec::SmallVec;
-
 use crate::{
     consts::{alignto, rtnl::*},
     err::{DeError, SerError},
-    utils::packet_length_u16,
-    Buffer, Nl, RtBuffer,
+    parse::packet_length_u16,
+    types::{Buffer, DeBuffer, DeBufferOps, RtBuffer, RtBufferOps, SerBuffer},
+    Nl,
 };
 
-/// Set of `Rtattr` structs
-#[derive(Debug)]
-pub struct Rtattrs<T, P>(RtBuffer<T, P>);
-
-impl<T, P> Rtattrs<T, P>
+impl<T, P> Nl for RtBuffer<T, P>
 where
     T: RtaType,
     P: Nl,
 {
-    /// Create an empty `Rtattrs` set
-    pub fn empty() -> Self {
-        Rtattrs(SmallVec::new())
-    }
-
-    /// Create an `Rtattrs` set initializing it with a vector
-    pub fn new(attrs: RtBuffer<T, P>) -> Self {
-        Rtattrs(attrs)
-    }
-
-    /// Return a reference iterator over underlying vector
-    pub fn iter(&self) -> std::slice::Iter<Rtattr<T, P>> {
-        self.0.iter()
-    }
-}
-
-impl<T, P> IntoIterator for Rtattrs<T, P>
-where
-    T: RtaType,
-    P: Nl,
-{
-    type Item = Rtattr<T, P>;
-    type IntoIter = <RtBuffer<T, P> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<T> Rtattrs<T, Buffer>
-where
-    T: RtaType,
-{
-    /// Get an attribute contained in the set as type `R`
-    pub fn get_attr_payload_as<R>(&self, attr_type: T) -> Result<Option<R>, DeError>
-    where
-        R: Nl,
-    {
-        let index = self
-            .0
-            .iter()
-            .position(|rtattr| rtattr.rta_type == attr_type);
-        let elem = match index {
-            Some(i) => self.0.get(i),
-            None => return Ok(None),
-        };
-        match elem {
-            Some(ref e) => e.get_payload_as::<R>().map(Some),
-            None => Ok(None),
-        }
-    }
-}
-
-impl<T, P> Nl for Rtattrs<T, P>
-where
-    T: RtaType,
-    P: Nl,
-{
-    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         let mut pos = 0;
-        for item in self.0.iter() {
+        for item in self.into_iter() {
             let (mem_tmp, pos_tmp) = drive_serialize!(item, mem, pos, asize);
             mem = mem_tmp;
             pos = pos_tmp;
@@ -96,8 +32,8 @@ where
         Ok(drive_serialize!(END mem, pos))
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        let mut rtattrs = SmallVec::new();
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        let mut rtattrs = RtBuffer::new();
         let mut pos = 0;
         while pos < mem.len() {
             let packet_len = packet_length_u16(mem.as_ref(), pos);
@@ -108,7 +44,7 @@ where
             pos = pos_tmp;
         }
         drive_deserialize!(END mem, pos);
-        Ok(Rtattrs::new(rtattrs))
+        Ok(rtattrs)
     }
 
     fn size(&self) -> usize {
@@ -135,7 +71,7 @@ pub struct Ifinfomsg {
     /// Interface change mask
     pub ifi_change: Iff,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Ifla, Buffer>,
+    pub rtattrs: RtBuffer<Ifla, Buffer>,
 }
 
 impl Ifinfomsg {
@@ -146,7 +82,7 @@ impl Ifinfomsg {
         ifi_index: libc::c_int,
         ifi_flags: IffFlags,
         ifi_change: Iff,
-        rtattrs: Rtattrs<Ifla, Buffer>,
+        rtattrs: RtBuffer<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
@@ -164,7 +100,7 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        rtattrs: Rtattrs<Ifla, Buffer>,
+        rtattrs: RtBuffer<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
@@ -182,7 +118,7 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        rtattrs: Rtattrs<Ifla, Buffer>,
+        rtattrs: RtBuffer<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
             ifi_family,
@@ -197,7 +133,7 @@ impl Ifinfomsg {
 }
 
 impl Nl for Ifinfomsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.ifi_family;
@@ -211,7 +147,7 @@ impl Nl for Ifinfomsg {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Ifinfomsg {
@@ -221,7 +157,7 @@ impl Nl for Ifinfomsg {
                 ifi_index: libc::c_int,
                 ifi_flags: IffFlags,
                 ifi_change: Iff,
-                rtattrs: Rtattrs<Ifla, Buffer> => mem.len().checked_sub(
+                rtattrs: RtBuffer<Ifla, Buffer> => mem.len().checked_sub(
                     ifi_family.size()
                     + padding.size()
                     + ifi_type.size()
@@ -263,11 +199,11 @@ pub struct Ifaddrmsg {
     /// Interface address index
     pub ifa_index: libc::c_int,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Ifa, Buffer>,
+    pub rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
 impl Nl for Ifaddrmsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.ifa_family;
@@ -279,7 +215,7 @@ impl Nl for Ifaddrmsg {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Ifaddrmsg {
@@ -288,7 +224,7 @@ impl Nl for Ifaddrmsg {
                 ifa_flags: IfaFFlags,
                 ifa_scope: libc::c_uchar,
                 ifa_index: libc::c_int,
-                rtattrs: Rtattrs<Ifa, Buffer> => mem.len().checked_sub(
+                rtattrs: RtBuffer<Ifa, Buffer> => mem.len().checked_sub(
                     ifa_family.size()
                     + ifa_prefixlen.size()
                     + ifa_flags.size()
@@ -322,11 +258,11 @@ pub struct Rtgenmsg {
 }
 
 impl Nl for Rtgenmsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         self.rtgen_family.serialize(mem)
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(Self {
             rtgen_family: RtAddrFamily::deserialize(mem)?,
         })
@@ -363,11 +299,11 @@ pub struct Rtmsg {
     /// Routing flags
     pub rtm_flags: RtmFFlags,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Rta, Buffer>,
+    pub rtattrs: RtBuffer<Rta, Buffer>,
 }
 
 impl Nl for Rtmsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.rtm_family;
@@ -383,7 +319,7 @@ impl Nl for Rtmsg {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Rtmsg {
@@ -396,7 +332,7 @@ impl Nl for Rtmsg {
                 rtm_scope: RtScope,
                 rtm_type: Rtn,
                 rtm_flags: RtmFFlags,
-                rtattrs: Rtattrs<Rta, Buffer> => mem.len().checked_sub(
+                rtattrs: RtBuffer<Rta, Buffer> => mem.len().checked_sub(
                     rtm_family.size()
                     + rtm_dst_len.size()
                     + rtm_src_len.size()
@@ -446,11 +382,11 @@ pub struct Ndmsg {
     /// Type of entry
     pub ndm_type: Rtn,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Nda, Buffer>,
+    pub rtattrs: RtBuffer<Nda, Buffer>,
 }
 
 impl Nl for Ndmsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.ndm_family;
@@ -464,7 +400,7 @@ impl Nl for Ndmsg {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Ndmsg {
@@ -475,7 +411,7 @@ impl Nl for Ndmsg {
                 ndm_state: NudFlags,
                 ndm_flags: NtfFlags,
                 ndm_type: Rtn,
-                rtattrs: Rtattrs<Nda, Buffer> => mem.len().checked_sub(
+                rtattrs: RtBuffer<Nda, Buffer> => mem.len().checked_sub(
                     ndm_family.size()
                     + pad1.size()
                     + pad2.size()
@@ -519,7 +455,7 @@ pub struct NdaCacheinfo {
 }
 
 impl Nl for NdaCacheinfo {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.ndm_confirmed;
@@ -529,7 +465,7 @@ impl Nl for NdaCacheinfo {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             NdaCacheinfo {
@@ -569,11 +505,11 @@ pub struct Tcmsg {
     /// Info
     pub tcm_info: u32,
     /// Payload of `Rtattr`s
-    pub rtattrs: Rtattrs<Tca, Buffer>,
+    pub rtattrs: RtBuffer<Tca, Buffer>,
 }
 
 impl Nl for Tcmsg {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             mem;
             self.tcm_family;
@@ -587,7 +523,7 @@ impl Nl for Tcmsg {
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Tcmsg {
@@ -598,7 +534,7 @@ impl Nl for Tcmsg {
                 tcm_handle: u32,
                 tcm_parent: u32,
                 tcm_info: u32,
-                rtattrs: Rtattrs<Tca, Buffer> => mem.len().checked_sub(
+                rtattrs: RtBuffer<Tca, Buffer> => mem.len().checked_sub(
                     tcm_family.size()
                     + tcm_ifindex.size()
                     + tcm_handle.size()
@@ -649,7 +585,7 @@ where
     where
         R: Nl,
     {
-        R::deserialize(Bytes::from(self.rta_payload.as_ref()))
+        R::deserialize(DeBuffer::from(self.rta_payload.as_ref()))
     }
 }
 
@@ -658,7 +594,7 @@ where
     T: RtaType,
     P: Nl,
 {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             PAD self;
             mem;
@@ -668,7 +604,7 @@ where
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             STRIP Self;
             mem;
@@ -695,18 +631,18 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::consts::Rta;
+    use crate::{consts::Rta, types::SerBufferOps};
 
     #[test]
     fn test_rta_deserialize() {
-        let buf = Bytes::from(&[4u8, 0, 0, 0] as &[u8]);
+        let buf = DeBuffer::from(&[4u8, 0, 0, 0] as &[u8]);
         assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_ok());
     }
 
     #[test]
     fn test_rta_deserialize_err() {
         // 3 bytes is below minimum length
-        let buf = Bytes::from(&[3u8, 0, 0, 0] as &[u8]);
+        let buf = DeBuffer::from(&[3u8, 0, 0, 0] as &[u8]);
         assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_err());
     }
 
@@ -717,7 +653,7 @@ mod test {
             rta_type: Rta::Unspec,
             rta_payload: vec![0u8],
         };
-        let buf = BytesMut::from(vec![0; attr.asize()]);
+        let buf = SerBuffer::new(Some(attr.asize()));
 
         let buf_res = attr.serialize(buf);
         assert!(buf_res.is_ok());

@@ -2,7 +2,15 @@ extern crate neli;
 
 use std::{error::Error, net::IpAddr};
 
-use neli::{consts::*, err::NlError, nl::Nlmsghdr, rtnl::*, socket::*, U32Bitmask};
+use neli::{
+    consts::*,
+    err::NlError,
+    nl::{NlPayload, Nlmsghdr},
+    rtnl::*,
+    socket::*,
+    types::{RtBuffer, RtBufferOps},
+    utils::U32Bitmask,
+};
 
 fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError> {
     let payload = rtm.get_payload()?;
@@ -12,7 +20,7 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
         let mut dst = None;
         let mut gateway = None;
 
-        for attr in payload.rtattrs.iter() {
+        for attr in &payload.rtattrs {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
                 use std::convert::TryFrom;
                 if let Ok(tup) = <&[u8; 4]>::try_from(b) {
@@ -25,9 +33,9 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
             }
 
             match attr.rta_type {
-                Rta::Dst => dst = to_addr(&attr.rta_payload),
-                Rta::Prefsrc => src = to_addr(&attr.rta_payload),
-                Rta::Gateway => gateway = to_addr(&attr.rta_payload),
+                Rta::Dst => dst = to_addr(attr.rta_payload.as_ref()),
+                Rta::Prefsrc => src = to_addr(attr.rta_payload.as_ref()),
+                Rta::Gateway => gateway = to_addr(attr.rta_payload.as_ref()),
                 _ => (),
             }
         }
@@ -59,7 +67,7 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
 /// with the rtnetlink subsystem.  
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut socket = NlSocket::connect(NlFamily::Route, None, U32Bitmask::empty()).unwrap();
+    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, U32Bitmask::empty()).unwrap();
 
     let rtmsg = Rtmsg {
         rtm_family: RtAddrFamily::Inet,
@@ -71,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         rtm_scope: RtScope::Universe,
         rtm_type: Rtn::Unspec,
         rtm_flags: RtmFFlags::empty(),
-        rtattrs: Rtattrs::empty(),
+        rtattrs: RtBuffer::new(),
     };
     let nlhdr = {
         let len = None;
@@ -80,9 +88,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let seq = None;
         let pid = None;
         let payload = rtmsg;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, Some(payload))
+        Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(payload))
     };
-    socket.send_nl(nlhdr).unwrap();
+    socket.send(nlhdr).unwrap();
 
     for rtm_result in socket.iter(false) {
         let rtm = rtm_result?;

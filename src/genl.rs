@@ -12,12 +12,11 @@
 //! parsing at the top level when one `Nlattr` structure is not nested within another, a use case
 //! that is instead handled in `nlattr.rs`.
 
-use bytes::{Bytes, BytesMut};
-
 use crate::{
     consts::{Cmd, NlAttrType},
     nlattr::AttrHandle,
-    Buffer, DeError, GenlBuffer, Nl, SerError,
+    types::{Buffer, DeBuffer, DeBufferOps, GenlBuffer, SerBuffer},
+    DeError, Nl, SerError,
 };
 
 /// Struct representing generic netlink header and payload
@@ -55,7 +54,7 @@ where
 {
     /// Get handle for attribute parsing and traversal
     pub fn get_attr_handle(&self) -> AttrHandle<T> {
-        AttrHandle::new_borrowed(&self.attrs)
+        AttrHandle::new_borrowed(self.attrs.as_ref())
     }
 }
 
@@ -64,7 +63,7 @@ where
     C: Cmd,
     T: NlAttrType,
 {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             PAD self;
             mem;
@@ -75,7 +74,7 @@ where
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
             Genlmsghdr {
@@ -108,25 +107,30 @@ mod test {
     use std::io::{Cursor, Write};
 
     use byteorder::{NativeEndian, WriteBytesExt};
-    use smallvec::SmallVec;
 
     use crate::{
         consts::{CtrlAttr, CtrlCmd, NlFamily},
         nlattr::Nlattr,
-        socket::NlSocket,
+        socket::NlSocketHandle,
+        types::{GenlBufferOps, SerBufferOps},
         utils::U32Bitmask,
     };
 
     #[test]
     pub fn test_serialize() {
-        let attr = SmallVec::from(vec![Nlattr::new(
-            None,
-            CtrlAttr::FamilyId,
-            vec![0, 1, 2, 3, 4, 5, 0, 0],
-        )
-        .unwrap()]);
+        let mut attr = GenlBuffer::new();
+        attr.push(
+            Nlattr::new(
+                None,
+                false,
+                false,
+                CtrlAttr::FamilyId,
+                vec![0, 1, 2, 3, 4, 5, 0, 0],
+            )
+            .unwrap(),
+        );
         let genl = Genlmsghdr::new(CtrlCmd::Getops, 2, attr);
-        let mut mem = BytesMut::from(vec![0; genl.size()]);
+        let mut mem = SerBuffer::new(Some(genl.size()));
         mem = genl.serialize(mem).unwrap();
 
         let v = vec![0; genl.asize()];
@@ -146,16 +150,18 @@ mod test {
 
     #[test]
     pub fn test_deserialize() {
-        let genl_mock = Genlmsghdr::new(
-            CtrlCmd::Getops,
-            2,
-            SmallVec::from(vec![Nlattr::new(
+        let mut attr = GenlBuffer::new();
+        attr.push(
+            Nlattr::new(
                 None,
+                false,
+                false,
                 CtrlAttr::FamilyId,
                 "AAAAAAA".to_string(),
             )
-            .unwrap()]),
+            .unwrap(),
         );
+        let genl_mock = Genlmsghdr::new(CtrlCmd::Getops, 2, attr);
         let v = Vec::new();
         let v_final = {
             let mut c = Cursor::new(v);
@@ -168,7 +174,7 @@ mod test {
             c.write_all(&[65, 65, 65, 65, 65, 65, 65, 0]).unwrap();
             c.into_inner()
         };
-        let mem = Bytes::from(v_final);
+        let mem = DeBuffer::from(v_final.as_slice());
         let genl = Genlmsghdr::deserialize(mem).unwrap();
         assert_eq!(genl, genl_mock)
     }
@@ -176,7 +182,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_genl_family() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+        let mut s = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
         let id = s.resolve_genl_family("acpi_event").unwrap();
         assert_eq!(23, id)
     }
@@ -184,7 +190,7 @@ mod test {
     #[test]
     #[ignore]
     pub fn test_resolve_mcast_group() {
-        let mut s = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+        let mut s = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
         let id = s
             .resolve_nl_mcast_group("acpi_event", "acpi_mc_group")
             .unwrap();

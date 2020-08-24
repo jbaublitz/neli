@@ -8,14 +8,15 @@
 //!
 //! Payloads for `Nlmsghdr` can be any type that implements the `Nl` trait.
 
-use bytes::{Bytes, BytesMut};
-use smallvec::SmallVec;
-
 use crate::{
-    consts::{alignto, NlType, NlmFFlags},
-    err::{DeError, NlError, SerError},
-    utils::packet_length_u32,
-    Nl, NlBuffer,
+    consts::{
+        alignto,
+        nl::{NlType, NlTypeWrapper, NlmFFlags, Nlmsg},
+    },
+    err::{DeError, NlError, Nlmsgerr, SerError},
+    parse::packet_length_u32,
+    types::{DeBuffer, DeBufferOps, NlBuffer, NlBufferOps, SerBuffer, SerBufferOps},
+    Nl,
 };
 
 impl<T, P> Nl for NlBuffer<T, P>
@@ -23,9 +24,9 @@ where
     T: NlType,
     P: Nl,
 {
-    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         let mut pos = 0;
-        for nlhdr in self.iter() {
+        for nlhdr in self.into_iter() {
             let (mem_tmp, pos_tmp) = drive_serialize!(nlhdr, mem, pos);
             mem = mem_tmp;
             pos = pos_tmp;
@@ -33,8 +34,8 @@ where
         Ok(drive_serialize!(END mem, pos))
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        let mut nlhdrs = SmallVec::new();
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        let mut nlhdrs = NlBuffer::new();
         let mut pos = 0;
         while pos < mem.len() {
             let packet_len = packet_length_u32(mem.as_ref(), pos);
@@ -53,34 +54,58 @@ where
     }
 
     fn size(&self) -> usize {
-        self.iter().fold(0, |acc, nlhdr| acc + nlhdr.size())
+        self.into_iter().fold(0, |acc, nlhdr| acc + nlhdr.size())
     }
 }
 
-impl<P> Nl for Option<P>
+/// An enum representing either the desired payload as requested
+/// by the payload type parameter or an ACK received at the end
+/// of a message or stream of messages.
+#[derive(Debug, PartialEq)]
+pub enum NlPayload<P> {
+    /// Represents an ACK returned by netlink.
+    Ack(Nlmsgerr<NlTypeWrapper>),
+    /// Represents an application level error returned by netlink.
+    Err(Nlmsgerr<NlTypeWrapper>),
+    /// Represents the requested payload.
+    Payload(P),
+}
+
+impl<P> NlPayload<P> {
+    /// Get the payload of the netlink packet and return `None`
+    /// if the contained data in the payload is actually an ACK.
+    pub fn get_payload(&self) -> Option<&P> {
+        match self {
+            NlPayload::Payload(ref p) => Some(p),
+            _ => None,
+        }
+    }
+}
+
+impl<P> Nl for NlPayload<P>
 where
     P: Nl,
 {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         match *self {
-            Some(ref p) => p.serialize(mem),
-            None => NlEmpty(None).serialize(mem),
+            NlPayload::Ack(ref e) => e.serialize(mem),
+            NlPayload::Err(ref e) => e.serialize(mem),
+            NlPayload::Payload(ref p) => p.serialize(mem),
         }
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        let empty_result = NlEmpty::deserialize(mem.clone());
-        if empty_result.is_err() {
-            P::deserialize(mem).map(Some)
-        } else {
-            Ok(None)
-        }
+    fn deserialize(_: DeBuffer) -> Result<Self, DeError> {
+        Err(DeError::new(
+            "Cannot deserialize payload type without knowing the \
+            netlink packet type.",
+        ))
     }
 
     fn size(&self) -> usize {
         match *self {
-            Some(ref p) => p.size(),
-            None => 0,
+            NlPayload::Ack(ref e) => e.size(),
+            NlPayload::Err(ref e) => e.size(),
+            NlPayload::Payload(ref p) => p.size(),
         }
     }
 
@@ -103,7 +128,7 @@ pub struct Nlmsghdr<T, P> {
     /// ID of the netlink destination for requests and source for responses
     pub nl_pid: u32,
     /// Payload of netlink message
-    pub nl_payload: Option<P>,
+    pub nl_payload: NlPayload<P>,
 }
 
 impl<T, P> Nlmsghdr<T, P>
@@ -118,7 +143,7 @@ where
         nl_flags: NlmFFlags,
         nl_seq: Option<u32>,
         nl_pid: Option<u32>,
-        nl_payload: Option<P>,
+        nl_payload: NlPayload<P>,
     ) -> Self {
         let mut nl = Nlmsghdr {
             nl_type,
@@ -134,9 +159,18 @@ where
 
     /// Get the payload if there is one or return an error.
     pub fn get_payload(&self) -> Result<&P, NlError> {
-        self.nl_payload
-            .as_ref()
-            .ok_or_else(|| NlError::new("This packet does not have a payload."))
+        match self.nl_payload {
+            NlPayload::Payload(ref p) => Ok(p),
+            _ => Err(NlError::new("This packet does not have a payload.")),
+        }
+    }
+
+    /// Get the size of the netlink header.
+    #[inline]
+    pub fn header_size() -> usize {
+        u32::type_size().expect("constant size") * 3
+            + NlmFFlags::type_size().expect("constant size")
+            + T::type_size().expect("constant size")
     }
 }
 
@@ -145,7 +179,7 @@ where
     T: NlType,
     P: Nl,
 {
-    fn serialize(&self, mem: BytesMut) -> Result<BytesMut, SerError> {
+    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         Ok(serialize! {
             PAD self;
             mem;
@@ -158,88 +192,82 @@ where
         })
     }
 
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        Ok(deserialize! {
-            STRIP Self;
-            mem;
-            Nlmsghdr {
-                nl_len: u32,
-                nl_type: T,
-                nl_flags: NlmFFlags,
-                nl_seq: u32,
-                nl_pid: u32,
-                nl_payload: Option<P> => (nl_len as usize).checked_sub(
-                    u32::type_size().expect("Must be a static size") * 3
-                    + T::type_size().expect("Must be a static size")
-                    + NlmFFlags::type_size().expect("Must be a static size")
-                )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
-            } => alignto(nl_len as usize) - nl_len as usize
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        let (nl_len, pos) = drive_deserialize!(u32, mem, 0);
+        let (nl_type, pos) = drive_deserialize!(T, mem, pos);
+        let (nl_flags, pos) = drive_deserialize!(NlmFFlags, mem, pos);
+        let (nl_seq, pos) = drive_deserialize!(u32, mem, pos);
+        let (nl_pid, pos) = drive_deserialize!(u32, mem, pos);
+        let nl_type_int: u16 = nl_type.into();
+        let (nl_payload, pos) = if nl_type_int == Nlmsg::Error.into() {
+            let (nl_payload, pos) = drive_deserialize!(Nlmsgerr<NlTypeWrapper>, mem, pos);
+            if nl_payload.error == 0 {
+                (NlPayload::Ack(nl_payload), pos)
+            } else {
+                (NlPayload::Err(nl_payload), pos)
+            }
+        } else {
+            let (nl_payload, pos) = drive_deserialize!(
+                P,
+                mem,
+                pos,
+                (nl_len as usize)
+                    .checked_sub(Self::header_size())
+                    .ok_or_else(|| DeError::UnexpectedEOB)?
+            );
+            (NlPayload::Payload(nl_payload), pos)
+        };
+        let pos = drive_deserialize!(
+            STRIP mem,
+            pos,
+            alignto(nl_len as usize) - nl_len as usize
+        );
+        drive_deserialize!(END mem, pos);
+        Ok(Nlmsghdr {
+            nl_len,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload,
         })
     }
 
     fn size(&self) -> usize {
-        self.nl_len.size()
-            + <T as Nl>::size(&self.nl_type)
-            + self.nl_flags.size()
-            + self.nl_seq.size()
-            + self.nl_pid.size()
-            + self.nl_payload.size()
+        Self::header_size() + self.nl_payload.size()
     }
 
     fn type_size() -> Option<usize> {
-        u32::type_size()
-            .and_then(|sz| T::type_size().map(|subsz| sz + subsz))
-            .and_then(|sz| NlmFFlags::type_size().map(|subsz| sz + subsz))
-            .and_then(|sz| u32::type_size().map(|subsz| sz + subsz))
-            .and_then(|sz| u32::type_size().map(|subsz| sz + subsz))
-            .and_then(|sz| P::type_size().map(|subsz| sz + subsz))
+        P::type_size().map(|sz| sz + Self::header_size())
     }
 }
 
-/// Struct indicating an empty payload
+/// Signifies an empty payload for a netlink packet.
 #[derive(Debug, PartialEq)]
-pub struct NlEmpty(pub Option<usize>);
+pub struct NlEmpty;
 
 impl Nl for NlEmpty {
     #[inline]
-    fn serialize(&self, mut mem: BytesMut) -> Result<BytesMut, SerError> {
-        match self.0 {
-            Some(len) => {
-                match mem.len() {
-                    i if len > i => return Err(SerError::UnexpectedEOB(mem)),
-                    i if len < i => return Err(SerError::BufferNotFilled(mem)),
-                    _ => (),
-                };
-                for i in 0..len {
-                    mem[i] = 0;
-                }
-            }
-            None => {
-                for i in 0..mem.len() {
-                    mem[i] = 0;
-                }
-            }
-        };
+    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+        for i in 0..mem.len() {
+            mem.as_mut()[i] = 0;
+        }
         Ok(mem)
     }
 
     #[inline]
-    fn deserialize(mem: Bytes) -> Result<Self, DeError> {
-        for byte in mem.as_ref() {
-            if *byte != 0u8 {
-                return Err(DeError::new("All bytes must be zeroed"));
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        for i in 0..mem.len() {
+            if mem.as_ref()[i] != 0 {
+                return Err(DeError::new("Expected an empty buffer or a zeroed buffer"));
             }
         }
-        Ok(NlEmpty(Some(mem.len())))
+        Ok(NlEmpty)
     }
 
     #[inline]
     fn size(&self) -> usize {
-        match self.0 {
-            Some(len) => len,
-            None => 0,
-        }
+        0
     }
 
     #[inline]
@@ -266,9 +294,9 @@ mod test {
             NlmFFlags::empty(),
             None,
             None,
-            None,
+            NlPayload::Payload(NlEmpty),
         );
-        let mut mem = BytesMut::from(vec![0u8; nl.asize()]);
+        let mut mem = SerBuffer::new(Some(nl.asize()));
         mem = nl.serialize(mem).unwrap();
         let mut s = [0u8; 16];
         {
@@ -288,7 +316,7 @@ mod test {
             c.write_u16::<NativeEndian>(1).unwrap();
             c.write_u16::<NativeEndian>(NlmF::Ack.into()).unwrap();
         }
-        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(Bytes::from(&s as &[u8])).unwrap();
+        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(DeBuffer::from(&s as &[u8])).unwrap();
         assert_eq!(
             Nlmsghdr::<Nlmsg, NlEmpty>::new(
                 None,
@@ -296,7 +324,7 @@ mod test {
                 NlmFFlags::new(&[NlmF::Ack]),
                 None,
                 None,
-                None,
+                NlPayload::Payload(NlEmpty),
             ),
             nl
         );

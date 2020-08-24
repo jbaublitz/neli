@@ -1,22 +1,24 @@
 use std::error::Error;
 
 use neli::{
-    consts::{NlFamily, NlmFFlags},
+    consts::{self, NlFamily},
     genl::*,
+    nl::{NlPayload, Nlmsghdr},
     socket::*,
-    SmallVec, U32Bitmask,
+    types::{GenlBuffer, GenlBufferOps},
+    utils::U32Bitmask,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
-    let mut sock = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
     let _id = sock.resolve_genl_family(family_name).unwrap();
 
     // Resolve generic netlink multicast group ID
     let family_name = "your_family_name_here";
     let group_name = "your_group_name_here";
-    let mut sock = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
     let _id = sock
         .resolve_nl_mcast_group(family_name, group_name)
         .unwrap();
@@ -24,16 +26,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     // The following outlines how to parse netlink attributes
 
     // This was received from the socket
-    let nlmsg = neli::nl::Nlmsghdr::new(
+    let nlmsg = Nlmsghdr::new(
         None,
-        neli::consts::GenlId::Ctrl,
-        NlmFFlags::empty(),
+        consts::GenlId::Ctrl,
+        consts::NlmFFlags::empty(),
         None,
         None,
-        Some(Genlmsghdr::new(
-            neli::consts::CtrlCmd::Unspec,
+        NlPayload::Payload(Genlmsghdr::new(
+            consts::CtrlCmd::Unspec,
             2,
-            SmallVec::new(),
+            GenlBuffer::new(),
         )),
     );
     // Get parsing handler for the attributes in this message where the next call

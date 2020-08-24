@@ -1,12 +1,12 @@
 use std::{
     error::Error,
     fmt::{self, Display},
-    mem,
     ops::{BitOr, BitOrAssign, Deref},
 };
 
-use byteorder::{ByteOrder, NativeEndian};
-
+/// Represents an error for operations on bitmasks if the integer
+/// that is being used to store the bitmask cannot represent the
+/// result of requested operation.
 #[derive(Debug)]
 pub struct BitRepError(String);
 
@@ -135,16 +135,4 @@ impl Deref for U32Bitmask {
 #[inline]
 fn num_to_set_mask(grp: u32) -> u32 {
     1 << (grp - 1)
-}
-
-/// Get the length of a netlink message from a buffer
-pub fn packet_length_u16(buffer: &[u8], position: usize) -> usize {
-    let len_buffer = &buffer[position..position + mem::size_of::<u16>()];
-    <NativeEndian as ByteOrder>::read_u16(len_buffer) as usize
-}
-
-/// Get the length of a netlink message from a buffer
-pub fn packet_length_u32(buffer: &[u8], position: usize) -> usize {
-    let len_buffer = &buffer[position..position + mem::size_of::<u32>()];
-    <NativeEndian as ByteOrder>::read_u32(len_buffer) as usize
 }

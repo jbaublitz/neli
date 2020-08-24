@@ -11,29 +11,25 @@ jobs:
     - stage: lint
       script:
         - rustup component add clippy
-        - cargo clippy --all-targets --all-features -- -D warnings
+        - cargo clippy --all-targets -- -D warnings
     - stage: test
       rust: stable
       script:
         - cargo build
         - cargo build --features=async
         - cargo build --features=logging
-        - cargo build --all-features
         - cargo test
         - cargo test --features=async
         - cargo test --features=logging
-        - cargo test --all-features
     - stage: test
       rust: nightly
       script:
         - cargo build
         - cargo build --features=async
         - cargo build --features=logging
-        - cargo build --all-features
         - cargo test
         - cargo test --features=async
         - cargo test --features=logging
-        - cargo test --all-features
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -45,11 +41,9 @@ jobs:
           /root/.cargo/bin/cargo build &&
           /root/.cargo/bin/cargo build --features=async &&
           /root/.cargo/bin/cargo build --features=logging &&
-          /root/.cargo/bin/cargo build --all-features &&
           /root/.cargo/bin/cargo test &&
           /root/.cargo/bin/cargo test --features=async &&
-          /root/.cargo/bin/cargo test --features=logging &&
-          /root/.cargo/bin/cargo test --all-features"
+          /root/.cargo/bin/cargo test --features=logging
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -61,8 +55,6 @@ jobs:
           /root/.cargo/bin/cargo build &&
           /root/.cargo/bin/cargo build --features=async &&
           /root/.cargo/bin/cargo build --features=logging &&
-          /root/.cargo/bin/cargo build --all-features &&
           /root/.cargo/bin/cargo test &&
           /root/.cargo/bin/cargo test --features=async &&
-          /root/.cargo/bin/cargo test --features=logging &&
-          /root/.cargo/bin/cargo test --all-features"
+          /root/.cargo/bin/cargo test --features=logging

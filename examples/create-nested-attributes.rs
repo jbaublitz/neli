@@ -2,7 +2,14 @@ extern crate neli;
 
 use std::error::Error;
 
-use neli::{consts, genl::Genlmsghdr, nl::Nlmsghdr, nlattr::Nlattr, BytesMut, Nl, SmallVec};
+use neli::{
+    consts,
+    genl::Genlmsghdr,
+    nl::{NlPayload, Nlmsghdr},
+    nlattr::Nlattr,
+    types::{GenlBuffer, GenlBufferOps, SerBuffer, SerBufferOps},
+    Nl,
+};
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     // The following works as Nlattr payload types are the same but is STRONGLY discouraged
@@ -29,18 +36,26 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     //            ])];
 
     // Instead, do the following:
-    let mut attr1 = Nlattr::new(None, 0, Vec::<u8>::new())?;
-    attr1.add_nested_attribute(&Nlattr::new(None, 1, "this is a string")?)?;
+    let mut attr1 = Nlattr::new(None, true, false, 0, Vec::<u8>::new())?;
+    attr1.add_nested_attribute(&Nlattr::new(None, false, false, 1, "this is a string")?)?;
     // This is not a string
-    attr1.add_nested_attribute(&Nlattr::new(None, 2, 0)?)?;
+    attr1.add_nested_attribute(&Nlattr::new(None, false, false, 2, 0)?)?;
 
     // And again for another set of nested attributes
-    let mut attr2 = Nlattr::new(None, 2, Vec::<u8>::new())?;
-    attr2.add_nested_attribute(&Nlattr::new(None, 1, "this is also a string")?)?;
+    let mut attr2 = Nlattr::new(None, true, false, 2, Vec::<u8>::new())?;
+    attr2.add_nested_attribute(&Nlattr::new(
+        None,
+        false,
+        false,
+        1,
+        "this is also a string",
+    )?)?;
     // Not a string
-    attr2.add_nested_attribute(&Nlattr::new(None, 2, 5)?)?;
+    attr2.add_nested_attribute(&Nlattr::new(None, false, false, 2, 5)?)?;
 
-    let attrs = SmallVec::from(vec![attr1, attr2]);
+    let mut attrs = GenlBuffer::new();
+    attrs.push(attr1);
+    attrs.push(attr2);
 
     let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs);
     let nlmsg = Nlmsghdr::new(
@@ -49,9 +64,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         consts::NlmFFlags::new(&[consts::NlmF::Request]),
         None,
         None,
-        Some(genlmsg),
+        NlPayload::Payload(genlmsg),
     );
-    let mut buffer = BytesMut::with_capacity(nlmsg.asize());
+    let mut buffer = SerBuffer::new(Some(nlmsg.asize()));
     buffer = nlmsg.serialize(buffer)?;
     println!("Serialized heterogeneous attributes: {:?}", buffer.as_ref());
     Ok(())

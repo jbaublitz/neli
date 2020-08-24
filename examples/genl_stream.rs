@@ -1,6 +1,12 @@
 use std::{env, error::Error};
 
-use neli::{consts, err::NlError, genl::Genlmsghdr, socket, U32BitFlag, U32Bitmask};
+use neli::{
+    consts,
+    err::NlError,
+    genl::Genlmsghdr,
+    socket::NlSocketHandle,
+    utils::{U32BitFlag, U32Bitmask},
+};
 #[cfg(feature = "async")]
 use tokio::stream::StreamExt;
 
@@ -17,7 +23,7 @@ fn debug_stream() -> Result<(), NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut s = NlSocketHandle::connect(consts::NlFamily::Generic, None, U32Bitmask::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     let flag = match U32BitFlag::new(id) {
         Ok(f) => f,
@@ -58,7 +64,7 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = socket::NlSocket::connect(consts::NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut s = NlSocketHandle::connect(consts::NlFamily::Generic, None, U32Bitmask::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     let flag = match U32BitFlag::new(id) {
         Ok(f) => f,

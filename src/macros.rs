@@ -2,59 +2,113 @@
 #[macro_export]
 macro_rules! drive_serialize {
     ($to_ser:expr, $buffer:ident, $pos:expr) => {{
-        let mut buffer = $buffer;
+        let buffer = $buffer;
         let size = $to_ser.size();
-        if $pos + size > buffer.len() {
-            return Err($crate::SerError::UnexpectedEOB(buffer));
+        if $pos + size > <$crate::types::SerBuffer as $crate::types::SerBufferOps>::len(&buffer) {
+            return Err($crate::SerError::new_with_kind(
+                $crate::err::SerErrorKind::UnexpectedEOB,
+                buffer,
+            ));
         }
-        let mut end = buffer.split_off($pos);
-        let subbuffer = end.split_to(size);
+        let (start, subbuffer, end) =
+            <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
+                buffer,
+                $pos,
+                $pos + size,
+            )?;
         match $to_ser.serialize(subbuffer) {
-            Ok(b) => {
-                buffer.unsplit(b);
-                buffer.unsplit(end);
-                (buffer, $pos + size)
+            Ok(mut b) => {
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut b, start, end,
+                )?;
+                (b, $pos + size)
             }
-            Err(e) => return Err(e.reconstruct(Some(buffer), Some(end))),
+            Err(e) => {
+                let (kind, mut buffer) = e.into_parts();
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut buffer,
+                    start,
+                    end,
+                )?;
+                return Err($crate::err::SerError::new_with_kind(kind, buffer));
+            }
         }
     }};
     ($to_ser:expr, $buffer:ident, $pos:expr, $size:ident) => {{
-        let mut buffer = $buffer;
+        let buffer = $buffer;
         let size = $to_ser.$size();
-        if $pos + size > buffer.len() {
-            return Err($crate::SerError::UnexpectedEOB(buffer));
+        if $pos + size > <$crate::types::SerBuffer as $crate::types::SerBufferOps>::len(&buffer) {
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::UnexpectedEOB,
+                buffer,
+            ));
         }
-        let mut end = buffer.split_off($pos);
-        let subbuffer = end.split_to(size);
+        let (start, subbuffer, end) =
+            <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
+                buffer,
+                $pos,
+                $pos + size,
+            )?;
         match $to_ser.serialize(subbuffer) {
-            Ok(b) => {
-                buffer.unsplit(b);
-                buffer.unsplit(end);
-                (buffer, $pos + size)
+            Ok(mut b) => {
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut b, start, end,
+                )?;
+                (b, $pos + size)
             }
-            Err(e) => return Err(e.reconstruct(Some(buffer), Some(end))),
+            Err(e) => {
+                let (kind, mut buffer) = e.into_parts();
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut buffer,
+                    start,
+                    end,
+                )?;
+                return Err($crate::err::SerError::new_with_kind(kind, buffer));
+            }
         }
     }};
     (PAD $self:expr, $buffer:ident, $pos:ident) => {{
-        let mut buffer = $buffer;
+        let buffer = $buffer;
         let size = $self.asize() - $self.size();
-        if $pos + size > buffer.len() {
-            return Err(SerError::UnexpectedEOB(buffer));
+        if $pos + size > <$crate::types::SerBuffer as $crate::types::SerBufferOps>::len(&buffer) {
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::UnexpectedEOB,
+                buffer,
+            ));
         }
-        let subbuffer = buffer.split_off($pos);
+        let (start, subbuffer, end) =
+            <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
+                buffer,
+                $pos,
+                $pos + size,
+            )?;
         match $self.pad(subbuffer) {
-            Ok(b) => {
-                buffer.unsplit(b);
-                (buffer, $pos + size)
+            Ok(mut b) => {
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut b, start, end,
+                )?;
+                (b, $pos + size)
             }
-            Err(e) => return Err(e.reconstruct(Some(buffer), None)),
+            Err(e) => {
+                let (kind, mut buffer) = e.into_parts();
+                <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
+                    &mut buffer,
+                    start,
+                    end,
+                )?;
+                return Err($crate::err::SerError::new_with_kind(kind, buffer));
+            }
         }
     }};
     (END $buffer:ident, $pos:ident) => {{
-        if $buffer.len() != $pos {
-            return Err(SerError::BufferNotFilled($buffer));
+        let buffer = $buffer;
+        if <$crate::types::SerBuffer as $crate::SerBufferOps>::len(&buffer) != $pos {
+            return Err(SerError::new_with_kind(
+                $crate::err::SerErrorKind::BufferNotFilled,
+                buffer,
+            ));
         }
-        $buffer
+        buffer
     }};
 }
 
@@ -113,10 +167,15 @@ macro_rules! deserialize_type_size {
 macro_rules! drive_deserialize {
     ($de_type:ty, $buffer:ident, $pos:expr) => {{
         let size = deserialize_type_size!($de_type => type_size);
-        if $pos + size > $buffer.len() {
+        if $pos + size > <$crate::types::DeBuffer as $crate::types::DeBufferOps>::len(&$buffer) {
             return Err(DeError::UnexpectedEOB);
         }
-        let subbuffer = $buffer.slice($pos, $pos + size);
+        let subbuffer =
+            <$crate::types::DeBuffer as $crate::types::DeBufferOps>::slice(
+                &$buffer,
+                $pos,
+                $pos + size,
+            ).map_err(DeError::new)?;
         let t = <$de_type>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
@@ -125,7 +184,13 @@ macro_rules! drive_deserialize {
         if $pos + size > $buffer.len() {
             return Err(DeError::UnexpectedEOB);
         }
-        let subbuffer = $buffer.slice($pos, $pos + size);
+        let subbuffer =
+            <$crate::types::DeBuffer as $crate::types::DeBufferOps>::slice(
+                &$buffer,
+                $pos,
+                $pos + size,
+            )
+            .map_err(DeError::new)?;
         let t = <$de_type>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
@@ -137,7 +202,7 @@ macro_rules! drive_deserialize {
         $pos + size
     }};
     (END $buffer:ident, $pos:ident) => {{
-        if $buffer.len() != $pos {
+        if <$crate::types::DeBuffer as $crate::types::DeBufferOps>::len(&$buffer) != $pos {
             return Err(DeError::BufferNotParsed);
         }
     }};
@@ -202,9 +267,15 @@ macro_rules! put_int {
     ($to_ser:expr, $bytes:ident, $put_int:ident) => {{
         let size = $to_ser.size();
         if $bytes.len() < size {
-            return Err($crate::err::SerError::UnexpectedEOB($bytes));
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::UnexpectedEOB,
+                $bytes,
+            ));
         } else if $bytes.len() > size {
-            return Err($crate::err::SerError::BufferNotFilled($bytes));
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::BufferNotFilled,
+                $bytes,
+            ));
         }
         byteorder::NativeEndian::$put_int($bytes.as_mut(), $to_ser);
         $bytes
@@ -212,9 +283,15 @@ macro_rules! put_int {
     ($to_ser:expr, $bytes:ident, $put_int:ident, $endian:ty) => {{
         let size = $to_ser.size();
         if $bytes.len() < size {
-            return Err($crate::err::SerError::UnexpectedEOB($bytes));
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::UnexpectedEOB,
+                $bytes,
+            ));
         } else if $bytes.len() > size {
-            return Err($crate::err::SerError::BufferNotFilled($bytes));
+            return Err($crate::err::SerError::new_with_kind(
+                $crate::err::SerErrorKind::BufferNotFilled,
+                $bytes,
+            ));
         }
         <$endian>::$put_int($bytes.as_mut(), $to_ser);
         $bytes

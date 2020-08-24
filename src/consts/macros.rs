@@ -52,10 +52,7 @@ macro_rules! impl_var {
         impl $name {
             /// Returns true if no variant corresponds to the value it was parsed from
             pub fn is_unrecognized(&self) -> bool {
-                match *self {
-                    $name::UnrecognizedVariant(_) => true,
-                    _ => false,
-                }
+                matches!(*self, $name::UnrecognizedVariant(_))
             }
         }
 
@@ -102,12 +99,12 @@ macro_rules! impl_var {
         }
 
         impl $crate::Nl for $name {
-            fn serialize(&self, mem: $crate::BytesMut) -> Result<$crate::BytesMut, $crate::err::SerError> {
+            fn serialize<'a>(&self, mem: $crate::types::SerBuffer<'a>) -> Result<$crate::types::SerBuffer<'a>, $crate::err::SerError<'a>> {
                 let v: $ty = self.clone().into();
                 v.serialize(mem)
             }
 
-            fn deserialize(mem: $crate::Bytes) -> Result<Self, $crate::err::DeError> {
+            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
                 let v = <$ty>::deserialize(mem)?;
                 Ok(v.into())
             }
@@ -143,7 +140,13 @@ macro_rules! impl_trait {
         $( $const_enum:ident ),+
     ) => {
         $(#[$outer])*
-        pub trait $trait_name: $crate::Nl + PartialEq + Clone + From<$to_from_ty> + Into<$to_from_ty> + Copy {}
+        pub trait $trait_name: $crate::Nl
+            + PartialEq
+            + Clone
+            + From<$to_from_ty>
+            + Into<$to_from_ty>
+            + Copy
+        {}
 
         impl $trait_name for $to_from_ty {}
 
@@ -190,7 +193,7 @@ macro_rules! impl_trait {
         }
 
         impl $crate::Nl for $wrapper_type {
-            fn serialize(&self, mem: bytes::BytesMut) -> Result<bytes::BytesMut, $crate::err::SerError> {
+            fn serialize<'a>(&self, mem: $crate::types::SerBuffer<'a>) -> Result<$crate::SerBuffer<'a>, $crate::err::SerError<'a>> {
                 match *self {
                     $(
                         $wrapper_type::$const_enum(ref inner) => inner.serialize(mem),
@@ -199,7 +202,7 @@ macro_rules! impl_trait {
                 }
             }
 
-            fn deserialize(mem: $crate::Bytes) -> Result<Self, $crate::err::DeError> {
+            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
                 let v = <$to_from_ty>::deserialize(mem)?;
                 Ok($wrapper_type::from(v))
             }
@@ -221,52 +224,59 @@ macro_rules! impl_flags {
     ($name:ident, $type:ty, $bin_type:ty) => {
         #[derive(Debug, PartialEq)]
         #[allow(missing_docs)]
-        pub struct $name(smallvec::SmallVec<[$type; 64]>);
+        pub struct $name($crate::types::FlagBuffer<$type>);
 
         impl $name {
             /// Create an empty flag container
             pub fn empty() -> Self {
-                $name(smallvec::SmallVec::new())
+                $name(<$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::empty())
             }
 
             /// Initialize a flag container with the given flags
             pub fn new(flags: &[$type]) -> Self {
-                $name(smallvec::SmallVec::from_slice(flags))
+                $name(<$crate::types::FlagBuffer<$type> as From<&[$type]>>::from(flags))
             }
 
             /// Add a flag
-            pub fn push(&mut self, flag: $type) {
-                self.0.push(flag)
+            pub fn set(&mut self, flag: $type) {
+                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::set(&mut self.0, flag)
+            }
+
+            /// Add a flag
+            pub fn unset(&mut self, flag: &$type) {
+                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::unset(&mut self.0, &flag)
             }
 
             /// Contains a flag
             pub fn contains(&self, flag: &$type) -> bool {
-                self.0.contains(&flag)
+                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::contains(&self.0, &flag)
             }
         }
 
         impl $crate::Nl for $name {
-            fn serialize(
+            fn serialize<'a>(
                 &self,
-                mem: bytes::BytesMut,
-            ) -> Result<bytes::BytesMut, $crate::err::SerError> {
-                let int_rep = self.0.iter().fold(0, |acc, next| {
+                mem: $crate::SerBuffer<'a>,
+            ) -> Result<$crate::SerBuffer<'a>, $crate::err::SerError<'a>> {
+                let int_rep = <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::iter(
+                    &self.0
+                ).fold(0, |acc, next| {
                     let result: $bin_type = next.into();
                     acc | result
                 });
                 int_rep.serialize(mem)
             }
 
-            fn deserialize(mem: bytes::Bytes) -> Result<Self, $crate::err::DeError> {
+            fn deserialize(mem: $crate::DeBuffer) -> Result<Self, $crate::err::DeError> {
                 let int_rep = <$bin_type>::deserialize(mem)?;
-                let mut smallvec = smallvec::SmallVec::new();
+                let mut flags = <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::empty();
                 for i in 0..std::mem::size_of::<$bin_type>() * 8 {
                     let set_bit = 1 << i;
                     if int_rep & set_bit == set_bit {
-                        smallvec.push(<$type>::from(set_bit))
+                        <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::set(&mut flags, <$type>::from(set_bit))
                     }
                 }
-                Ok($name(smallvec))
+                Ok($name(flags))
             }
 
             fn size(&self) -> usize {
