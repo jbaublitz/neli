@@ -43,7 +43,7 @@ jobs:
           /root/.cargo/bin/cargo build --features=logging &&
           /root/.cargo/bin/cargo test &&
           /root/.cargo/bin/cargo test --features=async &&
-          /root/.cargo/bin/cargo test --features=logging
+          /root/.cargo/bin/cargo test --features=logging"
     - stage: test
       before_install:
         - docker pull jbaublitz/ubuntu-musl
@@ -57,4 +57,4 @@ jobs:
           /root/.cargo/bin/cargo build --features=logging &&
           /root/.cargo/bin/cargo test &&
           /root/.cargo/bin/cargo test --features=async &&
-          /root/.cargo/bin/cargo test --features=logging
+          /root/.cargo/bin/cargo test --features=logging"

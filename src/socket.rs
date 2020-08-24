@@ -662,7 +662,7 @@ pub mod tokio {
     use super::*;
 
     use std::{
-        cell::RefCell,
+        cell::{RefCell, RefMut},
         marker::PhantomData,
         pin::Pin,
         task::{Context, Poll},
@@ -675,11 +675,11 @@ pub mod tokio {
     use mio::{self, Evented};
 
     fn poll_read_priv(
-        socket: &mut PollEvented<super::NlSocket>,
+        mut socket: RefMut<PollEvented<super::NlSocket>>,
         cx: &mut Context,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(socket).poll_read(cx, buf)
+        Pin::new(&mut *socket).poll_read(cx, buf)
     }
 
     /// Tokio-enabled Netlink socket struct
@@ -749,8 +749,8 @@ pub mod tokio {
             cx: &mut Context,
             buf: &mut [u8],
         ) -> Poll<io::Result<usize>> {
-            let mut mut_ref = self.as_mut();
-            poll_read_priv(mut_ref.socket.get_mut(), cx, buf)
+            let mut_ref = self.as_mut();
+            poll_read_priv(mut_ref.socket.borrow_mut(), cx, buf)
         }
     }
 
@@ -768,13 +768,12 @@ pub mod tokio {
                     .buffer
                     .get_mut()
                     .expect("Caller borrows mutable self");
-                let bytes_read =
-                    match poll_read_priv(&mut *self.socket.borrow_mut(), cx, mem.as_mut()) {
-                        Poll::Ready(Ok(0)) => return Poll::Ready(None),
-                        Poll::Ready(Ok(i)) => i,
-                        Poll::Pending => return Poll::Pending,
-                        Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(NlError::from(e)))),
-                    };
+                let bytes_read = match poll_read_priv(self.socket.borrow_mut(), cx, mem.as_mut()) {
+                    Poll::Ready(Ok(0)) => return Poll::Ready(None),
+                    Poll::Ready(Ok(i)) => i,
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(NlError::from(e)))),
+                };
                 Some(bytes_read)
             } else {
                 None
