@@ -291,7 +291,7 @@ impl Nl for Ifaddrmsg {
 
         let size_hint = buf
             .take_size_hint()
-            .ok_or_else(|| DeError::new("Ifinfomsg requires a size hint to deserialize"))?
+            .ok_or_else(|| DeError::new("Ifaddrmsg requires a size hint to deserialize"))?
             - result.asize();
         buf.set_size_hint(size_hint);
 
