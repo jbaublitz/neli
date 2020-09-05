@@ -21,6 +21,10 @@ name = "genl_stream"
 path = "genl_stream.rs"
 
 [[bin]]
+name = "getips"
+path = "getips.rs"
+
+[[bin]]
 name = "route-list"
 path = "route-list.rs"
 
