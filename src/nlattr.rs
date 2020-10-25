@@ -295,7 +295,7 @@ where
                     u16::type_size().expect("Must be a static size")
                         + T::type_size().expect("Must be a static size")
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
         );
         let pos = drive_deserialize!(
             STRIP mem, pos, alignto(nla_len as usize) - nla_len as usize
@@ -352,7 +352,7 @@ where
     }
 
     /// Get the underlying `Vec` as a mutable reference or return `None`
-    pub fn get_vec_mut(&mut self) -> Option<&mut GenlBuffer<T, Buffer>> {
+    pub fn get_mut_attrs(&mut self) -> Option<&mut GenlBuffer<T, Buffer>> {
         match self {
             AttrHandle::Owned(ref mut v) => Some(v),
             AttrHandle::Borrowed(_) => None,
@@ -386,7 +386,7 @@ where
     }
 
     /// Get nested attributes from a parsed handle
-    pub fn get_attribute<'b>(&'b self, t: T) -> Option<&'b Nlattr<T, Buffer>> {
+    pub fn get_attribute(&self, t: T) -> Option<&Nlattr<T, Buffer>> {
         for item in self.get_slice().iter() {
             if item.nla_type == t {
                 return Some(&item);
@@ -396,9 +396,9 @@ where
     }
 
     /// Mutably get nested attributes from a parsed handle
-    pub fn get_attribute_mut<'b>(&'b mut self, t: T) -> Option<&'b mut Nlattr<T, Buffer>> {
-        let vec_mut = self.get_vec_mut()?;
-        for item in vec_mut.into_iter() {
+    pub fn get_attribute_mut(&mut self, t: T) -> Option<&mut Nlattr<T, Buffer>> {
+        let vec_mut = self.get_mut_attrs()?;
+        for item in vec_mut.iter_mut() {
             if item.nla_type == t {
                 return Some(item);
             }

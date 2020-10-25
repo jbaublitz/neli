@@ -20,7 +20,7 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
         let mut dst = None;
         let mut gateway = None;
 
-        for attr in &payload.rtattrs {
+        for attr in payload.rtattrs.iter() {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
                 use std::convert::TryFrom;
                 if let Ok(tup) = <&[u8; 4]>::try_from(b) {

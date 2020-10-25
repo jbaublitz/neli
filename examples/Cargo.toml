@@ -36,6 +36,10 @@ optional = true
 version = "0.5.0-rc1"
 path = ".."
 
+[dependencies.futures-util]
+version = "0.3"
+optional = true
+
 [features]
-async = ["tokio", "neli/async"]
+async = ["tokio", "neli/async", "futures-util"]
 logging = ["neli/logging"]

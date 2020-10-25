@@ -86,7 +86,7 @@ where
                     u8::type_size().expect("Must be static size") +
                     u16::type_size().expect("Must be static size")
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
         })
     }

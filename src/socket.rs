@@ -553,7 +553,7 @@ impl NlSocketHandle {
             self.expects_ack,
         ) {
             Ok((po, pa)) => {
-                self.position = po;
+                self.position += po;
                 pa
             }
             Err(e) => match on_error {
@@ -781,6 +781,7 @@ pub mod tokio {
 
             if let Some(bytes_read) = optional_end {
                 let mut mut_ref = self.as_mut();
+                mut_ref.position = 0;
                 mut_ref.end = bytes_read;
             }
 
@@ -874,15 +875,21 @@ pub mod tokio {
 
     #[cfg(test)]
     mod test {
-        use std::io::Read;
+        use std::{future::ready, io::Read};
 
-        use crate::socket::NlSocket;
+        use ::tokio::runtime::Runtime;
+        use futures_util::stream::StreamExt;
 
         use super::*;
+        use crate::{
+            nl::NlEmpty,
+            socket::{self, tokio::NlSocket},
+        };
 
         #[test]
         fn test_socket_nonblock() {
-            let mut s = NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+            let mut s =
+                socket::NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
             s.nonblock().unwrap();
             assert_eq!(s.is_blocking().unwrap(), false);
             let buf = &mut [0; 4];
@@ -896,6 +903,25 @@ pub mod tokio {
                     panic!("Should not return data");
                 }
             }
+        }
+
+        #[test]
+        fn test_socket_send() {
+            let mut s =
+                socket::NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+            let runtime = Runtime::new().unwrap();
+            runtime.block_on(async {
+                let async_s = NlSocket::new(s);
+                task::spawn(async {
+                    async_s
+                        .take(0)
+                        .for_each(|res| {
+                            println!("{:?}", res);
+                        })
+                        .await
+                })
+                .await
+            });
         }
     }
 }

@@ -1,10 +1,13 @@
 pub use std::{
     cell::{Ref, RefCell, RefMut},
+    iter::FromIterator,
     marker::PhantomData,
+    ops::Range,
+    slice::{Iter, IterMut},
 };
 
 use crate::{
-    err::{DeError, SerError},
+    err::SerError,
     neli_constants::MAX_NL_LENGTH,
     nl::Nlmsghdr,
     nlattr::Nlattr,
@@ -84,29 +87,10 @@ impl<'a> SerBufferOps<'a> for SerBuffer<'a> {
         SerBuffer(inner, &PhantomData)
     }
 
-    fn split(
-        mut self,
-        start: usize,
-        end: usize,
-    ) -> Result<(Option<Self>, Self, Option<Self>), SerError<'a>> {
-        if start > end {
-            return Err(SerError::new(
-                format!(
-                    "Start index {} must be less than or equal to end index {}",
-                    start, end
-                ),
-                self,
-            ));
-        }
-        if end > self.0.len() {
-            return Err(SerError::new(
-                format!("Index {} is beyond the end of the buffer", end),
-                self,
-            ));
-        }
-        let end_buffer = self.0.split_off(end);
-        let middle_buffer = self.0.split_off(start);
-        Ok((
+    fn split(mut self, range: Range<usize>) -> (Option<Self>, Self, Option<Self>) {
+        let end_buffer = self.0.split_off(range.end);
+        let middle_buffer = self.0.split_off(range.start);
+        (
             if self.len() == 0 { None } else { Some(self) },
             SerBuffer::from_vec(middle_buffer),
             if end_buffer.is_empty() {
@@ -114,7 +98,7 @@ impl<'a> SerBufferOps<'a> for SerBuffer<'a> {
             } else {
                 Some(SerBuffer::from_vec(end_buffer))
             },
-        ))
+        )
     }
 
     fn join(&mut self, start: Option<Self>, end: Option<Self>) -> Result<(), SerError<'a>> {
@@ -154,14 +138,8 @@ impl<'a> AsRef<[u8]> for DeBuffer<'a> {
 }
 
 impl<'a> DeBufferOps<'a> for DeBuffer<'a> {
-    fn slice(&self, start: usize, end: usize) -> Result<Self, DeError> {
-        if start > end {
-            return Err(DeError::new(format!(
-                "Start index {} must be less than or equal to end index {}",
-                start, end
-            )));
-        }
-        Ok(DeBuffer::from(&self.0[start..end]))
+    fn slice(&self, slice: Range<usize>) -> Self {
+        DeBuffer::from(&self.0[slice])
     }
 
     fn len(&self) -> usize {
@@ -218,19 +196,43 @@ impl<'a> From<&'a [u8]> for SockBuffer {
 #[derive(Debug, PartialEq)]
 pub struct NlBuffer<T, P>(Vec<Nlmsghdr<T, P>>);
 
+impl<T, P> FromIterator<Nlmsghdr<T, P>> for NlBuffer<T, P> {
+    fn from_iter<I>(i: I) -> Self
+    where
+        I: IntoIterator<Item = Nlmsghdr<T, P>>,
+    {
+        NlBuffer(Vec::from_iter(i))
+    }
+}
+
 impl<T, P> AsRef<[Nlmsghdr<T, P>]> for NlBuffer<T, P> {
     fn as_ref(&self) -> &[Nlmsghdr<T, P>] {
         self.0.as_slice()
     }
 }
 
-impl<T, P> NlBufferOps<T, P> for NlBuffer<T, P> {
+impl<'a, T, P> NlBufferOps<'a, T, P> for NlBuffer<T, P>
+where
+    T: 'a,
+    P: 'a,
+{
+    type Iter = Iter<'a, Nlmsghdr<T, P>>;
+    type IterMut = IterMut<'a, Nlmsghdr<T, P>>;
+
     fn new() -> Self {
         NlBuffer(Vec::new())
     }
 
     fn push(&mut self, msg: Nlmsghdr<T, P>) {
         self.0.push(msg);
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.0.iter()
+    }
+
+    fn iter_mut(&'a mut self) -> Self::IterMut {
+        self.0.iter_mut()
     }
 }
 
@@ -243,22 +245,22 @@ impl<T, P> IntoIterator for NlBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> IntoIterator for &'a NlBuffer<T, P> {
-    type Item = &'a Nlmsghdr<T, P>;
-    type IntoIter = std::slice::Iter<'a, Nlmsghdr<T, P>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
 /// A buffer of generic netlink attributes.
 #[derive(Debug, PartialEq)]
-pub struct GenlBuffer<T, P>(pub Vec<Nlattr<T, P>>);
+pub struct GenlBuffer<T, P>(Vec<Nlattr<T, P>>);
 
 impl<T, P> AsRef<[Nlattr<T, P>]> for GenlBuffer<T, P> {
     fn as_ref(&self) -> &[Nlattr<T, P>] {
         self.0.as_slice()
+    }
+}
+
+impl<T, P> FromIterator<Nlattr<T, P>> for GenlBuffer<T, P> {
+    fn from_iter<I>(i: I) -> Self
+    where
+        I: IntoIterator<Item = Nlattr<T, P>>,
+    {
+        GenlBuffer(Vec::from_iter(i))
     }
 }
 
@@ -271,25 +273,14 @@ impl<T, P> IntoIterator for GenlBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> IntoIterator for &'a GenlBuffer<T, P> {
-    type Item = &'a Nlattr<T, P>;
-    type IntoIter = std::slice::Iter<'a, Nlattr<T, P>>;
+impl<'a, T, P> GenlBufferOps<'a, T, P> for GenlBuffer<T, P>
+where
+    T: 'a,
+    P: 'a,
+{
+    type Iter = Iter<'a, Nlattr<T, P>>;
+    type IterMut = IterMut<'a, Nlattr<T, P>>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-impl<'a, T, P> IntoIterator for &'a mut GenlBuffer<T, P> {
-    type Item = &'a mut Nlattr<T, P>;
-    type IntoIter = std::slice::IterMut<'a, Nlattr<T, P>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
-    }
-}
-
-impl<T, P> GenlBufferOps<T, P> for GenlBuffer<T, P> {
     fn new() -> Self {
         GenlBuffer(Vec::new())
     }
@@ -297,11 +288,28 @@ impl<T, P> GenlBufferOps<T, P> for GenlBuffer<T, P> {
     fn push(&mut self, attr: Nlattr<T, P>) {
         self.0.push(attr)
     }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.0.iter()
+    }
+
+    fn iter_mut(&'a mut self) -> Self::IterMut {
+        self.0.iter_mut()
+    }
 }
 
 /// A buffer of rtnetlink attributes.
 #[derive(Debug)]
-pub struct RtBuffer<T, P>(pub Vec<Rtattr<T, P>>);
+pub struct RtBuffer<T, P>(Vec<Rtattr<T, P>>);
+
+impl<T, P> FromIterator<Rtattr<T, P>> for RtBuffer<T, P> {
+    fn from_iter<I>(i: I) -> Self
+    where
+        I: IntoIterator<Item = Rtattr<T, P>>,
+    {
+        RtBuffer(Vec::from_iter(i))
+    }
+}
 
 impl<T, P> IntoIterator for RtBuffer<T, P> {
     type Item = Rtattr<T, P>;
@@ -312,28 +320,34 @@ impl<T, P> IntoIterator for RtBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> IntoIterator for &'a RtBuffer<T, P> {
-    type Item = &'a Rtattr<T, P>;
-    type IntoIter = std::slice::Iter<'a, Rtattr<T, P>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
 impl<T, P> AsRef<[Rtattr<T, P>]> for RtBuffer<T, P> {
     fn as_ref(&self) -> &[Rtattr<T, P>] {
         self.0.as_slice()
     }
 }
 
-impl<T, P> RtBufferOps<T, P> for RtBuffer<T, P> {
+impl<'a, T, P> RtBufferOps<'a, T, P> for RtBuffer<T, P>
+where
+    T: 'a,
+    P: 'a,
+{
+    type Iter = Iter<'a, Rtattr<T, P>>;
+    type IterMut = IterMut<'a, Rtattr<T, P>>;
+
     fn new() -> Self {
         RtBuffer(Vec::new())
     }
 
     fn push(&mut self, attr: Rtattr<T, P>) {
         self.0.push(attr)
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.0.iter()
+    }
+
+    fn iter_mut(&'a mut self) -> Self::IterMut {
+        self.0.iter_mut()
     }
 }
 

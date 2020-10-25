@@ -1,5 +1,7 @@
+use std::{iter::FromIterator, ops::Range};
+
 use crate::{
-    err::{DeError, SerError},
+    err::SerError,
     nl::Nlmsghdr,
     nlattr::Nlattr,
     rtnl::Rtattr,
@@ -47,11 +49,7 @@ pub trait SerBufferOps<'a>: AsRef<[u8]> + AsMut<[u8]> + Sized {
 
     /// Split out a segment of the serialization buffer. Error if the indicies are
     /// out of bounds.
-    fn split(
-        self,
-        start: usize,
-        end: usize,
-    ) -> Result<(Option<Self>, Self, Option<Self>), SerError<'a>>;
+    fn split(self, range: Range<usize>) -> (Option<Self>, Self, Option<Self>);
 
     /// Rejoin the serialization buffer and error if invalid arguments were provided.
     fn join(&mut self, start: Option<Self>, end: Option<Self>) -> Result<(), SerError<'a>>;
@@ -66,7 +64,7 @@ pub trait SerBufferOps<'a>: AsRef<[u8]> + AsMut<[u8]> + Sized {
 /// Trait defining operations for deserialization buffers.
 pub trait DeBufferOps<'a>: AsRef<[u8]> + From<&'a [u8]> + Sized {
     /// Get a subslice of the internal deserialization buffer.
-    fn slice(&self, start: usize, end: usize) -> Result<Self, DeError>;
+    fn slice(&self, range: Range<usize>) -> Self;
 
     /// Get the current length of the buffer.
     fn len(&self) -> usize;
@@ -76,32 +74,74 @@ pub trait DeBufferOps<'a>: AsRef<[u8]> + From<&'a [u8]> + Sized {
 }
 
 /// Trait defining operations for buffers of netlink packets.
-pub trait NlBufferOps<T, P>: AsRef<[Nlmsghdr<T, P>]> {
+pub trait NlBufferOps<'a, T, P>:
+    AsRef<[Nlmsghdr<T, P>]> + FromIterator<Nlmsghdr<T, P>> + IntoIterator
+{
+    /// Borrowed iterator
+    type Iter;
+
+    /// Borrowed mutable iterator
+    type IterMut;
+
     /// Create an empty buffer.
     fn new() -> Self;
 
     /// Add a netlink packet to the end of the buffer.
     fn push(&mut self, msg: Nlmsghdr<T, P>);
+
+    /// Iterate through borrowed netlink messages.
+    fn iter(&'a self) -> Self::Iter;
+
+    /// Iterate through mutably borrowed netlink messages.
+    fn iter_mut(&'a mut self) -> Self::IterMut;
 }
 
 /// Trait defining operations for buffer of generic netlink
 /// attributes.
-pub trait GenlBufferOps<T, P>: AsRef<[Nlattr<T, P>]> {
+pub trait GenlBufferOps<'a, T, P>:
+    AsRef<[Nlattr<T, P>]> + FromIterator<Nlattr<T, P>> + IntoIterator
+{
+    /// Borrowed iterator
+    type Iter;
+
+    /// Borrowed mutable iterator
+    type IterMut;
+
     /// Create an empty buffer.
     fn new() -> Self;
 
     /// Add a netlink attribute to the end of the buffer.
     fn push(&mut self, attr: Nlattr<T, P>);
+
+    /// Iterate through borrowed generic netlink messages.
+    fn iter(&'a self) -> Self::Iter;
+
+    /// Iterate through mutably borrowed generic netlink messages.
+    fn iter_mut(&'a mut self) -> Self::IterMut;
 }
 
 /// Trait defining operations for buffer of routing netlink
 /// attributes.
-pub trait RtBufferOps<T, P>: AsRef<[Rtattr<T, P>]> {
+pub trait RtBufferOps<'a, T, P>:
+    AsRef<[Rtattr<T, P>]> + FromIterator<Rtattr<T, P>> + IntoIterator
+{
+    /// Borrowed iterator
+    type Iter;
+
+    /// Borrowed mutable iterator
+    type IterMut;
+
     /// Create an empty buffer.
     fn new() -> Self;
 
     /// Add a routing attribute to the end of the buffer.
     fn push(&mut self, attr: Rtattr<T, P>);
+
+    /// Iterate through borrowed routing netlink attributes.
+    fn iter(&'a self) -> Self::Iter;
+
+    /// Iterate through mutably borrowed routing netlink attributes.
+    fn iter_mut(&'a mut self) -> Self::IterMut;
 }
 
 /// Trait defining operations on a buffer of flags.

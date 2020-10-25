@@ -24,7 +24,7 @@ where
 {
     fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         let mut pos = 0;
-        for item in self.into_iter() {
+        for item in self.iter() {
             let (mem_tmp, pos_tmp) = drive_serialize!(item, mem, pos, asize);
             mem = mem_tmp;
             pos = pos_tmp;
@@ -48,7 +48,7 @@ where
     }
 
     fn size(&self) -> usize {
-        self.0.iter().fold(0, |acc, item| acc + item.asize())
+        self.iter().fold(0, |acc, item| acc + item.asize())
     }
 
     fn type_size() -> Option<usize> {
@@ -165,7 +165,7 @@ impl Nl for Ifinfomsg {
                     + ifi_flags.size()
                     + ifi_change.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
         })
     }
@@ -231,7 +231,7 @@ impl Nl for Ifaddrmsg {
                     + ifa_scope.size()
                     + ifa_index.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
         })
     }
@@ -343,7 +343,7 @@ impl Nl for Rtmsg {
                     + rtm_type.size()
                     + rtm_flags.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
         })
     }
@@ -420,7 +420,7 @@ impl Nl for Ndmsg {
                     + ndm_flags.size()
                     + ndm_type.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
         })
     }
@@ -541,7 +541,7 @@ impl Nl for Tcmsg {
                     + tcm_parent.size()
                     + tcm_info.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             }
 
         })
@@ -614,7 +614,7 @@ where
                 rta_payload: P => (rta_len as usize).checked_sub(
                     rta_len.size() + rta_type.size()
                 )
-                .ok_or_else(|| DeError::UnexpectedEOB)?
+                .ok_or(DeError::UnexpectedEOB)?
             } => alignto(rta_len as usize) - rta_len as usize
         })
     }

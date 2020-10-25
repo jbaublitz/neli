@@ -13,9 +13,8 @@ macro_rules! drive_serialize {
         let (start, subbuffer, end) =
             <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
                 buffer,
-                $pos,
-                $pos + size,
-            )?;
+                $pos..$pos + size,
+            );
         match $to_ser.serialize(subbuffer) {
             Ok(mut b) => {
                 <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
@@ -46,9 +45,8 @@ macro_rules! drive_serialize {
         let (start, subbuffer, end) =
             <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
                 buffer,
-                $pos,
-                $pos + size,
-            )?;
+                $pos..$pos + size,
+            );
         match $to_ser.serialize(subbuffer) {
             Ok(mut b) => {
                 <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
@@ -79,9 +77,8 @@ macro_rules! drive_serialize {
         let (start, subbuffer, end) =
             <$crate::types::SerBuffer as $crate::types::SerBufferOps>::split(
                 buffer,
-                $pos,
-                $pos + size,
-            )?;
+                $pos..$pos + size,
+            );
         match $self.pad(subbuffer) {
             Ok(mut b) => {
                 <$crate::types::SerBuffer as $crate::types::SerBufferOps>::join(
@@ -173,9 +170,8 @@ macro_rules! drive_deserialize {
         let subbuffer =
             <$crate::types::DeBuffer as $crate::types::DeBufferOps>::slice(
                 &$buffer,
-                $pos,
-                $pos + size,
-            ).map_err(DeError::new)?;
+                $pos..$pos + size,
+            );
         let t = <$de_type>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
@@ -187,10 +183,8 @@ macro_rules! drive_deserialize {
         let subbuffer =
             <$crate::types::DeBuffer as $crate::types::DeBufferOps>::slice(
                 &$buffer,
-                $pos,
-                $pos + size,
-            )
-            .map_err(DeError::new)?;
+                $pos..$pos + size,
+            );
         let t = <$de_type>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};

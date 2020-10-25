@@ -39,21 +39,19 @@ optional = true
 
 [dependencies.tokio]
 version = "0.2"
-features = ["io-driver", "stream"]
+features = ["io-driver", "stream", "rt-core"]
 optional = true
 
 [dependencies.mio]
 version = "0.6.20"
 optional = true
 
-[dependencies.heapless]
-version = "0.5"
-optional = true
+[dev-dependencies]
+futures-util = "0.3"
 
 [features]
 default = []
 async = ["tokio", "mio"]
 logging = ["log", "simple_logger", "lazy_static"]
 netfilter = []
-no_heap_buffer = ["heapless"]
 low_heap_buffer = ["smallvec"]

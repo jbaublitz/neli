@@ -19,7 +19,6 @@ use std::{
 
 use crate::{
     consts::nl::{NlType, NlTypeWrapper, NlmFFlags},
-    nl::{NlEmpty, Nlmsghdr},
     types::{DeBuffer, SerBuffer},
     Nl,
 };
@@ -128,7 +127,7 @@ where
     }
 
     fn type_size() -> Option<usize> {
-        Nlmsghdr::<T, NlEmpty>::type_size()
+        NlmsghdrErr::<T>::type_size()
             .and_then(|nhdr_sz| libc::c_int::type_size().map(|cint| cint + nhdr_sz))
     }
 }

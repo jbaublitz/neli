@@ -26,7 +26,7 @@ where
 {
     fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
         let mut pos = 0;
-        for nlhdr in self.into_iter() {
+        for nlhdr in self.iter() {
             let (mem_tmp, pos_tmp) = drive_serialize!(nlhdr, mem, pos);
             mem = mem_tmp;
             pos = pos_tmp;
@@ -54,7 +54,7 @@ where
     }
 
     fn size(&self) -> usize {
-        self.into_iter().fold(0, |acc, nlhdr| acc + nlhdr.size())
+        self.iter().fold(0, |acc, nlhdr| acc + nlhdr.size())
     }
 }
 
@@ -213,7 +213,7 @@ where
                 pos,
                 (nl_len as usize)
                     .checked_sub(Self::header_size())
-                    .ok_or_else(|| DeError::UnexpectedEOB)?
+                    .ok_or(DeError::UnexpectedEOB)?
             );
             (NlPayload::Payload(nl_payload), pos)
         };
