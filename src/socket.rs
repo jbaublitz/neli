@@ -877,8 +877,7 @@ pub mod tokio {
     mod test {
         use std::io::Read;
 
-        use ::tokio::runtime::Runtime;
-        use futures_util::{future::ready, stream::StreamExt};
+        use ::tokio::{runtime::Runtime, stream::StreamExt};
 
         use super::*;
         use crate::{
@@ -911,16 +910,10 @@ pub mod tokio {
                 socket::NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
             let mut runtime = Runtime::new().unwrap();
             runtime
-                .block_on(async {
-                    let async_s = NlSocket::<NlTypeWrapper, NlEmpty>::new(s).unwrap();
-                    ::tokio::task::spawn(async {
-                        async_s
-                            .take(0)
-                            .for_each(|res| {
-                                println!("{:?}", res);
-                                ready(())
-                            })
-                            .await;
+                .block_on(async move {
+                    let mut async_s = NlSocket::<NlTypeWrapper, NlEmpty>::new(s).unwrap();
+                    ::tokio::task::spawn(async move {
+                        let _ = async_s.try_next();
                     })
                     .await
                 })

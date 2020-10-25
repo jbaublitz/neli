@@ -1,8 +1,6 @@
 use std::{env, error::Error};
 
 #[cfg(feature = "async")]
-use futures_util::{future, stream::StreamExt};
-#[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{
     consts,
@@ -11,6 +9,8 @@ use neli::{
     socket::NlSocketHandle,
     utils::{U32BitFlag, U32Bitmask},
 };
+#[cfg(feature = "async")]
+use tokio::stream::StreamExt;
 
 #[cfg(feature = "async")]
 fn debug_stream() -> Result<(), NlError> {
@@ -39,18 +39,16 @@ fn debug_stream() -> Result<(), NlError> {
     s.add_mcast_membership(U32Bitmask::from(flag))?;
     let mut runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
-        let ss = match NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
+        let mut ss = match NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
             Ok(s) => s,
             Err(e) => {
                 println!("{}", e);
                 return;
             }
         };
-        ss.for_each(|next| {
+        while let Ok(Some(next)) = ss.try_next().await {
             println!("{:#?}", next);
-            future::ready(())
-        })
-        .await;
+        }
     });
     Ok(())
 }

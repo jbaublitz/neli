@@ -46,9 +46,6 @@ optional = true
 version = "0.6.20"
 optional = true
 
-[dev-dependencies]
-futures-util = "0.3"
-
 [features]
 default = []
 async = ["tokio", "mio"]
