@@ -875,10 +875,10 @@ pub mod tokio {
 
     #[cfg(test)]
     mod test {
-        use std::{future::ready, io::Read};
+        use std::io::Read;
 
         use ::tokio::runtime::Runtime;
-        use futures_util::stream::StreamExt;
+        use futures_util::{future::ready, stream::StreamExt};
 
         use super::*;
         use crate::{
