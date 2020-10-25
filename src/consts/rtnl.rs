@@ -1,13 +1,13 @@
 impl_var!(
     /// Internet address families
-    Af, libc::c_uchar,
+    pub Af, libc::c_uchar,
     Inet => libc::AF_INET as libc::c_uchar,
     Inet6 => libc::AF_INET6 as libc::c_uchar
 );
 
 impl_var!(
     /// General address families for sockets
-    RtAddrFamily, u8,
+    pub RtAddrFamily, u8,
     Unspecified => libc::AF_UNSPEC as u8,
     UnixOrLocal => libc::AF_UNIX as u8,
     Inet => libc::AF_INET as u8,
@@ -24,7 +24,7 @@ impl_var!(
 
 impl_var!(
     /// Interface address flags
-    IfaF, u32,
+    pub IfaF, u32,
     Secondary => libc::IFA_F_SECONDARY,
     Temporary => libc::IFA_F_TEMPORARY,
     Nodad => libc::IFA_F_NODAD,
@@ -47,7 +47,7 @@ impl_var!(
 impl_var!(
     /// `rtm_type`
     /// The results of a lookup from a route table
-    Rtn, libc::c_uchar,
+    pub Rtn, libc::c_uchar,
     Unspec => libc::RTN_UNSPEC,
     Unicast => libc::RTN_UNICAST,
     Local => libc::RTN_LOCAL,
@@ -65,7 +65,7 @@ impl_var!(
 impl_var!(
     /// `rtm_protocol`
     /// The origins of routes that are defined in the kernel
-    Rtprot, libc::c_uchar,
+    pub Rtprot, libc::c_uchar,
     Unspec => libc::RTPROT_UNSPEC,
     Redirect => libc::RTPROT_REDIRECT,
     Kernel => libc::RTPROT_KERNEL,
@@ -76,7 +76,7 @@ impl_var!(
 impl_var!(
     /// `rtm_scope`
     /// The distance between destinations
-    RtScope, libc::c_uchar,
+    pub RtScope, libc::c_uchar,
     Universe => libc::RT_SCOPE_UNIVERSE,
     Site => libc::RT_SCOPE_SITE,
     Link => libc::RT_SCOPE_LINK,
@@ -87,7 +87,7 @@ impl_var!(
 impl_var!(
     /// `rt_class_t`
     /// Reserved route table identifiers
-    RtTable, libc::c_uchar,
+    pub RtTable, libc::c_uchar,
     Unspec => libc::RT_TABLE_UNSPEC,
     Compat => libc::RT_TABLE_COMPAT,
     Default => libc::RT_TABLE_DEFAULT,
@@ -98,7 +98,7 @@ impl_var!(
 impl_var!(
     /// `rtm_flags`
     /// Flags for rtnetlink messages
-    RtmF, libc::c_uint,
+    pub RtmF, libc::c_uint,
     Notify => libc::RTM_F_NOTIFY,
     Cloned => libc::RTM_F_CLONED,
     Equalize => libc::RTM_F_EQUALIZE,
@@ -112,7 +112,7 @@ impl_var!(
 
 impl_var!(
     /// Arp neighbor cache entry states
-    Nud, u16,
+    pub Nud, u16,
     None => libc::NUD_NONE,
     Incomplete => libc::NUD_INCOMPLETE,
     Reachable => libc::NUD_REACHABLE,
@@ -126,7 +126,7 @@ impl_var!(
 
 impl_var!(
     /// Arp neighbor cache entry flags
-    Ntf, u8,
+    pub Ntf, u8,
     Use => libc::NTF_USE,
     Self_ => libc::NTF_SELF,
     Master => libc::NTF_MASTER,
@@ -140,10 +140,10 @@ impl_var!(
 
 impl_trait!(
     /// Marker trait for `Rtattr.rta_type` field
-    RtaType,
+    pub RtaType,
     libc::c_ushort,
     /// Wrapper that is usable for all values in `Rtattr.rta_type`
-    RtaTypeWrapper,
+    pub RtaTypeWrapper,
     Ifla,
     Ifa,
     Rta,
@@ -155,7 +155,7 @@ impl_trait!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type`.
     /// Values are interface information message attributes. Used with `Ifinfomsg`.
-    Ifla, libc::c_ushort,
+    pub Ifla, libc::c_ushort,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
     Broadcast => libc::IFLA_BROADCAST,
@@ -201,7 +201,7 @@ impl_var!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type`.
     /// Values are nested attributes to IFLA_LINKMODE.
-    IflaInfo, libc::c_ushort,
+    pub IflaInfo, libc::c_ushort,
     Unspec => libc::IFLA_INFO_UNSPEC,
     Kind => libc::IFLA_INFO_KIND,
     Data => libc::IFLA_INFO_DATA,
@@ -213,7 +213,7 @@ impl_var!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type`.
     /// Values are interface address message attributes. Used with `Ifaddrmsg`.
-    Ifa, libc::c_ushort,
+    pub Ifa, libc::c_ushort,
     Unspec => libc::IFA_UNSPEC,
     Address => libc::IFA_ADDRESS,
     Local => libc::IFA_LOCAL,
@@ -229,7 +229,7 @@ impl_var!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type`.
     /// Values are routing message attributes. Used with `Rtmsg`.
-    Rta, libc::c_ushort,
+    pub Rta, libc::c_ushort,
     Unspec => libc::RTA_UNSPEC,
     Dst => libc::RTA_DST,
     Src => libc::RTA_SRC,
@@ -271,7 +271,7 @@ impl_var!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type` -
     /// Values specify queuing discipline attributes. Used with `Tcmsg`.
-    Tca, libc::c_ushort,
+    pub Tca, libc::c_ushort,
     Unspec => libc::TCA_UNSPEC,
     Kind => libc::TCA_KIND,
     Options => libc::TCA_OPTIONS,
@@ -286,7 +286,7 @@ impl_var!(
 impl_var!(
     /// Enum for use with `Rtattr.rta_type` -
     /// Values specify neighbor table attributes
-    Nda, libc::c_ushort,
+    pub Nda, libc::c_ushort,
     Unspec => libc::NDA_UNSPEC,
     Dst => libc::NDA_DST,
     Lladdr => libc::NDA_LLADDR,
@@ -306,7 +306,7 @@ impl_var!(
 
 impl_var!(
     /// Interface types
-    Arphrd, libc::c_ushort,
+    pub Arphrd, libc::c_ushort,
     Netrom => libc::ARPHRD_NETROM,
     Ether => libc::ARPHRD_ETHER,
     Eether => libc::ARPHRD_EETHER,
@@ -331,7 +331,7 @@ impl_var!(
 
 impl_var!(
     /// Values for `ifi_flags` in `Ifinfomsg`
-    Iff, libc::c_uint,
+    pub Iff, libc::c_uint,
     Up => libc::IFF_UP as libc::c_uint,
     Broadcast => libc::IFF_BROADCAST as libc::c_uint,
     Debug => libc::IFF_DEBUG as libc::c_uint,
@@ -355,8 +355,23 @@ impl_var!(
     // Possibly more types here - need to look into private flags for interfaces
 );
 
-impl_flags!(IffFlags, Iff, libc::c_uint);
-impl_flags!(IfaFFlags, IfaF, libc::c_uint);
-impl_flags!(RtmFFlags, RtmF, libc::c_uint);
-impl_flags!(NudFlags, Nud, u16);
-impl_flags!(NtfFlags, Ntf, u8);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub IffFlags, Iff, libc::c_uint
+);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub IfaFFlags, IfaF, libc::c_uint
+);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub RtmFFlags, RtmF, libc::c_uint
+);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub NudFlags, Nud, u16
+);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub NtfFlags, Ntf, u8
+);

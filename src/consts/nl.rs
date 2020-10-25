@@ -2,10 +2,10 @@ use crate::consts::netfilter::NetfilterMsg;
 
 impl_trait!(
     /// Trait marking constants valid for use in `Nlmsghdr.nl_type`
-    NlType,
+    pub NlType,
     u16,
     /// Wrapper that is usable with all values in `Nlmsghdr.nl_type`
-    NlTypeWrapper,
+    pub NlTypeWrapper,
     Nlmsg,
     GenlId,
     Rtm,
@@ -14,7 +14,7 @@ impl_trait!(
 
 impl_var!(
     /// Values for `nl_type` in `Nlmsghdr`
-    Nlmsg, u16,
+    pub Nlmsg, u16,
     Noop => libc::NLMSG_NOOP as u16,
     Error => libc::NLMSG_ERROR as u16,
     Done => libc::NLMSG_DONE as u16,
@@ -23,7 +23,7 @@ impl_var!(
 
 impl_var!(
     /// Values for `nl_type` in `Nlmsghdr`
-    GenlId, u16,
+    pub GenlId, u16,
     Ctrl => libc::GENL_ID_CTRL as u16,
     #[cfg(target_env="gnu")]
     VfsDquot => libc::GENL_ID_VFS_DQUOT as u16,
@@ -33,7 +33,7 @@ impl_var!(
 
 impl_var!(
     /// rtnetlink-related values for `nl_type` in `Nlmsghdr`
-    Rtm, u16,
+    pub Rtm, u16,
     Newlink => libc::RTM_NEWLINK,
     Dellink => libc::RTM_DELLINK,
     Getlink => libc::RTM_GETLINK,
@@ -86,7 +86,7 @@ impl_var!(
 
 impl_var!(
     /// Values for `nl_flags` in `Nlmsghdr`
-    NlmF, u16,
+    pub NlmF, u16,
     Request => libc::NLM_F_REQUEST as u16,
     Multi => libc::NLM_F_MULTI as u16,
     Ack => libc::NLM_F_ACK as u16,
@@ -103,4 +103,7 @@ impl_var!(
     Append => libc::NLM_F_APPEND as u16
 );
 
-impl_flags!(NlmFFlags, NlmF, u16);
+impl_flags!(
+    #[allow(missing_docs)]
+    pub NlmFFlags, NlmF, u16
+);

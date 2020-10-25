@@ -29,7 +29,7 @@
 macro_rules! impl_var {
     (
         $( #[$outer:meta] )*
-        $name:ident, $ty:ty,
+        $vis:vis $name:ident, $ty:ty,
         $(
             $( #[cfg($meta:meta)] )*
             $var:ident => $val:expr
@@ -37,7 +37,7 @@ macro_rules! impl_var {
     ) => (
         $(#[$outer])*
         #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-        pub enum $name {
+        $vis enum $name {
             $(
                 $(
                     #[cfg($meta)]
@@ -131,16 +131,16 @@ macro_rules! impl_var {
 macro_rules! impl_trait {
     (
         $(#[$outer:meta])*
-        $trait_name:ident,
+        $vis_trait:vis $trait_name:ident,
         $to_from_ty:ty,
         $(
             #[$wrapper_outer:meta]
         )*
-        $wrapper_type:ident,
+        $vis_enum:vis $wrapper_type:ident,
         $( $const_enum:ident ),+
     ) => {
         $(#[$outer])*
-        pub trait $trait_name: $crate::Nl
+        $vis_trait trait $trait_name: $crate::Nl
             + PartialEq
             + Clone
             + From<$to_from_ty>
@@ -158,7 +158,7 @@ macro_rules! impl_trait {
         $(
             #[$wrapper_outer]
         )*
-        pub enum $wrapper_type {
+        $vis_enum enum $wrapper_type {
             $(
                 #[allow(missing_docs)]
                 $const_enum($const_enum),
@@ -221,10 +221,10 @@ macro_rules! impl_trait {
 /// Implement a container for bit flag enums of a certain type.
 #[macro_export]
 macro_rules! impl_flags {
-    ($name:ident, $type:ty, $bin_type:ty) => {
+    ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty) => {
         #[derive(Debug, PartialEq)]
-        #[allow(missing_docs)]
-        pub struct $name($crate::types::FlagBuffer<$type>);
+        $(#[$outer])*
+        $vis struct $name($crate::types::FlagBuffer<$type>);
 
         impl $name {
             /// Create an empty flag container

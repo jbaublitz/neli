@@ -1,6 +1,6 @@
 impl_trait!(
     /// Trait marking constants valid for use in `Genlmsghdr.cmd`
-    Cmd,
+    pub Cmd,
     u8,
     /// Wrapper valid for use with all values in `Genlmsghdr.cmd`
     CmdConsts,
@@ -9,7 +9,7 @@ impl_trait!(
 
 impl_var!(
     /// Values for `cmd` in `Genlmsghdr`
-    CtrlCmd, u8,
+    pub CtrlCmd, u8,
     Unspec => libc::CTRL_CMD_UNSPEC as u8,
     Newfamily => libc::CTRL_CMD_NEWFAMILY as u8,
     Delfamily => libc::CTRL_CMD_DELFAMILY as u8,

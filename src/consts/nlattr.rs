@@ -7,10 +7,10 @@ use crate::{
 
 impl_trait!(
     /// Marker trait for types usable in `Nlattr.nla_type`
-    NlAttrType,
+    pub NlAttrType,
     u16,
     /// Wrapper that is usable with all values in `Nlattr.nla_type`
-    NlAttrTypeWrapper,
+    pub NlAttrTypeWrapper,
     CtrlAttr,
     CtrlAttrMcastGrp,
     NfLogAttr,
@@ -20,7 +20,7 @@ impl_trait!(
 
 impl_var!(
     /// Values for `nla_type` in `Nlattr`
-    CtrlAttr, u16,
+    pub CtrlAttr, u16,
     Unspec => libc::CTRL_ATTR_UNSPEC as u16,
     FamilyId => libc::CTRL_ATTR_FAMILY_ID as u16,
     FamilyName => libc::CTRL_ATTR_FAMILY_NAME as u16,
@@ -33,7 +33,7 @@ impl_var!(
 
 impl_var!(
     /// Values for `nla_type` in `Nlattr`
-    CtrlAttrMcastGrp, u16,
+    pub CtrlAttrMcastGrp, u16,
     Unspec => libc::CTRL_ATTR_MCAST_GRP_UNSPEC as u16,
     Name => libc::CTRL_ATTR_MCAST_GRP_NAME as u16,
     Id => libc::CTRL_ATTR_MCAST_GRP_ID as u16

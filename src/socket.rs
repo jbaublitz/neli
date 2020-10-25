@@ -907,21 +907,24 @@ pub mod tokio {
 
         #[test]
         fn test_socket_send() {
-            let mut s =
+            let s =
                 socket::NlSocket::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
-            let runtime = Runtime::new().unwrap();
-            runtime.block_on(async {
-                let async_s = NlSocket::new(s);
-                task::spawn(async {
-                    async_s
-                        .take(0)
-                        .for_each(|res| {
-                            println!("{:?}", res);
-                        })
-                        .await
+            let mut runtime = Runtime::new().unwrap();
+            runtime
+                .block_on(async {
+                    let async_s = NlSocket::<NlTypeWrapper, NlEmpty>::new(s).unwrap();
+                    ::tokio::task::spawn(async {
+                        async_s
+                            .take(0)
+                            .for_each(|res| {
+                                println!("{:?}", res);
+                                ready(())
+                            })
+                            .await;
+                    })
+                    .await
                 })
-                .await
-            });
+                .unwrap();
         }
     }
 }

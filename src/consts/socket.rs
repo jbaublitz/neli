@@ -1,6 +1,6 @@
 impl_var!(
     /// General address families for sockets
-    AddrFamily, libc::c_int,
+    pub AddrFamily, libc::c_int,
     UnixOrLocal => libc::AF_UNIX,
     Inet => libc::AF_INET,
     Inet6 => libc::AF_INET6,
@@ -16,7 +16,7 @@ impl_var!(
 
 impl_var!(
     /// Values for `nl_family` in `NlSocket`
-    NlFamily, libc::c_int,
+    pub NlFamily, libc::c_int,
     Route => libc::NETLINK_ROUTE,
     Unused => libc::NETLINK_UNUSED,
     Usersock => libc::NETLINK_USERSOCK,
