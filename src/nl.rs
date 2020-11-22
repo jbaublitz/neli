@@ -18,6 +18,87 @@ use crate::{
     Nl,
 };
 
+/// Builder for [Nlmsghdr]
+/// # Examples
+///
+/// ```
+/// # use neli::consts::{NlmF, Nlmsg};
+/// # use neli::nl::NlEmpty;
+/// # use neli::nl::NlmsghdrBuilder;
+/// let nl = NlmsghdrBuilder::new(Nlmsg::Noop, NlEmpty)
+///     .nl_flag(NlmF::Dump)
+///     .build();
+/// ```
+#[derive(Debug, PartialEq)]
+pub struct NlmsghdrBuilder<T, P> {
+    nl_len: Option<u32>,
+    nl_type: T,
+    nl_flags: Vec<NlmF>,
+    nl_seq: Option<u32>,
+    nl_pid: Option<u32>,
+    nl_payload: P,
+}
+
+impl<T, P> NlmsghdrBuilder<T, P>
+where
+    T: NlType,
+    P: Nl,
+{
+    /// Create a new top level netlink packet builder
+    pub fn new(nl_type: T, nl_payload: P) -> Self {
+        Self {
+            nl_len: None,
+            nl_type,
+            nl_flags: Vec::new(),
+            nl_seq: None,
+            nl_pid: None,
+            nl_payload,
+        }
+    }
+
+    /// Set length of the netlink message
+    pub fn nl_len(mut self, len: u32) -> Self {
+        self.nl_len = Some(len);
+        self
+    }
+
+    /// Add a new flag to the netlink message
+    pub fn nl_flag(mut self, flag: NlmF) -> Self {
+        self.nl_flags.push(flag);
+        self
+    }
+
+    /// Add multiple flags to the netlink message
+    pub fn nl_flags(mut self, flags: Vec<NlmF>) -> Self {
+        self.nl_flags.extend(flags);
+        self
+    }
+
+    /// Set sequence number of the netlink message
+    pub fn nl_seq(mut self, seq: u32) -> Self {
+        self.nl_seq = Some(seq);
+        self
+    }
+
+    /// Set sender port ID of the netlink message
+    pub fn nl_pid(mut self, pid: u32) -> Self {
+        self.nl_pid = Some(pid);
+        self
+    }
+
+    /// Build a [Nlmsghdr]
+    pub fn build(self) -> Nlmsghdr<T, P> {
+        Nlmsghdr::new(
+            self.nl_len,
+            self.nl_type,
+            self.nl_flags,
+            self.nl_seq,
+            self.nl_pid,
+            self.nl_payload,
+        )
+    }
+}
+
 /// Top level netlink header and payload
 #[derive(Debug, PartialEq)]
 pub struct Nlmsghdr<T, P> {
@@ -166,6 +247,30 @@ mod test {
     use byteorder::{NativeEndian, WriteBytesExt};
 
     use crate::consts::Nlmsg;
+
+    #[test]
+    fn test_nlhdr_builder() {
+        let nl1 = NlmsghdrBuilder::new(Nlmsg::Noop, NlEmpty).build();
+        let nl2 = Nlmsghdr::new(None, Nlmsg::Noop, Vec::new(), None, None, NlEmpty);
+        assert_eq!(nl1, nl2);
+
+        let nl1 = NlmsghdrBuilder::new(Nlmsg::Noop, NlEmpty)
+            .nl_len(10)
+            .nl_flag(NlmF::Dump)
+            .nl_flags(vec![NlmF::Append, NlmF::Echo])
+            .nl_seq(1)
+            .nl_pid(2)
+            .build();
+        let nl2 = Nlmsghdr::new(
+            Some(10),
+            Nlmsg::Noop,
+            vec![NlmF::Dump, NlmF::Append, NlmF::Echo],
+            Some(1),
+            Some(2),
+            NlEmpty,
+        );
+        assert_eq!(nl1, nl2);
+    }
 
     #[test]
     fn test_nlhdr_serialize() {
