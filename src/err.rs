@@ -42,15 +42,16 @@ impl<T> Nl for NlmsghdrErr<T>
 where
     T: NlType,
 {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.nl_len;
             self.nl_type;
             self.nl_flags;
             self.nl_seq;
             self.nl_pid
-        })
+        }
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -104,12 +105,13 @@ impl<T> Nl for Nlmsgerr<T>
 where
     T: NlType,
 {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.error;
             self.nlmsg
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -151,6 +153,10 @@ pub enum NlError {
     Msg(String),
     /// An error packet sent back by netlink
     Nlmsgerr(Nlmsgerr<NlTypeWrapper>),
+    /// A serialization error.
+    Ser(SerError),
+    /// A deserialization error.
+    De(DeError),
     /// A wrapped error from lower in the call stack
     Wrapped(WrappedError),
     /// No ack was received when `NlmF::Ack` was specified in the request
@@ -164,6 +170,8 @@ pub enum NlError {
 err_from!(
     NlError,
     Nlmsgerr<NlTypeWrapper> { NlError::Nlmsgerr },
+    SerError { NlError::Ser },
+    DeError { NlError::De },
     WrappedError { NlError::Wrapped },
     std::io::Error { |e| NlError::Wrapped(WrappedError::from(e)) },
     std::str::Utf8Error { |e| NlError::Wrapped(WrappedError::from(e)) },
@@ -189,6 +197,12 @@ impl Display for NlError {
             NlError::Nlmsgerr(ref err) => {
                 write!(f, "Error response received from netlink: {}", err)
             }
+            NlError::Ser(ref err) => {
+                write!(f, "Serialization error: {}", err)
+            }
+            NlError::De(ref err) => {
+                write!(f, "Deserialization error: {}", err)
+            }
             NlError::NoAck => write!(f, "No ack received"),
             NlError::BadSeq => write!(f, "Sequence number does not match the request"),
             NlError::BadPid => write!(f, "PID does not match the socket"),
@@ -199,10 +213,9 @@ impl Display for NlError {
 
 impl Error for NlError {}
 
-/// The type of error associated with the cause of the serialization
-/// failure.
+/// Serialization error
 #[derive(Debug)]
-pub enum SerErrorKind {
+pub enum SerError {
     /// Abitrary error message.
     Msg(String),
     /// A wrapped error from lower in the call stack.
@@ -213,51 +226,26 @@ pub enum SerErrorKind {
     BufferNotFilled,
 }
 
-/// Serialization error
-#[derive(Debug)]
-pub struct SerError<'a> {
-    /// Error cause.
-    kind: SerErrorKind,
-    /// Buffer of data that was passed to the serialization operation.
-    buffer: SerBuffer<'a>,
-}
-
-impl<'a> SerError<'a> {
+impl SerError {
     /// Create a new error with the given message as description
-    pub fn new<D>(msg: D, buffer: SerBuffer<'a>) -> Self
+    pub fn new<D>(msg: D) -> Self
     where
         D: Display,
     {
-        SerError {
-            kind: SerErrorKind::Msg(msg.to_string()),
-            buffer,
-        }
-    }
-
-    /// Create a new error specifying the type of the error that
-    /// caused the serialization failure.
-    pub fn new_with_kind(kind: SerErrorKind, buffer: SerBuffer<'a>) -> Self {
-        SerError { kind, buffer }
-    }
-
-    /// Convert the error to the two components of a `SerError`:
-    /// the error kind and the buffer that was being written
-    /// into.
-    pub fn into_parts(self) -> (SerErrorKind, SerBuffer<'a>) {
-        (self.kind, self.buffer)
+        SerError::Msg(msg.to_string())
     }
 }
 
-impl<'a> Display for SerError<'a> {
+impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.kind {
-            SerErrorKind::Msg(ref s) => write!(f, "{}", s),
-            SerErrorKind::Wrapped(ref e) => write!(f, "Error while serializing: {}", e),
-            SerErrorKind::UnexpectedEOB => write!(
+        match self {
+            SerError::Msg(ref s) => write!(f, "{}", s),
+            SerError::Wrapped(ref e) => write!(f, "Error while serializing: {}", e),
+            SerError::UnexpectedEOB => write!(
                 f,
                 "The buffer was too small for the requested serialization operation",
             ),
-            SerErrorKind::BufferNotFilled => write!(
+            SerError::BufferNotFilled => write!(
                 f,
                 "The number of bytes written to the buffer did not fill the \
                  given space",
@@ -266,7 +254,7 @@ impl<'a> Display for SerError<'a> {
     }
 }
 
-impl<'a> Error for SerError<'a> {}
+impl Error for SerError {}
 
 /// Deserialization error
 #[derive(Debug)]

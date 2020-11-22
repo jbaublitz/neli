@@ -10,10 +10,12 @@
 use std::mem;
 
 use crate::{
+    attr::Attribute,
     consts::{alignto, rtnl::*},
-    err::{DeError, SerError},
-    parse::packet_length_u16,
-    types::{Buffer, DeBuffer, DeBufferOps, RtBuffer, RtBufferOps, SerBuffer},
+    err::{DeError, NlError, SerError},
+    parse::{packet_length_u16, AttrHandle, AttrHandleMut},
+    types::{Buffer, DeBuffer, RtBuffer, SerBuffer},
+    utils::serialize,
     Nl,
 };
 
@@ -22,21 +24,20 @@ where
     T: RtaType,
     P: Nl,
 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         let mut pos = 0;
         for item in self.iter() {
-            let (mem_tmp, pos_tmp) = drive_serialize!(item, mem, pos, asize);
-            mem = mem_tmp;
-            pos = pos_tmp;
+            pos = drive_serialize!(item, mem, pos, asize);
         }
-        Ok(drive_serialize!(END mem, pos))
+        drive_serialize!(END mem, pos);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         let mut rtattrs = RtBuffer::new();
         let mut pos = 0;
         while pos < mem.len() {
-            let packet_len = packet_length_u16(mem.as_ref(), pos);
+            let packet_len = packet_length_u16(mem, pos);
             let (nlhdr, pos_tmp) = drive_deserialize!(
                 Rtattr<T, P>, mem, pos, alignto(packet_len)
             );
@@ -133,8 +134,8 @@ impl Ifinfomsg {
 }
 
 impl Nl for Ifinfomsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.ifi_family;
             self.padding;
@@ -144,7 +145,8 @@ impl Nl for Ifinfomsg {
             self.ifi_flags;
             self.ifi_change;
             self.rtattrs, asize
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -203,8 +205,8 @@ pub struct Ifaddrmsg {
 }
 
 impl Nl for Ifaddrmsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.ifa_family;
             self.ifa_prefixlen;
@@ -212,7 +214,8 @@ impl Nl for Ifaddrmsg {
             self.ifa_scope;
             self.ifa_index;
             self.rtattrs, asize
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -258,7 +261,7 @@ pub struct Rtgenmsg {
 }
 
 impl Nl for Rtgenmsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         self.rtgen_family.serialize(mem)
     }
 
@@ -303,8 +306,8 @@ pub struct Rtmsg {
 }
 
 impl Nl for Rtmsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.rtm_family;
             self.rtm_dst_len;
@@ -316,7 +319,8 @@ impl Nl for Rtmsg {
             self.rtm_type;
             self.rtm_flags;
             self.rtattrs, asize
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -386,8 +390,8 @@ pub struct Ndmsg {
 }
 
 impl Nl for Ndmsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.ndm_family;
             self.pad1;
@@ -397,7 +401,8 @@ impl Nl for Ndmsg {
             self.ndm_flags;
             self.ndm_type;
             self.rtattrs, asize
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -455,14 +460,15 @@ pub struct NdaCacheinfo {
 }
 
 impl Nl for NdaCacheinfo {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.ndm_confirmed;
             self.ndm_used;
             self.ndm_updated;
             self.ndm_refcnt
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -509,8 +515,8 @@ pub struct Tcmsg {
 }
 
 impl Nl for Tcmsg {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             mem;
             self.tcm_family;
             self.padding_char;
@@ -520,7 +526,8 @@ impl Nl for Tcmsg {
             self.tcm_parent;
             self.tcm_info;
             self.rtattrs, asize
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -580,12 +587,75 @@ impl<T> Rtattr<T, Buffer>
 where
     T: RtaType,
 {
-    /// Get payload as type implementing `Nl`
-    pub fn get_payload_as<R>(&self) -> Result<R, DeError>
+    /// Create a new [`Rtattr`].
+    pub fn new<P>(rta_len: Option<u16>, rta_type: T, rta_payload: P) -> Result<Self, NlError>
     where
-        R: Nl,
+        P: Nl,
     {
-        R::deserialize(DeBuffer::from(self.rta_payload.as_ref()))
+        let mut attr = Rtattr {
+            rta_len: rta_len.unwrap_or(0),
+            rta_type,
+            rta_payload: Buffer::new(),
+        };
+        attr.set_payload(&rta_payload).map_err(|e| {
+            NlError::new(format!("Failed to convert payload to a byte buffer: {}", e))
+        })?;
+        Ok(attr)
+    }
+
+    /// Add a nested attribute to the end of the payload.
+    pub fn add_nested_attribute<TT, P>(&mut self, attr: &Rtattr<TT, P>) -> Result<(), NlError>
+    where
+        TT: RtaType,
+        P: Nl,
+    {
+        let ser_buffer = serialize(attr, true)?;
+
+        self.rta_payload.extend_from_slice(ser_buffer.as_ref());
+        self.rta_len += attr.asize() as u16;
+        Ok(())
+    }
+
+    /// Return an `AttrHandle` for attributes nested in the given attribute payload
+    pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, NlError>
+    where
+        R: RtaType,
+    {
+        Ok(AttrHandle::new(
+            RtBuffer::deserialize(self.rta_payload.as_ref()).map_err(NlError::new)?,
+        ))
+    }
+
+    /// Return a mutable `AttrHandle` for attributes nested in the given attribute payload
+    pub fn get_attr_handle_mut<R>(&mut self) -> Result<RtAttrHandleMut<R>, NlError>
+    where
+        R: RtaType,
+    {
+        Ok(AttrHandleMut::new(
+            RtBuffer::deserialize(self.rta_payload.as_ref()).map_err(NlError::new)?,
+        ))
+    }
+}
+
+impl<T> Attribute<T> for Rtattr<T, Buffer>
+where
+    T: RtaType,
+{
+    fn payload(&self) -> &Buffer {
+        &self.rta_payload
+    }
+
+    fn set_payload<P>(&mut self, payload: &P) -> Result<(), NlError>
+    where
+        P: Nl,
+    {
+        let ser_buffer = serialize(payload, false)?;
+        self.rta_payload = Buffer::from(ser_buffer);
+
+        // Update `Nlattr` with new length
+        self.rta_len = (self.rta_len.size() + self.rta_type.size() + payload.size()) as u16;
+
+        Ok(())
     }
 }
 
@@ -594,14 +664,15 @@ where
     T: RtaType,
     P: Nl,
 {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             PAD self;
             mem;
             self.rta_len;
             self.rta_type;
             self.rta_payload
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -628,21 +699,67 @@ where
     }
 }
 
+type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
+type RtAttrHandleMut<'a, T> = AttrHandleMut<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
+
+impl<'a, T> AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
+where
+    T: RtaType,
+{
+    /// Get the payload of an attribute as a handle for parsing nested attributes
+    pub fn get_nested_attributes<S>(&mut self, subattr: T) -> Result<RtAttrHandle<S>, NlError>
+    where
+        S: RtaType,
+    {
+        Ok(AttrHandle::new(
+            RtBuffer::deserialize(
+                self.get_attribute(subattr)
+                    .ok_or_else(|| NlError::new("Couldn't find specified attribute"))?
+                    .rta_payload
+                    .as_ref(),
+            )
+            .map_err(NlError::new)?,
+        ))
+    }
+
+    /// Get nested attributes from a parsed handle
+    pub fn get_attribute(&self, t: T) -> Option<&Rtattr<T, Buffer>> {
+        for item in self.get_attrs().iter() {
+            if item.rta_type == t {
+                return Some(&item);
+            }
+        }
+        None
+    }
+
+    /// Parse binary payload as a type that implements `Nl` using `deserialize` with an option size
+    /// hint
+    pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, NlError>
+    where
+        R: Nl,
+    {
+        match self.get_attribute(attr) {
+            Some(a) => a.get_payload_as::<R>(),
+            _ => Err(NlError::new("Failed to find specified attribute")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{consts::Rta, types::SerBufferOps};
+    use crate::{consts::rtnl::Rta, utils::serialize};
 
     #[test]
     fn test_rta_deserialize() {
-        let buf = DeBuffer::from(&[4u8, 0, 0, 0] as &[u8]);
+        let buf = &[4u8, 0, 0, 0] as &[u8];
         assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_ok());
     }
 
     #[test]
     fn test_rta_deserialize_err() {
         // 3 bytes is below minimum length
-        let buf = DeBuffer::from(&[3u8, 0, 0, 0] as &[u8]);
+        let buf = &[3u8, 0, 0, 0] as &[u8];
         assert!(Rtattr::<Rta, Buffer>::deserialize(buf).is_err());
     }
 
@@ -653,11 +770,10 @@ mod test {
             rta_type: Rta::Unspec,
             rta_payload: vec![0u8],
         };
-        let buf = SerBuffer::new(Some(attr.asize()));
+        let buf_res = serialize(&attr, true);
 
-        let buf_res = attr.serialize(buf);
         assert!(buf_res.is_ok());
         // padding check
-        assert_eq!(buf_res.unwrap().as_ref().len(), 8);
+        assert_eq!(buf_res.unwrap().as_slice().len(), 8);
     }
 }

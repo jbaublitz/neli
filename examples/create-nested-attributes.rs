@@ -3,12 +3,11 @@ extern crate neli;
 use std::error::Error;
 
 use neli::{
-    consts,
-    genl::Genlmsghdr,
+    consts::{genl::*, nl::*},
+    genl::{Genlmsghdr, Nlattr},
     nl::{NlPayload, Nlmsghdr},
-    nlattr::Nlattr,
-    types::{GenlBuffer, GenlBufferOps, SerBuffer, SerBufferOps},
-    Nl,
+    types::GenlBuffer,
+    utils::serialize,
 };
 
 pub fn main() -> Result<(), Box<dyn Error>> {
@@ -17,8 +16,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // let attrs = vec![Nlattr::new(None, 1, vec![Nlattr::new(None, 1, "this_family")?]),
     //                  Nlattr::new(None, 2, vec![Nlattr::new(None, 1, "that_family")?])];
 
-    // let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs)?;
-    // let nlmsg = Nlmsghdr::new(None, consts::Nlmsg::Noop, vec![consts::NlmF::Request], None, None,
+    // let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
+    // let nlmsg = Nlmsghdr::new(None, Nlmsg::Noop, vec![consts::NlmF::Request], None, None,
     //                           Some(genlmsg));
     // let mut buffer = neli::BytesMut::from(vec![0; nlmsg.asize()]);
     // nlmsg.serialize(&mut buffer)?;
@@ -57,17 +56,16 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     attrs.push(attr1);
     attrs.push(attr2);
 
-    let genlmsg = Genlmsghdr::new(consts::CtrlCmd::Getfamily, 2, attrs);
+    let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
     let nlmsg = Nlmsghdr::new(
         None,
-        consts::Nlmsg::Noop,
-        consts::NlmFFlags::new(&[consts::NlmF::Request]),
+        Nlmsg::Noop,
+        NlmFFlags::new(&[NlmF::Request]),
         None,
         None,
         NlPayload::Payload(genlmsg),
     );
-    let mut buffer = SerBuffer::new(Some(nlmsg.asize()));
-    buffer = nlmsg.serialize(buffer)?;
-    println!("Serialized heterogeneous attributes: {:?}", buffer.as_ref());
+    let buffer = serialize(&nlmsg, true)?;
+    println!("Serialized heterogeneous attributes: {:?}", buffer);
     Ok(())
 }

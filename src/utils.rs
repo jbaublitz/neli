@@ -4,6 +4,8 @@ use std::{
     ops::{BitOr, BitOrAssign, Deref},
 };
 
+use crate::{err::SerError, Nl};
+
 /// Represents an error for operations on bitmasks if the integer
 /// that is being used to store the bitmask cannot represent the
 /// result of requested operation.
@@ -135,4 +137,15 @@ impl Deref for U32Bitmask {
 #[inline]
 fn num_to_set_mask(grp: u32) -> u32 {
     1 << (grp - 1)
+}
+
+/// Convenience method for allocating a buffer for serialization.
+pub fn serialize<N>(nl: &N, align: bool) -> Result<Vec<u8>, SerError>
+where
+    N: Nl,
+{
+    let len = if align { nl.asize() } else { nl.size() };
+    let mut vec = vec![0; len];
+    nl.serialize(vec.as_mut_slice())?;
+    Ok(vec)
 }

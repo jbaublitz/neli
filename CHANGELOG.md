@@ -2,25 +2,36 @@
 
 ## 0.5.0
 ### Breaking changes
-* Change from `buffering` structs for serialization to the `bytes`
-  crate to allow buffer size tracking for each layer of serialization
+* Change from `buffering` structs for serialization to regular slices
+  to allow buffer size tracking for each layer of serialization
   and deserialization and easy slicing into smaller, sized pieces.
-* Changes to some return types to allow preference of stack
-  allocation over heap allocation up to a certain buffer size.
 * Change `stream` feature to `async` for clarity with higher level
-  API
-* Move `seq` and `pid` tracking to higher level APIs for better
-  support case by case
+  API.
+* Remove `seq` and `pid` tracking. This will eventually be added to
+  higher level APIs.
 * Make `NlSocket::send`/`::recv` take an immutable reference due to
-  the case made for message vs. stream based sockets
+  the case made for message vs. stream based sockets.
+* Remove universal exports of constants from the `consts` module.
+* Update to tokio 0.3.
+* Split lower level and higher level synchronous netlink socket calls
+  across two structs, `NlSocket` and `NlSocketHandle`.
+* Factor out parsing code so that it can be used across multiple
+  socket types.
+* Add nested netlink attribute parsing for routing netlink attributes. 
+* Changes to the `Nlmsg` struct to support handling application
+  errors returned by the kernel. Previously, there was no easy way
+  to handle application errors returned inside of an `Nlmsg` packet.
+* Added the ability to define the visibility for constants defined by
+  the `consts` macros.
 
 ### Additions
-* Feature flagged NFLOG support, in the `netfilter` module.
-* Add genetlink ID to family name/multicast group name lookup
-* Add `Index` type for nested attributes returned as a numbered list
-* `NlSocket` functions to leave/list multicast groups
+* Add genetlink ID to family name/multicast group name lookup.
+* Add `Index` type for nested attributes returned as a numbered list.
+* `NlSocket` functions to leave/list multicast groups.
 * Macro infrastructure for generating `serialize` and `deserialize`
   methods safely.
+* `attr` module for shared attribute code.
+* Debug logging enabled through the `logging` feature.
 
 ### Deprecations
 * `Nlattr.get_nested_attributes()` in favor of `.get_attr_handle()`

@@ -3,61 +3,67 @@
 //! ## Rationale
 //!
 //! This crate aims to be a pure Rust implementation that defines
-//! the necessary constants and wraps them in enums to distinguish between various categories of
-//! constants in the context of netlink.
+//! the necessary constants and wraps them in enums to distinguish
+//! between various categories of constants in the context of netlink.
 //!
 //! ## The project is broken down into the following modules:
-//! * `consts` - This is where all of the C-defined constants are wrapped into type safe enums for
-//! use in the library.
-//! * `err` - This module contains all of the protocol and library-level errors encountered in the
-//! code.
-//! * `genl` - This code provides parsing for the generic netlink subsystem of the netlink
-//! protocol.
-//! * `netfilter` - Netfilter related protocols (NFLOG, NFQUEUE, CONNTRACK).
-//! * `nlattr` - This code provides more granular parsing methods for the generic netlink
-//! attributes in the context of generic netlink requests and responses.
-//! * `nl` - This is the top level netlink header code that handles the header that all netlink
-//! messages are encapsulated in.
-//! * `rtnl` - This module is for the routing netlink subsystem of the netlink protocol.
-//! * `socket` - This provides a socket structure for use in sending and receiving messages and a
-//! number of convenience functions for commonly encountered use cases.
+//! * `attr` - This defines a generic interface for netlink attributes
+//! (both generic and routing netlink attributes).
+//! * `consts` - This is where all of the C-defined constants are
+//! wrapped into type safe enums for use in the library.
+//! * `err` - This module contains all of the protocol and
+//! library-level errors encountered in the code.
+//! * `genl` - This code provides parsing for the generic netlink
+//! subsystem of the netlink protocol.
+//! * `nl` - This is the top level netlink header code that handles
+//! the header that all netlink messages are encapsulated in.
+//! * `rtnl` - This module is for the routing netlink subsystem of the
+//! netlink protocol.
+//! * `socket` - This provides a socket structure for use in sending
+//! and receiving messages and a number of convenience functions for
+//! commonly encountered use cases.
 //!
-//! ## Traits
+//! ## [`Nl`] trait
 //!
-//! The library at the top level contains the `Nl` trait which provides a buffer size calculation
-//! function, a serialization method, and a deserialization method. It also contains
-//! implementations of `Nl` for common types. The is one additional trait, `NlBuf`, used in cases
-//! where, to deserialize a type, a buffer needs to be provided by the caller function and passed
-//! to the callee.
+//! `lib.rs` at the top level contains the [`Nl`] trait which
+//! provides buffer size calculation functions, a serialization
+//! method, and a deserialization method. It also contains
+//! implementations of [`Nl`] for common types.
 //!
 //! ## Design decisions
 //!
-//! This is a fairly low level library that currently does not have a whole lot of higher level
-//! handle-type data structures and relies mostly on the `NlSocket` struct to provide most of the
-//! convenience functions. I hope to add a higher level API by `v0.5.0` to ease some of the
-//! workflows that have been brought to my attention.
+//! This is a fairly low level library that currently does not have a
+//! whole lot of higher level handle-type data structures and
+//! relies mostly on the [`NlSocket`][crate::socket::NlSocket] and
+//! [`NlSocketHandle`][crate::socket::NlSocketHandle] structs
+//! to provide most of the convenience functions. I hope to add a
+//! higher level API sometime in the `v0.5.x` releases to ease some of
+//! the workflows that have been brought to my attention.
 //!
-//! The goal of this library is completeness for handling netlink and am working to incorporate
-//! features that will make this library easier to use in all use cases. If you have a use case you
-//! would like to see supported, please open an issue on github.
+//! The goal of this library is completeness for handling netlink and
+//! am working to incorporate features that will make this library
+//! easier to use in all use cases. If you have a use case you
+//! would like to see supported, please open an issue on Github.
 //!
 //! ## Examples
 //!
-//! Examples of working code exist in the `examples/` subdirectory on Github. They have a separate
-//! `Cargo.toml` file to provide easy testing and use.
-//!
+//! Examples of working code exist in the `examples/` subdirectory on
+//! Github. They have a separate `Cargo.toml` file to provide easy
+//! testing and use.  
 //! ## Documentation
 //!
-//! Each module has been documented extensively to provide information on how to use the code
-//! contained in the module. Pull requests for documentation mistakes, updates, and rewording for
-//! clarity is a valuable contribution as this project aims to be as simple to use as
-//! possible.
+//! Each module has been documented extensively to provide information
+//! on how to use the code contained in the module. Pull requests for
+//! documentation mistakes, updates, and rewording for clarity is a
+//! valuable contribution as this project aims to be as simple to use
+//! as possible.
 
 #![deny(missing_docs)]
 
 #[macro_use]
 mod macros;
 
+pub mod attr;
 /// C constants defined as types
 pub mod consts;
 /// Error module
@@ -67,13 +73,8 @@ pub mod genl;
 /// Utilities for iterating through netlink responses
 pub mod iter;
 mod neli_constants;
-/// Nflog protocol (logging for netfilter)
-//#[cfg(feature = "netfilter")]
-//pub mod netfilter;
 /// Top-level netlink header
 pub mod nl;
-/// Netlink attribute handler
-pub mod nlattr;
 mod parse;
 /// Route netlink bindings
 pub mod rtnl;
@@ -81,8 +82,6 @@ pub mod rtnl;
 pub mod socket;
 /// Buffer types for various operations
 pub mod types;
-// Module for high level stream interface
-//pub mod stream;
 /// Module with helper methods and data structures
 pub mod utils;
 
@@ -95,8 +94,8 @@ use lazy_static::lazy_static;
 pub use crate::neli_constants::MAX_NL_LENGTH;
 use crate::{
     consts::alignto,
-    err::{DeError, SerError, SerErrorKind, WrappedError},
-    types::{Buffer, BufferOps, DeBuffer, DeBufferOps, SerBuffer, SerBufferOps},
+    err::{DeError, SerError, WrappedError},
+    types::{Buffer, DeBuffer, SerBuffer},
 };
 
 #[cfg(feature = "logging")]
@@ -125,7 +124,7 @@ macro_rules! log {
 /// values of more unusual types.
 pub trait Nl: Sized {
     /// Serialization method
-    fn serialize<'a>(&self, m: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>>;
+    fn serialize(&self, m: SerBuffer) -> Result<(), SerError>;
 
     /// Deserialization method
     fn deserialize(m: DeBuffer) -> Result<Self, DeError>;
@@ -147,42 +146,29 @@ pub trait Nl: Sized {
     }
 
     /// Pad the data serialized data structure to alignment
-    fn pad<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn pad(&self, mem: SerBuffer) -> Result<(), SerError> {
         let padding_len = self.asize() - self.size();
         if let Err(e) = mem
             .as_mut()
             .write_all(&[0; libc::NLA_ALIGNTO as usize][..padding_len])
         {
-            Err(SerError::new_with_kind(
-                SerErrorKind::Wrapped(WrappedError::IOError(e)),
-                mem,
-            ))
+            Err(SerError::Wrapped(WrappedError::IOError(e)))
         } else {
-            Ok(mem)
+            Ok(())
         }
     }
 }
 
-/// `Nl::deserialize()` alternative with lifetimes.
-pub trait NlBorrowed<'a>: Sized + Nl {
-    /// Deserialization method with byte slice
-    fn deserialize_borrowed(m: DeBuffer<'a>) -> Result<Self, DeError> {
-        Self::deserialize(m)
-    }
-}
-
 impl Nl for u8 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         let size = self.size();
         match mem.len() {
-            i if i < size => return Err(SerError::new_with_kind(SerErrorKind::UnexpectedEOB, mem)),
-            i if i > size => {
-                return Err(SerError::new_with_kind(SerErrorKind::BufferNotFilled, mem))
-            }
+            i if i < size => return Err(SerError::UnexpectedEOB),
+            i if i > size => return Err(SerError::BufferNotFilled),
             _ => (),
         };
         let _ = mem.as_mut().write(&[*self]);
-        Ok(mem)
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -205,8 +191,9 @@ impl Nl for u8 {
 }
 
 impl Nl for u16 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(put_int!(*self, mem, write_u16))
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        put_int!(*self, mem, write_u16);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -223,8 +210,9 @@ impl Nl for u16 {
 }
 
 impl Nl for u32 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(put_int!(*self, mem, write_u32))
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        put_int!(*self, mem, write_u32);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -241,8 +229,9 @@ impl Nl for u32 {
 }
 
 impl Nl for i32 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(put_int!(*self, mem, write_i32))
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        put_int!(*self, mem, write_i32);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -259,8 +248,9 @@ impl Nl for i32 {
 }
 
 impl Nl for u64 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(put_int!(*self, mem, write_u64))
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        put_int!(*self, mem, write_u64);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -293,8 +283,9 @@ impl BeU64 {
 }
 
 impl Nl for BeU64 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(put_int!(self.0, mem, write_u64, byteorder::BE))
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        put_int!(self.0, mem, write_u64, byteorder::BE);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -311,22 +302,17 @@ impl Nl for BeU64 {
 }
 
 impl<'a> Nl for &'a [u8] {
-    fn serialize<'b>(&self, mut mem: SerBuffer<'b>) -> Result<SerBuffer<'b>, SerError<'b>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         let size = self.size();
         match mem.len() {
-            i if i > size => {
-                return Err(SerError::new_with_kind(SerErrorKind::BufferNotFilled, mem))
-            }
-            i if i < size => return Err(SerError::new_with_kind(SerErrorKind::UnexpectedEOB, mem)),
+            i if i > size => return Err(SerError::BufferNotFilled),
+            i if i < size => return Err(SerError::UnexpectedEOB),
             _ => (),
         };
         if let Err(e) = mem.as_mut().write_all(self) {
-            Err(SerError::new_with_kind(
-                SerErrorKind::Wrapped(WrappedError::from(e)),
-                mem,
-            ))
+            Err(SerError::Wrapped(WrappedError::from(e)))
         } else {
-            Ok(mem)
+            Ok(())
         }
     }
 
@@ -344,19 +330,16 @@ impl<'a> Nl for &'a [u8] {
 }
 
 impl Nl for Buffer {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         if let Err(e) = mem.as_mut().write(self.as_ref()) {
-            Err(SerError::new_with_kind(
-                SerErrorKind::Wrapped(WrappedError::from(e)),
-                mem,
-            ))
+            Err(SerError::Wrapped(WrappedError::from(e)))
         } else {
-            Ok(mem)
+            Ok(())
         }
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(Buffer::from_slice(mem.as_ref()))
+        Ok(Buffer::from(mem))
     }
 
     fn type_size() -> Option<usize> {
@@ -369,7 +352,7 @@ impl Nl for Buffer {
 }
 
 impl Nl for Vec<u8> {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         self.as_slice().serialize(mem)
     }
 
@@ -387,25 +370,20 @@ impl Nl for Vec<u8> {
 }
 
 impl<'a> Nl for &'a str {
-    fn serialize<'b>(&self, mut mem: SerBuffer<'b>) -> Result<SerBuffer<'b>, SerError<'b>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         let size = self.size();
         match mem.len() {
-            i if i > size => {
-                return Err(SerError::new_with_kind(SerErrorKind::BufferNotFilled, mem))
-            }
-            i if i < size => return Err(SerError::new_with_kind(SerErrorKind::UnexpectedEOB, mem)),
+            i if i > size => return Err(SerError::BufferNotFilled),
+            i if i < size => return Err(SerError::UnexpectedEOB),
             _ => (),
         }
         match mem.as_mut().write(self.as_bytes()) {
             Ok(write_size) => {
                 assert_eq!(write_size + 1, size);
-                mem.as_mut()[write_size] = 0;
-                Ok(mem)
+                mem[write_size] = 0;
+                Ok(())
             }
-            Err(e) => Err(SerError::new_with_kind(
-                SerErrorKind::Wrapped(WrappedError::IOError(e)),
-                mem,
-            )),
+            Err(e) => Err(SerError::Wrapped(WrappedError::IOError(e))),
         }
     }
 
@@ -423,7 +401,7 @@ impl<'a> Nl for &'a str {
 }
 
 impl Nl for String {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         self.as_str().serialize(mem)
     }
 
@@ -433,7 +411,7 @@ impl Nl for String {
             Some(0) => (),
             _ => return Err(DeError::NullError),
         };
-        String::from_utf8((&mem.as_ref()[..last_elem]).to_vec()).map_err(DeError::new)
+        String::from_utf8((mem[..last_elem]).to_vec()).map_err(DeError::new)
     }
 
     fn size(&self) -> usize {
@@ -449,16 +427,15 @@ impl Nl for String {
 mod test {
     use super::*;
 
-    use std::mem::size_of;
+    use crate::utils::serialize;
 
     #[test]
     fn test_nl_u8() {
         let v = 5u8;
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<u8>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref()[0], v);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice()[0], v);
 
-        let s = DeBuffer::from(&[5u8] as &[u8]);
+        let s = &[5u8] as &[u8];
         let de = u8::deserialize(s).unwrap();
         assert_eq!(de, 5)
     }
@@ -467,11 +444,10 @@ mod test {
     fn test_nl_u16() {
         let v = 6000u16;
         let desired_buffer = v.to_ne_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<u16>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u16::deserialize(DeBuffer::from(&v.to_ne_bytes() as &[u8])).unwrap();
+        let de = u16::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
         assert_eq!(de, 6000);
     }
 
@@ -479,20 +455,18 @@ mod test {
     fn test_nl_i32() {
         let v = 600_000i32;
         let desired_buffer = v.to_ne_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<i32>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = i32::deserialize(DeBuffer::from(&v.to_ne_bytes() as &[u8])).unwrap();
+        let de = i32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
         assert_eq!(de, 600_000);
 
         let v = -600_000i32;
         let desired_buffer = v.to_ne_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<i32>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = i32::deserialize(DeBuffer::from(&v.to_ne_bytes() as &[u8])).unwrap();
+        let de = i32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
         assert_eq!(de, -600_000)
     }
 
@@ -500,11 +474,10 @@ mod test {
     fn test_nl_u32() {
         let v = 600_000u32;
         let desired_buffer = v.to_ne_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<u32>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u32::deserialize(DeBuffer::from(&v.to_ne_bytes() as &[u8])).unwrap();
+        let de = u32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
         assert_eq!(de, 600_000)
     }
 
@@ -512,11 +485,10 @@ mod test {
     fn test_nl_u64() {
         let v = 12_345_678_901_234u64;
         let desired_buffer = v.to_ne_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<u64>()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u64::deserialize(DeBuffer::from(&v.to_ne_bytes() as &[u8])).unwrap();
+        let de = u64::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
         assert_eq!(de, 12_345_678_901_234);
     }
 
@@ -524,50 +496,45 @@ mod test {
     fn test_nl_be_u64() {
         let v = 571_987_654u64;
         let desired_buffer = v.to_be_bytes();
-        let mut ser_buffer = SerBuffer::new(Some(size_of::<u64>()));
-        ser_buffer = BeU64(v).serialize(ser_buffer).unwrap();
-        assert_eq!(ser_buffer.as_ref(), &desired_buffer);
+        let ser_buffer = serialize(&BeU64(v), false).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
     }
 
     #[test]
     fn test_nl_slice() {
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut ser_buffer = SerBuffer::new(Some(v.len()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(v, ser_buffer.as_ref());
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(v, ser_buffer.as_slice());
     }
 
     #[test]
     fn test_nl_vec() {
         let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut ser_buffer = SerBuffer::new(Some(v.len()));
-        ser_buffer = v.serialize(ser_buffer).unwrap();
-        assert_eq!(v.as_slice(), ser_buffer.as_ref());
+        let ser_buffer = serialize(&v, false).unwrap();
+        assert_eq!(v.as_slice(), ser_buffer.as_slice());
 
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let de = Vec::<u8>::deserialize(DeBuffer::from(v)).unwrap();
+        let de = Vec::<u8>::deserialize(v).unwrap();
         assert_eq!(v, de.as_slice());
     }
 
     #[test]
     fn test_nl_str() {
         let s = "AAAAA";
-        let mut ser_buffer = SerBuffer::new(Some(s.len() + 1));
-        ser_buffer = s.serialize(ser_buffer).unwrap();
-        assert_eq!(&[65, 65, 65, 65, 65, 0], ser_buffer.as_ref());
+        let ser_buffer = serialize(&s, false).unwrap();
+        assert_eq!(&[65, 65, 65, 65, 65, 0], ser_buffer.as_slice());
     }
 
     #[test]
     fn test_nl_string() {
         let s = "AAAAA".to_string();
         let desired_s = "AAAAA\0";
-        let mut ser_buffer = SerBuffer::new(Some(s.len() + 1));
-        ser_buffer = s.serialize(ser_buffer).unwrap();
-        assert_eq!(desired_s.as_bytes(), ser_buffer.as_ref());
+        let ser_buffer = serialize(&s, false).unwrap();
+        assert_eq!(desired_s.as_bytes(), ser_buffer.as_slice());
 
         let s = "AAAAAA\0";
         let de_s = "AAAAAA".to_string();
-        let de = String::deserialize(DeBuffer::from(s.as_bytes())).unwrap();
+        let de = String::deserialize(s.as_bytes()).unwrap();
         assert_eq!(de_s, de)
     }
 }

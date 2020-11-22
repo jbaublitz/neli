@@ -40,20 +40,13 @@ use libc::{self, c_int, c_void};
 #[cfg(feature = "logging")]
 use crate::log;
 use crate::{
-    consts::{
-        nl::*, AddrFamily, CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, GenlId, Index, NlAttrType,
-        NlFamily, NlType, NlmF, NlmFFlags,
-    },
+    consts::{genl::*, nl::*, socket::*},
     err::NlError,
-    genl::Genlmsghdr,
+    genl::{Genlmsghdr, Nlattr},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr},
-    nlattr::Nlattr,
     parse::{packet_length_u32, parse_next},
-    types::{
-        DeBuffer, GenlBuffer, GenlBufferOps, NlBuffer, NlBufferOps, SerBuffer, SerBufferOps,
-        SockBuffer, SockBufferOps,
-    },
+    types::{GenlBuffer, NlBuffer, SockBuffer},
     utils::U32Bitmask,
     Nl,
 };
@@ -510,9 +503,9 @@ impl NlSocketHandle {
             self.needs_ack = true;
         }
 
-        let mut mem = SerBuffer::new(Some(msg.asize()));
-        mem = msg.serialize(mem).map_err(NlError::new)?;
-        self.socket.send(mem, 0)?;
+        let mut buffer = vec![0; msg.asize()];
+        msg.serialize(buffer.as_mut_slice()).map_err(NlError::new)?;
+        self.socket.send(buffer, 0)?;
 
         Ok(())
     }
@@ -601,8 +594,7 @@ impl NlSocketHandle {
         }
 
         let buffer = self.buffer.get_ref().expect("Caller borrows mutable self");
-        let vec = NlBuffer::deserialize(DeBuffer::from(&buffer.as_ref()[0..self.end]))
-            .map_err(NlError::new)?;
+        let vec = NlBuffer::deserialize(&buffer.as_ref()[0..self.end]).map_err(NlError::new)?;
 
         #[cfg(feature = "logging")]
         log!("Messages received: {:#?}", vec);
@@ -926,7 +918,7 @@ pub mod tokio {
 mod test {
     use super::*;
 
-    use crate::consts::Nlmsg;
+    use crate::{consts::nl::Nlmsg, utils::serialize};
 
     #[test]
     fn multi_msg_iter() {
@@ -966,8 +958,7 @@ mod test {
         let mut v = NlBuffer::new();
         v.push(nl1);
         v.push(nl2);
-        let mut bytes = SerBuffer::new(Some(v.asize()));
-        bytes = v.serialize(bytes).unwrap();
+        let bytes = serialize(&v, true).unwrap();
 
         let bytes_len = bytes.len();
         let mut s = NlSocketHandle {

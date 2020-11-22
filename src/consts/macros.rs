@@ -1,27 +1,37 @@
-/// For naming a new enum, passing in what type it serializes to and deserializes
-/// from, and providing a mapping from variants to expressions (such as libc consts) that
-/// will ultimately be used in the serialization/deserialization step when sending the netlink
+/// For naming a new enum, passing in what type it serializes to and
+/// deserializes from, and providing a mapping from variants to
+/// expressions (such as libc consts) that will ultimately be used in
+/// the serialization/deserialization step when sending the netlink
 /// message over the wire.
 ///
 /// # Usage
-///  Create an `enum` named "MyNetlinkProtoAttrs" that can be serialized into `u16`s to use with Netlink.
-///  Possibly represents the fields on a message you received from Netlink.
-///  ```ignore
-///  impl_var!(MyNetlinkProtoAttrs, u16,
-///     Id => 16 as u16,
-///     Name => 17 as u16,
-///     Size => 18 as u16
+/// Create an enum named `MyNetlinkProtoAttrs` that can be serialized
+/// into `u16`s to use with Netlink.  Represents the
+/// fields on a message you received from Netlink.
+///
+///
+/// Here is an example specifying the enum visibility:
+///
+///  ```
+///  neli::impl_var!(
+///     pub MyNetlinkProtoAttrs,
+///     u16,
+///     Id => 16u16,
+///     Name => 17u16,
+///     Size => 18u16
 ///  );
 /// ```
-/// Or, with doc comments (if you're developing a library)
-/// ```ignore
-///  impl_var!(
+///
+/// or with doc comments:
+///
+/// ```
+///  neli::impl_var!(
 ///     /// These are the attributes returned
 ///     /// by a fake netlink protocol.
-///     ( MyNetlinkProtoAttrs, u16,
-///     Id => 16 as u16,
-///     Name => 17 as u16,
-///     Size => 18 as u16 )
+///     MyNetlinkProtoAttrs, u16,
+///     Id => 16u16,
+///     Name => 17u16,
+///     Size => 18u16
 ///  );
 /// ```
 ///
@@ -45,12 +55,14 @@ macro_rules! impl_var {
                 #[allow(missing_docs)]
                 $var,
             )*
-            /// Variant that signifies an invalid value while deserializing
+            /// Variant that signifies an invalid value while
+            /// deserializing
             UnrecognizedVariant($ty),
         }
 
         impl $name {
-            /// Returns true if no variant corresponds to the value it was parsed from
+            /// Returns true if no variant corresponds to the value
+            /// it was parsed from
             pub fn is_unrecognized(&self) -> bool {
                 matches!(*self, $name::UnrecognizedVariant(_))
             }
@@ -99,7 +111,7 @@ macro_rules! impl_var {
         }
 
         impl $crate::Nl for $name {
-            fn serialize<'a>(&self, mem: $crate::types::SerBuffer<'a>) -> Result<$crate::types::SerBuffer<'a>, $crate::err::SerError<'a>> {
+            fn serialize(&self, mem: $crate::types::SerBuffer) -> Result<(), $crate::err::SerError> {
                 let v: $ty = self.clone().into();
                 v.serialize(mem)
             }
@@ -120,13 +132,72 @@ macro_rules! impl_var {
     );
 }
 
-/// For generating a marker trait that flags a new enum as usable in a field that accepts a generic
-/// type.
-/// This way, the type can be constrained when the impl is provided to only accept enums that
-/// implement the marker trait that corresponds to the given marker trait. The current
-/// convention is to use `impl_trait` to create the trait with the name of the field that
-/// is the generic type and then use `impl_var_trait` to flag the new enum as usable in
-/// this field.
+/// For generating a marker trait that flags a new enum as usable in a
+/// field that accepts a generic type. This way, the type parameter
+/// can be constrained by a trait bound to only accept enums that
+/// implement the marker trait.
+///
+/// # Usage
+///
+/// ```
+/// /// Define an enum
+/// neli::impl_var!(
+///     MyFamilyEnum,
+///     u16,
+///     One => 1,
+///     Two => 2,
+///     Three => 3
+/// );
+///
+/// /// Define another enum
+/// neli::impl_var!(
+///     MyOtherFamilyEnum,
+///     u16,
+///     Four => 4,
+///     Five => 5,
+///     Six => 6
+/// );
+///
+/// /// Define a marker trait and implement it for MyFamilyEnum and
+/// /// MyOtherFamilyEnum.
+/// neli::impl_trait!(
+///     MyMarkerTrait,
+///     u16,
+///     MyFamilyWrapperType,
+///     MyFamilyEnum,
+///     MyOtherFamilyEnum
+/// );
+/// ```
+///
+/// The result of the example above will be:
+/// * One enum called `MyFamilyEnum`.
+/// * Another called `MyOtherFamilyEnum`.
+/// * A marker trait called `MyMarkerTrait`. This can be used to
+/// constain type parameter so that only `MyFamilyEnum` and
+/// `MyOtherFamilyEnum` variants can be passed in as a value.
+/// * A wrapper enum called `MyFamilyWrapperType`. The definition is
+/// as follows:
+/// ```
+/// enum MyFamilyEnum {
+///     One,
+///     Two,
+///     Three,
+/// }
+///
+/// enum MyOtherFamilyEnum {
+///     Four,
+///     Five,
+///     Six,
+/// }
+///
+/// enum MyFamilyWrapperType {
+///     MyFamilyEnum(MyFamilyEnum),
+///     MyOtherFamilyEnum(MyOtherFamilyEnum),
+/// }
+/// ```
+/// If you are unsure of which type will be passed back, the wrapper
+/// type can be used to automatically determine this for you when
+/// deserializing and accept all values defined across both enums.
 #[macro_export]
 macro_rules! impl_trait {
     (
@@ -169,6 +240,14 @@ macro_rules! impl_trait {
 
         impl $trait_name for $wrapper_type {}
 
+        $(
+            impl From<$const_enum> for $wrapper_type {
+                fn from(e: $const_enum) -> Self {
+                    $wrapper_type::$const_enum(e)
+                }
+            }
+        )+
+
         impl Into<$to_from_ty> for $wrapper_type {
             fn into(self) -> $to_from_ty {
                 match self {
@@ -193,7 +272,7 @@ macro_rules! impl_trait {
         }
 
         impl $crate::Nl for $wrapper_type {
-            fn serialize<'a>(&self, mem: $crate::types::SerBuffer<'a>) -> Result<$crate::SerBuffer<'a>, $crate::err::SerError<'a>> {
+            fn serialize(&self, mem: $crate::types::SerBuffer) -> Result<(), $crate::err::SerError> {
                 match *self {
                     $(
                         $wrapper_type::$const_enum(ref inner) => inner.serialize(mem),
@@ -218,47 +297,77 @@ macro_rules! impl_trait {
     };
 }
 
-/// Implement a container for bit flag enums of a certain type.
+/// Implement a container for bit flag enums where the set of flags
+/// will be condensed into a single value.
+///
+/// # Usage
+///
+/// ```
+/// neli::impl_var!(
+///     MyFlags,
+///     u16,
+///     ThisFlag => 1,
+///     ThatFlag => 2
+/// );
+///
+/// neli::impl_flags!(
+///     MyFlagSet,
+///     MyFlags,
+///     u16
+/// );
+/// ```
+///
+/// This creates a struct called `MyFlagSet` that has the following
+/// autogenerated methods:
+/// * `fn empty() -> Self`
+/// * `fn new(flags: &[MyFlags]) -> Self`
+/// * `fn set(&mut self, flag: MyFlags)`
+/// * `fn unset(&mut self, flag: &MyFlags)`
+/// * `fn contains(&self, flag: &MyFlags) -> bool`
+///
+/// When the following example is serialized, all flags contained in
+/// the set at the time of serialization will be converted into
+/// `u16`s and bitwise or-ed.
 #[macro_export]
 macro_rules! impl_flags {
     ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty) => {
         #[derive(Debug, PartialEq)]
         $(#[$outer])*
-        $vis struct $name($crate::types::FlagBuffer<$type>);
+        $vis struct $name($crate::types::FlagBuffer::<$type>);
 
         impl $name {
             /// Create an empty flag container
             pub fn empty() -> Self {
-                $name(<$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::empty())
+                $name($crate::types::FlagBuffer::<$type>::empty())
             }
 
             /// Initialize a flag container with the given flags
             pub fn new(flags: &[$type]) -> Self {
-                $name(<$crate::types::FlagBuffer<$type> as From<&[$type]>>::from(flags))
+                $name(<$crate::types::FlagBuffer::<$type> as From<&[$type]>>::from(flags))
             }
 
             /// Add a flag
             pub fn set(&mut self, flag: $type) {
-                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::set(&mut self.0, flag)
+                $crate::types::FlagBuffer::<$type>::set(&mut self.0, flag)
             }
 
             /// Add a flag
             pub fn unset(&mut self, flag: &$type) {
-                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::unset(&mut self.0, &flag)
+                $crate::types::FlagBuffer::<$type>::unset(&mut self.0, &flag)
             }
 
             /// Contains a flag
             pub fn contains(&self, flag: &$type) -> bool {
-                <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::contains(&self.0, &flag)
+                $crate::types::FlagBuffer::<$type>::contains(&self.0, &flag)
             }
         }
 
         impl $crate::Nl for $name {
-            fn serialize<'a>(
+            fn serialize(
                 &self,
-                mem: $crate::SerBuffer<'a>,
-            ) -> Result<$crate::SerBuffer<'a>, $crate::err::SerError<'a>> {
-                let int_rep = <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::iter(
+                mem: $crate::types::SerBuffer,
+            ) -> Result<(), $crate::err::SerError> {
+                let int_rep = $crate::types::FlagBuffer::<$type>::iter(
                     &self.0
                 ).fold(0, |acc, next| {
                     let result: $bin_type = next.into();
@@ -267,13 +376,13 @@ macro_rules! impl_flags {
                 int_rep.serialize(mem)
             }
 
-            fn deserialize(mem: $crate::DeBuffer) -> Result<Self, $crate::err::DeError> {
+            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
                 let int_rep = <$bin_type>::deserialize(mem)?;
-                let mut flags = <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::empty();
+                let mut flags = $crate::types::FlagBuffer::<$type>::empty();
                 for i in 0..std::mem::size_of::<$bin_type>() * 8 {
                     let set_bit = 1 << i;
                     if int_rep & set_bit == set_bit {
-                        <$crate::types::FlagBuffer<$type> as $crate::types::FlagBufferOps<$type>>::set(&mut flags, <$type>::from(set_bit))
+                        $crate::types::FlagBuffer::<$type>::set(&mut flags, <$type>::from(set_bit))
                     }
                 }
                 Ok($name(flags))

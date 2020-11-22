@@ -1,4 +1,7 @@
-use std::mem;
+use std::{
+    mem,
+    slice::{Iter, IterMut},
+};
 
 use byteorder::{ByteOrder, NativeEndian};
 
@@ -6,7 +9,6 @@ use crate::{
     consts::nl::NlType,
     err::{DeError, NlError},
     nl::{NlPayload, Nlmsghdr},
-    types::DeBuffer,
     Nl,
 };
 
@@ -43,9 +45,8 @@ where
     }
 
     // Deserialize the next Nlmsghdr struct.
-    let deserialized_packet_result = Nlmsghdr::<T, P>::deserialize(DeBuffer::from(
-        &buffer[position..position + next_packet_len],
-    ));
+    let deserialized_packet_result =
+        Nlmsghdr::<T, P>::deserialize(&buffer[position..position + next_packet_len]);
 
     let packet = deserialized_packet_result
         .map(|packet| {
@@ -74,4 +75,76 @@ where
         position = 0;
     }
     Ok((position, packet))
+}
+
+/// Handle returned for traversing nested attribute structures
+pub enum AttrHandle<'a, O, I> {
+    /// Owned vector
+    Owned(O),
+    /// Vector reference
+    Borrowed(&'a [I]),
+}
+
+impl<'a, O, I> AttrHandle<'a, O, I>
+where
+    O: AsRef<[I]>,
+{
+    /// Create new `AttrHandle`
+    pub fn new(owned: O) -> Self {
+        AttrHandle::Owned(owned)
+    }
+
+    /// Create new borrowed `AttrHandle`
+    pub fn new_borrowed(borrowed: &'a [I]) -> Self {
+        AttrHandle::Borrowed(borrowed)
+    }
+
+    /// Pass back iterator over attributes
+    pub fn iter(&self) -> Iter<I> {
+        self.get_attrs().iter()
+    }
+
+    /// Get the underlying owned value as a reference
+    pub fn get_attrs(&self) -> &[I] {
+        match *self {
+            AttrHandle::Owned(ref o) => o.as_ref(),
+            AttrHandle::Borrowed(b) => b,
+        }
+    }
+}
+
+/// Handle for traversing nested attribute structures mutably
+pub enum AttrHandleMut<'a, O, I> {
+    /// Owned vector
+    Owned(O),
+    /// Vector reference
+    Borrowed(&'a mut [I]),
+}
+
+impl<'a, O, I> AttrHandleMut<'a, O, I>
+where
+    O: AsRef<[I]> + AsMut<[I]>,
+{
+    /// Create new `AttrHandle`
+    pub fn new(owned: O) -> Self {
+        AttrHandleMut::Owned(owned)
+    }
+
+    /// Create new borrowed `AttrHandle`
+    pub fn new_borrowed(borrowed: &'a mut [I]) -> Self {
+        AttrHandleMut::Borrowed(borrowed)
+    }
+
+    /// Pass back iterator over attributes
+    pub fn iter_mut(&mut self) -> IterMut<I> {
+        self.get_mut_attrs().iter_mut()
+    }
+
+    /// Get the underlying owned value as a mutable reference or return `None`
+    pub fn get_mut_attrs(&mut self) -> &mut [I] {
+        match self {
+            AttrHandleMut::Owned(ref mut o) => o.as_mut(),
+            AttrHandleMut::Borrowed(b) => b,
+        }
+    }
 }

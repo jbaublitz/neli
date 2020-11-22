@@ -3,7 +3,7 @@ extern crate neli;
 use std::env;
 use std::error::Error;
 
-use neli::{consts::NlFamily, err::NlError, socket::NlSocketHandle, utils::U32Bitmask};
+use neli::{consts::socket::NlFamily, err::NlError, socket::NlSocketHandle, utils::U32Bitmask};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;

@@ -1,11 +1,11 @@
 use std::error::Error;
 
 use neli::{
-    consts::{self, NlFamily},
+    consts::{genl::*, nl::*, socket::NlFamily},
     genl::*,
     nl::{NlPayload, Nlmsghdr},
     socket::*,
-    types::{GenlBuffer, GenlBufferOps},
+    types::GenlBuffer,
     utils::U32Bitmask,
 };
 
@@ -28,15 +28,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // This was received from the socket
     let nlmsg = Nlmsghdr::new(
         None,
-        consts::GenlId::Ctrl,
-        consts::NlmFFlags::empty(),
+        GenlId::Ctrl,
+        NlmFFlags::empty(),
         None,
         None,
-        NlPayload::Payload(Genlmsghdr::new(
-            consts::CtrlCmd::Unspec,
-            2,
-            GenlBuffer::new(),
-        )),
+        NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, GenlBuffer::new())),
     );
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type

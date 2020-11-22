@@ -6,17 +6,7 @@ pub use std::{
     slice::{Iter, IterMut},
 };
 
-use crate::{
-    err::SerError,
-    neli_constants::MAX_NL_LENGTH,
-    nl::Nlmsghdr,
-    nlattr::Nlattr,
-    rtnl::Rtattr,
-    types::traits::{
-        BufferOps, DeBufferOps, FlagBufferOps, GenlBufferOps, NlBufferOps, RtBufferOps,
-        SerBufferOps, SockBufferOps,
-    },
-};
+use crate::{genl::Nlattr, neli_constants::MAX_NL_LENGTH, nl::Nlmsghdr, rtnl::Rtattr};
 
 /// A buffer of bytes that, when used, can avoid unnecessary allocations.
 #[derive(Debug, PartialEq)]
@@ -34,122 +24,51 @@ impl AsMut<[u8]> for Buffer {
     }
 }
 
-impl BufferOps for Buffer {
-    fn new() -> Self {
+impl<'a> From<&'a [u8]> for Buffer {
+    fn from(slice: &'a [u8]) -> Self {
+        Buffer(Vec::from(slice))
+    }
+}
+
+impl<'a> From<Vec<u8>> for Buffer {
+    fn from(vec: Vec<u8>) -> Self {
+        Buffer(vec)
+    }
+}
+
+impl Buffer {
+    /// Create a new general purpose byte buffer.
+    pub fn new() -> Self {
         Buffer(Vec::new())
     }
 
-    fn from_slice(slice: &[u8]) -> Self {
-        Buffer(Vec::from(slice))
-    }
-
-    fn extend_from_slice(&mut self, slice: &[u8]) {
+    /// Extend the given buffer with the contents of another slice.
+    pub fn extend_from_slice(&mut self, slice: &[u8]) {
         self.0.extend_from_slice(slice)
     }
 
-    fn len(&self) -> usize {
+    /// Get the current length of the buffer.
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    fn is_empty(&self) -> bool {
+    /// Check whether the buffer is empty.
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-/// A buffer to serialize into
-#[derive(Debug)]
-pub struct SerBuffer<'a>(Vec<u8>, &'a PhantomData<()>);
-
-impl<'a> SerBuffer<'a> {
-    fn from_vec(inner: Vec<u8>) -> Self {
-        SerBuffer(inner, &PhantomData)
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl<'a> AsRef<[u8]> for SerBuffer<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
+/// Type alias for a buffer to deserialize from.
+pub type SerBuffer<'a> = &'a mut [u8];
 
-impl<'a> AsMut<[u8]> for SerBuffer<'a> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.0.as_mut_slice()
-    }
-}
-
-impl<'a> SerBufferOps<'a> for SerBuffer<'a> {
-    fn new(size_hint: Option<usize>) -> Self {
-        let inner = match size_hint {
-            Some(sh) => vec![0; sh],
-            None => vec![0; MAX_NL_LENGTH],
-        };
-        SerBuffer(inner, &PhantomData)
-    }
-
-    fn split(mut self, range: Range<usize>) -> (Option<Self>, Self, Option<Self>) {
-        let end_buffer = self.0.split_off(range.end);
-        let middle_buffer = self.0.split_off(range.start);
-        (
-            if self.len() == 0 { None } else { Some(self) },
-            SerBuffer::from_vec(middle_buffer),
-            if end_buffer.is_empty() {
-                None
-            } else {
-                Some(SerBuffer::from_vec(end_buffer))
-            },
-        )
-    }
-
-    fn join(&mut self, start: Option<Self>, end: Option<Self>) -> Result<(), SerError<'a>> {
-        if let Some(mut s) = start {
-            s.0.extend_from_slice(self.as_ref());
-            self.0 = s.0
-        }
-        if let Some(e) = end {
-            self.0.extend(e.0.into_iter())
-        }
-        Ok(())
-    }
-
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-/// A buffer to deserialize from
-#[derive(Debug)]
-pub struct DeBuffer<'a>(&'a [u8]);
-
-impl<'a> From<&'a [u8]> for DeBuffer<'a> {
-    fn from(slice: &'a [u8]) -> Self {
-        DeBuffer(slice)
-    }
-}
-
-impl<'a> AsRef<[u8]> for DeBuffer<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.0
-    }
-}
-
-impl<'a> DeBufferOps<'a> for DeBuffer<'a> {
-    fn slice(&self, slice: Range<usize>) -> Self {
-        DeBuffer::from(&self.0[slice])
-    }
-
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
+/// Type alias for a buffer to serialize into.
+pub type DeBuffer<'a> = &'a [u8];
 
 /// An immutable reference to the socket buffer.
 pub struct SockBufferRef<'a>(Ref<'a, Vec<u8>>);
@@ -170,18 +89,21 @@ impl<'a> AsMut<[u8]> for SockBufferRefMut<'a> {
 }
 
 /// A buffer to hold data read from sockets
-pub struct SockBuffer(pub RefCell<Vec<u8>>);
+pub struct SockBuffer(RefCell<Vec<u8>>);
 
-impl SockBufferOps for SockBuffer {
-    fn new() -> Self {
+impl SockBuffer {
+    /// Create a new buffer for use when reading from a socket.
+    pub fn new() -> Self {
         SockBuffer(RefCell::new(vec![0; MAX_NL_LENGTH]))
     }
 
-    fn get_ref(&self) -> Option<SockBufferRef> {
+    /// Get an immutable reference to the inner buffer.
+    pub fn get_ref(&self) -> Option<SockBufferRef> {
         self.0.try_borrow().ok().map(SockBufferRef)
     }
 
-    fn get_mut(&self) -> Option<SockBufferRefMut> {
+    /// Get a mutable reference to the inner buffer.
+    pub fn get_mut(&self) -> Option<SockBufferRefMut> {
         self.0.try_borrow_mut().ok().map(SockBufferRefMut)
     }
 }
@@ -189,6 +111,12 @@ impl SockBufferOps for SockBuffer {
 impl<'a> From<&'a [u8]> for SockBuffer {
     fn from(s: &'a [u8]) -> Self {
         SockBuffer(RefCell::new(s.to_vec()))
+    }
+}
+
+impl Default for SockBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -211,27 +139,26 @@ impl<T, P> AsRef<[Nlmsghdr<T, P>]> for NlBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> NlBufferOps<'a, T, P> for NlBuffer<T, P>
-where
-    T: 'a,
-    P: 'a,
-{
-    type Iter = Iter<'a, Nlmsghdr<T, P>>;
-    type IterMut = IterMut<'a, Nlmsghdr<T, P>>;
-
-    fn new() -> Self {
+impl<T, P> NlBuffer<T, P> {
+    /// Create a new buffer of netlink messages.
+    pub fn new() -> Self {
         NlBuffer(Vec::new())
     }
 
-    fn push(&mut self, msg: Nlmsghdr<T, P>) {
+    /// Add a new netlink message to the end of the buffer.
+    pub fn push(&mut self, msg: Nlmsghdr<T, P>) {
         self.0.push(msg);
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    /// Return an iterator over immutable references to the elements
+    /// in the buffer.
+    pub fn iter(&self) -> Iter<'_, Nlmsghdr<T, P>> {
         self.0.iter()
     }
 
-    fn iter_mut(&'a mut self) -> Self::IterMut {
+    /// Return an iterator over mutable references to the elements
+    /// in the buffer.
+    pub fn iter_mut(&mut self) -> IterMut<'_, Nlmsghdr<T, P>> {
         self.0.iter_mut()
     }
 }
@@ -245,6 +172,12 @@ impl<T, P> IntoIterator for NlBuffer<T, P> {
     }
 }
 
+impl<T, P> Default for NlBuffer<T, P> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A buffer of generic netlink attributes.
 #[derive(Debug, PartialEq)]
 pub struct GenlBuffer<T, P>(Vec<Nlattr<T, P>>);
@@ -252,6 +185,12 @@ pub struct GenlBuffer<T, P>(Vec<Nlattr<T, P>>);
 impl<T, P> AsRef<[Nlattr<T, P>]> for GenlBuffer<T, P> {
     fn as_ref(&self) -> &[Nlattr<T, P>] {
         self.0.as_slice()
+    }
+}
+
+impl<T, P> AsMut<[Nlattr<T, P>]> for GenlBuffer<T, P> {
+    fn as_mut(&mut self) -> &mut [Nlattr<T, P>] {
+        self.0.as_mut_slice()
     }
 }
 
@@ -273,28 +212,33 @@ impl<T, P> IntoIterator for GenlBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> GenlBufferOps<'a, T, P> for GenlBuffer<T, P>
-where
-    T: 'a,
-    P: 'a,
-{
-    type Iter = Iter<'a, Nlattr<T, P>>;
-    type IterMut = IterMut<'a, Nlattr<T, P>>;
-
-    fn new() -> Self {
+impl<T, P> GenlBuffer<T, P> {
+    /// Create a new buffer of generic netlink attributes.
+    pub fn new() -> Self {
         GenlBuffer(Vec::new())
     }
 
-    fn push(&mut self, attr: Nlattr<T, P>) {
+    /// Add a new generic netlink attribute to the end of the buffer.
+    pub fn push(&mut self, attr: Nlattr<T, P>) {
         self.0.push(attr)
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    /// Return an iterator over immutable references to the elements
+    /// in the buffer.
+    pub fn iter(&self) -> Iter<'_, Nlattr<T, P>> {
         self.0.iter()
     }
 
-    fn iter_mut(&'a mut self) -> Self::IterMut {
+    /// Return an iterator over mutable references to the elements
+    /// in the buffer.
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, Nlattr<T, P>> {
         self.0.iter_mut()
+    }
+}
+
+impl<T, P> Default for GenlBuffer<T, P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -326,34 +270,45 @@ impl<T, P> AsRef<[Rtattr<T, P>]> for RtBuffer<T, P> {
     }
 }
 
-impl<'a, T, P> RtBufferOps<'a, T, P> for RtBuffer<T, P>
-where
-    T: 'a,
-    P: 'a,
-{
-    type Iter = Iter<'a, Rtattr<T, P>>;
-    type IterMut = IterMut<'a, Rtattr<T, P>>;
+impl<T, P> AsMut<[Rtattr<T, P>]> for RtBuffer<T, P> {
+    fn as_mut(&mut self) -> &mut [Rtattr<T, P>] {
+        self.0.as_mut_slice()
+    }
+}
 
-    fn new() -> Self {
+impl<T, P> RtBuffer<T, P> {
+    /// Create a new buffer of routing netlink attributes.
+    pub fn new() -> Self {
         RtBuffer(Vec::new())
     }
 
-    fn push(&mut self, attr: Rtattr<T, P>) {
+    /// Add a new routing netlink attribute to the end of the buffer.
+    pub fn push(&mut self, attr: Rtattr<T, P>) {
         self.0.push(attr)
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    /// Return an iterator over immutable references to the elements
+    /// in the buffer.
+    pub fn iter(&self) -> Iter<'_, Rtattr<T, P>> {
         self.0.iter()
     }
 
-    fn iter_mut(&'a mut self) -> Self::IterMut {
+    /// Return an iterator over mutable references to the elements
+    /// in the buffer.
+    pub fn iter_mut(&mut self) -> IterMut<'_, Rtattr<T, P>> {
         self.0.iter_mut()
+    }
+}
+
+impl<T, P> Default for RtBuffer<T, P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 /// A buffer of flag constants.
 #[derive(Debug, PartialEq)]
-pub struct FlagBuffer<T>(pub Vec<T>);
+pub struct FlagBuffer<T>(Vec<T>);
 
 impl<'a, T> From<&'a [T]> for FlagBuffer<T>
 where
@@ -364,31 +319,34 @@ where
     }
 }
 
-impl<'a, T> FlagBufferOps<'a, T> for FlagBuffer<T>
+impl<T> FlagBuffer<T>
 where
-    T: 'a + PartialEq + Clone,
+    T: PartialEq + Clone,
 {
-    type Iter = std::slice::Iter<'a, T>;
-
-    fn empty() -> Self {
+    /// Check whether the set of flags is empty.
+    pub fn empty() -> Self {
         FlagBuffer(Vec::new())
     }
 
-    fn contains(&self, elem: &T) -> bool {
+    /// Check whether the set of flags contains the given flag.
+    pub fn contains(&self, elem: &T) -> bool {
         self.0.contains(elem)
     }
 
-    fn set(&mut self, flag: T) {
+    /// Add a flag to the set of flags.
+    pub fn set(&mut self, flag: T) {
         if !self.0.contains(&flag) {
             self.0.push(flag)
         }
     }
 
-    fn unset(&mut self, flag: &T) {
+    /// Remove a flag from the set of flags.
+    pub fn unset(&mut self, flag: &T) {
         self.0.retain(|e| flag != e)
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    /// Return an iterator over the immutable contents of the buffer.
+    pub fn iter(&self) -> std::slice::Iter<T> {
         self.0.iter()
     }
 }

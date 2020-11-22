@@ -1,12 +1,12 @@
 use neli::{
-    consts::{genl::*, nl::*, nlattr::*, socket::*},
+    attr::Attribute,
+    consts::{genl::*, nl::*, socket::*},
     err::NlError,
     genl::Genlmsghdr,
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
-    types::{Buffer, DeBuffer, GenlBuffer, GenlBufferOps},
+    types::{Buffer, GenlBuffer},
     utils::U32Bitmask,
-    Nl,
 };
 
 const GENL_VERSION: u8 = 2;
@@ -47,14 +47,10 @@ fn main() -> Result<(), NlError> {
         for attr in handle.iter() {
             match &attr.nla_type {
                 CtrlAttr::FamilyName => {
-                    let mem = DeBuffer::from(attr.payload.as_ref());
-                    let name = String::deserialize(mem).map_err(NlError::new)?;
-                    println!("{}", name);
+                    println!("{}", attr.get_payload_as::<String>()?);
                 }
                 CtrlAttr::FamilyId => {
-                    let mem = DeBuffer::from(attr.payload.as_ref());
-                    let id = u16::deserialize(mem).map_err(NlError::new)?;
-                    println!("\tID: 0x{:x}", id);
+                    println!("\tID: 0x{:x}", attr.get_payload_as::<u16>()?);
                 }
                 _ => (),
             }

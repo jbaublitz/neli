@@ -1,10 +1,13 @@
-use crate::consts::netfilter::NetfilterMsg;
+use crate::consts::{netfilter::NetfilterMsg, rtnl::Rtm};
 
 impl_trait!(
-    /// Trait marking constants valid for use in `Nlmsghdr.nl_type`
+    /// Trait marking constants valid for use in
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] field, `nl_type`.
     pub NlType,
     u16,
-    /// Wrapper that is usable with all values in `Nlmsghdr.nl_type`
+    /// Wrapper that is usable with all values in
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] field,
+    /// `nl_type`.
     pub NlTypeWrapper,
     Nlmsg,
     GenlId,
@@ -13,7 +16,7 @@ impl_trait!(
 );
 
 impl_var!(
-    /// Values for `nl_type` in `Nlmsghdr`
+    /// Values for `nl_type` in [`Nlmsghdr`][crate::nl::Nlmsghdr]
     pub Nlmsg, u16,
     Noop => libc::NLMSG_NOOP as u16,
     Error => libc::NLMSG_ERROR as u16,
@@ -22,7 +25,7 @@ impl_var!(
 );
 
 impl_var!(
-    /// Values for `nl_type` in `Nlmsghdr`
+    /// Values for `nl_type` in [`Nlmsghdr`][crate::nl::Nlmsghdr]
     pub GenlId, u16,
     Ctrl => libc::GENL_ID_CTRL as u16,
     #[cfg(target_env="gnu")]
@@ -32,60 +35,7 @@ impl_var!(
 );
 
 impl_var!(
-    /// rtnetlink-related values for `nl_type` in `Nlmsghdr`
-    pub Rtm, u16,
-    Newlink => libc::RTM_NEWLINK,
-    Dellink => libc::RTM_DELLINK,
-    Getlink => libc::RTM_GETLINK,
-    Setlink => libc::RTM_SETLINK,
-    Newaddr => libc::RTM_NEWADDR,
-    Deladdr => libc::RTM_DELADDR,
-    Getaddr => libc::RTM_GETADDR,
-    Newroute => libc::RTM_NEWROUTE,
-    Delroute => libc::RTM_DELROUTE,
-    Getroute => libc::RTM_GETROUTE,
-    Newneigh => libc::RTM_NEWNEIGH,
-    Delneigh => libc::RTM_DELNEIGH,
-    Getneigh => libc::RTM_GETNEIGH,
-    Newrule => libc::RTM_NEWRULE,
-    Delrule => libc::RTM_DELRULE,
-    Getrule => libc::RTM_GETRULE,
-    Newqdisc=> libc::RTM_NEWQDISC,
-    Delqdisc=> libc::RTM_DELQDISC,
-    Getqdisc=> libc::RTM_GETQDISC,
-    Newtclass => libc::RTM_NEWTCLASS,
-    Deltclass => libc::RTM_DELTCLASS,
-    Gettclass => libc::RTM_GETTCLASS,
-    Newtfilter => libc::RTM_NEWTFILTER,
-    Deltfilter => libc::RTM_DELTFILTER,
-    Gettfilter => libc::RTM_GETTFILTER,
-    Newaction => libc::RTM_NEWACTION,
-    Delaction => libc::RTM_DELACTION,
-    Getaction => libc::RTM_GETACTION,
-    Newprefix => libc::RTM_NEWPREFIX,
-    Getmulticast => libc::RTM_GETMULTICAST,
-    Getanycast => libc::RTM_GETANYCAST,
-    Newneightbl => libc::RTM_NEWNEIGHTBL,
-    Getneightbl => libc::RTM_GETNEIGHTBL,
-    Setneightbl => libc::RTM_SETNEIGHTBL,
-    Newnduseropt => libc::RTM_NEWNDUSEROPT,
-    Newaddrlabel => libc::RTM_NEWADDRLABEL,
-    Deladdrlabel => libc::RTM_DELADDRLABEL,
-    Getaddrlabel => libc::RTM_GETADDRLABEL,
-    Getdcb => libc::RTM_GETDCB,
-    Setdcb => libc::RTM_SETDCB,
-    Newnetconf => libc::RTM_NEWNETCONF,
-    Getnetconf => libc::RTM_GETNETCONF,
-    Newmdb => libc::RTM_NEWMDB,
-    Delmdb => libc::RTM_DELMDB,
-    Getmdb => libc::RTM_GETMDB,
-    Newnsid => libc::RTM_NEWNSID,
-    Delnsid => libc::RTM_DELNSID,
-    Getnsid => libc::RTM_GETNSID
-);
-
-impl_var!(
-    /// Values for `nl_flags` in `Nlmsghdr`
+    /// Values for `nl_flags` in [`Nlmsghdr`][crate::nl::Nlmsghdr]
     pub NlmF, u16,
     Request => libc::NLM_F_REQUEST as u16,
     Multi => libc::NLM_F_MULTI as u16,

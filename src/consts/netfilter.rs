@@ -1,7 +1,7 @@
 //! Constants for netfilter related protocols
 //!
-//! Note that this doesn't cover everything yet, both the list of types and variants in enums will
-//! be added over time.
+//! Note that this doesn't cover everything yet, both the list of
+//! types and variants in enums will be added over time.
 
 impl_var! {
     /// Attributes inside a netfilter log packet message.
@@ -31,8 +31,6 @@ impl_var! {
 
 impl_var! {
     /// Configuration attributes for netfilter logging.
-    ///
-    /// See [LogConfigReq][crate::netfilter::LogConfigReq]
     pub NfLogCfg, u16,
     Cmd => libc::NFULA_CFG_CMD as u16,
     Mode => libc::NFULA_CFG_MODE as u16,
@@ -49,7 +47,9 @@ const fn nfnl_msg_type(subsys: u8, msg: u8) -> u16 {
 impl_var! {
     /// Messages related to the netfilter netlink protocols.
     ///
-    /// These appear on the [NlFamily::Netfilter][super::NlFamily::Netfilter] sockets.
+    /// These appear on the
+    /// [`NlFamily::Netfilter`][crate::consts::socket::NlFamily::Netfilter]
+    /// sockets.
     pub NetfilterMsg, u16,
     // TODO: Docs here /// A logged packet, going from kernel to userspace.
     LogPacket => nfnl_msg_type(libc::NFNL_SUBSYS_ULOG as u8, libc::NFULNL_MSG_PACKET as u8),
@@ -58,15 +58,16 @@ impl_var! {
 }
 
 impl_trait! {
-    /// Parameters for the [NfLogCfg::Cmd].
+    /// Parameters for the [`NfLogCfg::Cmd`].
     pub LogCfgCmd, u8,
-    /// Wrapper that is valid anywhere that accepts a value implementing the `LogCfgCmd` trait
+    /// Wrapper that is valid anywhere that accepts a value
+    /// implementing the [`LogCfgCmd`] trait
     pub LogCfgCmdWrapper,
     LogCmd
 }
 
 impl_var! {
-    /// Command value for the [NfLogCfg::Cmd].
+    /// Command value for the [`NfLogCfg::Cmd`].
     pub LogCmd, u8,
     Bind => libc::NFULNL_CFG_CMD_BIND as u8,
     Unbind => libc::NFULNL_CFG_CMD_UNBIND as u8,

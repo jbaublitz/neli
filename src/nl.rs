@@ -15,7 +15,7 @@ use crate::{
     },
     err::{DeError, NlError, Nlmsgerr, SerError},
     parse::packet_length_u32,
-    types::{DeBuffer, DeBufferOps, NlBuffer, NlBufferOps, SerBuffer, SerBufferOps},
+    types::{DeBuffer, NlBuffer, SerBuffer},
     Nl,
 };
 
@@ -24,21 +24,20 @@ where
     T: NlType,
     P: Nl,
 {
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         let mut pos = 0;
         for nlhdr in self.iter() {
-            let (mem_tmp, pos_tmp) = drive_serialize!(nlhdr, mem, pos);
-            mem = mem_tmp;
-            pos = pos_tmp;
+            pos = drive_serialize!(nlhdr, mem, pos);
         }
-        Ok(drive_serialize!(END mem, pos))
+        drive_serialize!(END mem, pos);
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         let mut nlhdrs = NlBuffer::new();
         let mut pos = 0;
         while pos < mem.len() {
-            let packet_len = packet_length_u32(mem.as_ref(), pos);
+            let packet_len = packet_length_u32(mem, pos);
             let (nlhdr, pos_tmp) = drive_deserialize!(
                 Nlmsghdr<T, P>, mem, pos, alignto(packet_len)
             );
@@ -86,7 +85,7 @@ impl<P> Nl for NlPayload<P>
 where
     P: Nl,
 {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         match *self {
             NlPayload::Ack(ref e) => e.serialize(mem),
             NlPayload::Err(ref e) => e.serialize(mem),
@@ -179,8 +178,8 @@ where
     T: NlType,
     P: Nl,
 {
-    fn serialize<'a>(&self, mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        Ok(serialize! {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
             PAD self;
             mem;
             self.nl_len;
@@ -189,7 +188,8 @@ where
             self.nl_seq;
             self.nl_pid;
             self.nl_payload
-        })
+        };
+        Ok(())
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -248,17 +248,17 @@ pub struct NlEmpty;
 
 impl Nl for NlEmpty {
     #[inline]
-    fn serialize<'a>(&self, mut mem: SerBuffer<'a>) -> Result<SerBuffer<'a>, SerError<'a>> {
-        for i in 0..mem.len() {
-            mem.as_mut()[i] = 0;
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        for byte in mem {
+            *byte = 0;
         }
-        Ok(mem)
+        Ok(())
     }
 
     #[inline]
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        for i in 0..mem.len() {
-            if mem.as_ref()[i] != 0 {
+        for byte in mem {
+            if *byte != 0 {
                 return Err(DeError::new("Expected an empty buffer or a zeroed buffer"));
             }
         }
@@ -284,7 +284,10 @@ mod test {
 
     use byteorder::{NativeEndian, WriteBytesExt};
 
-    use crate::consts::nl::{NlmF, Nlmsg};
+    use crate::{
+        consts::nl::{NlmF, Nlmsg},
+        utils::serialize,
+    };
 
     #[test]
     fn test_nlmsghdr_serialize() {
@@ -296,15 +299,14 @@ mod test {
             None,
             NlPayload::Payload(NlEmpty),
         );
-        let mut mem = SerBuffer::new(Some(nl.asize()));
-        mem = nl.serialize(mem).unwrap();
+        let mem = serialize(&nl, true).unwrap();
         let mut s = [0u8; 16];
         {
             let mut c = Cursor::new(&mut s as &mut [u8]);
             c.write_u32::<NativeEndian>(16).unwrap();
             c.write_u16::<NativeEndian>(1).unwrap();
         };
-        assert_eq!(&s, mem.as_ref())
+        assert_eq!(&s, mem.as_slice())
     }
 
     #[test]
@@ -316,7 +318,7 @@ mod test {
             c.write_u16::<NativeEndian>(1).unwrap();
             c.write_u16::<NativeEndian>(NlmF::Ack.into()).unwrap();
         }
-        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(DeBuffer::from(&s as &[u8])).unwrap();
+        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(&s as &[u8]).unwrap();
         assert_eq!(
             Nlmsghdr::<Nlmsg, NlEmpty>::new(
                 None,

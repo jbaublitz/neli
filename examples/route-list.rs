@@ -3,12 +3,12 @@ extern crate neli;
 use std::{error::Error, net::IpAddr};
 
 use neli::{
-    consts::*,
+    consts::{nl::*, rtnl::*, socket::*},
     err::NlError,
     nl::{NlPayload, Nlmsghdr},
     rtnl::*,
     socket::*,
-    types::{RtBuffer, RtBufferOps},
+    types::RtBuffer,
     utils::U32Bitmask,
 };
 

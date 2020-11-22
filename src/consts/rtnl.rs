@@ -139,10 +139,12 @@ impl_var!(
 );
 
 impl_trait!(
-    /// Marker trait for `Rtattr.rta_type` field
+    /// Marker trait for [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
     pub RtaType,
     libc::c_ushort,
-    /// Wrapper that is usable for all values in `Rtattr.rta_type`
+    /// Wrapper that is usable for all values in
+    /// [`Rtattr`][crate::rtnl::Rtattr] field, `rta_type`
     pub RtaTypeWrapper,
     Ifla,
     Ifa,
@@ -153,8 +155,10 @@ impl_trait!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type`.
-    /// Values are interface information message attributes. Used with `Ifinfomsg`.
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
+    /// Values are interface information message attributes. Used with
+    /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
     pub Ifla, libc::c_ushort,
     Unspec => libc::IFLA_UNSPEC,
     Address => libc::IFLA_ADDRESS,
@@ -199,7 +203,8 @@ impl_var!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type`.
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
     /// Values are nested attributes to IFLA_LINKMODE.
     pub IflaInfo, libc::c_ushort,
     Unspec => libc::IFLA_INFO_UNSPEC,
@@ -211,8 +216,10 @@ impl_var!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type`.
-    /// Values are interface address message attributes. Used with `Ifaddrmsg`.
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
+    /// Values are interface address message attributes. Used with
+    /// [`Ifaddrmsg`][crate::rtnl::Ifaddrmsg].
     pub Ifa, libc::c_ushort,
     Unspec => libc::IFA_UNSPEC,
     Address => libc::IFA_ADDRESS,
@@ -227,8 +234,10 @@ impl_var!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type`.
-    /// Values are routing message attributes. Used with `Rtmsg`.
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
+    /// Values are routing message attributes. Used with
+    /// [`Rtmsg`][crate::rtnl::Rtmsg].
     pub Rta, libc::c_ushort,
     Unspec => libc::RTA_UNSPEC,
     Dst => libc::RTA_DST,
@@ -269,8 +278,10 @@ impl_var!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type` -
-    /// Values specify queuing discipline attributes. Used with `Tcmsg`.
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
+    /// Values specify queuing discipline attributes. Used with
+    /// [`Tcmsg`][crate::rtnl::Tcmsg].
     pub Tca, libc::c_ushort,
     Unspec => libc::TCA_UNSPEC,
     Kind => libc::TCA_KIND,
@@ -284,7 +295,8 @@ impl_var!(
 );
 
 impl_var!(
-    /// Enum for use with `Rtattr.rta_type` -
+    /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+    /// `rta_type`.
     /// Values specify neighbor table attributes
     pub Nda, libc::c_ushort,
     Unspec => libc::NDA_UNSPEC,
@@ -330,7 +342,8 @@ impl_var!(
 );
 
 impl_var!(
-    /// Values for `ifi_flags` in `Ifinfomsg`
+    /// Values for `ifi_flags` in
+    /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
     pub Iff, libc::c_uint,
     Up => libc::IFF_UP as libc::c_uint,
     Broadcast => libc::IFF_BROADCAST as libc::c_uint,
@@ -374,4 +387,58 @@ impl_flags!(
 impl_flags!(
     #[allow(missing_docs)]
     pub NtfFlags, Ntf, u8
+);
+
+impl_var!(
+    /// rtnetlink-related values for `nl_type` in
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr].
+    pub Rtm, u16,
+    Newlink => libc::RTM_NEWLINK,
+    Dellink => libc::RTM_DELLINK,
+    Getlink => libc::RTM_GETLINK,
+    Setlink => libc::RTM_SETLINK,
+    Newaddr => libc::RTM_NEWADDR,
+    Deladdr => libc::RTM_DELADDR,
+    Getaddr => libc::RTM_GETADDR,
+    Newroute => libc::RTM_NEWROUTE,
+    Delroute => libc::RTM_DELROUTE,
+    Getroute => libc::RTM_GETROUTE,
+    Newneigh => libc::RTM_NEWNEIGH,
+    Delneigh => libc::RTM_DELNEIGH,
+    Getneigh => libc::RTM_GETNEIGH,
+    Newrule => libc::RTM_NEWRULE,
+    Delrule => libc::RTM_DELRULE,
+    Getrule => libc::RTM_GETRULE,
+    Newqdisc=> libc::RTM_NEWQDISC,
+    Delqdisc=> libc::RTM_DELQDISC,
+    Getqdisc=> libc::RTM_GETQDISC,
+    Newtclass => libc::RTM_NEWTCLASS,
+    Deltclass => libc::RTM_DELTCLASS,
+    Gettclass => libc::RTM_GETTCLASS,
+    Newtfilter => libc::RTM_NEWTFILTER,
+    Deltfilter => libc::RTM_DELTFILTER,
+    Gettfilter => libc::RTM_GETTFILTER,
+    Newaction => libc::RTM_NEWACTION,
+    Delaction => libc::RTM_DELACTION,
+    Getaction => libc::RTM_GETACTION,
+    Newprefix => libc::RTM_NEWPREFIX,
+    Getmulticast => libc::RTM_GETMULTICAST,
+    Getanycast => libc::RTM_GETANYCAST,
+    Newneightbl => libc::RTM_NEWNEIGHTBL,
+    Getneightbl => libc::RTM_GETNEIGHTBL,
+    Setneightbl => libc::RTM_SETNEIGHTBL,
+    Newnduseropt => libc::RTM_NEWNDUSEROPT,
+    Newaddrlabel => libc::RTM_NEWADDRLABEL,
+    Deladdrlabel => libc::RTM_DELADDRLABEL,
+    Getaddrlabel => libc::RTM_GETADDRLABEL,
+    Getdcb => libc::RTM_GETDCB,
+    Setdcb => libc::RTM_SETDCB,
+    Newnetconf => libc::RTM_NEWNETCONF,
+    Getnetconf => libc::RTM_GETNETCONF,
+    Newmdb => libc::RTM_NEWMDB,
+    Delmdb => libc::RTM_DELMDB,
+    Getmdb => libc::RTM_GETMDB,
+    Newnsid => libc::RTM_NEWNSID,
+    Delnsid => libc::RTM_DELNSID,
+    Getnsid => libc::RTM_GETNSID
 );
