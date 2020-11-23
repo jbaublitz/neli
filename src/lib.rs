@@ -90,6 +90,10 @@ use std::{io::Write, mem, str};
 use byteorder::ByteOrder;
 #[cfg(feature = "logging")]
 use lazy_static::lazy_static;
+#[cfg(feature = "logging")]
+use log::LevelFilter;
+#[cfg(feature = "logging")]
+use simple_logger::SimpleLogger;
 
 pub use crate::neli_constants::MAX_NL_LENGTH;
 use crate::{
@@ -101,7 +105,7 @@ use crate::{
 #[cfg(feature = "logging")]
 lazy_static! {
     static ref LOGGING_INITIALIZED: bool =
-        simple_logger::init_with_level(log::Level::Debug).is_ok();
+        SimpleLogger::new().with_level(LevelFilter::Debug).init().is_ok();
     static ref SHOW_LOGS: bool = std::env::var("NELI_LOG").is_ok();
 }
 

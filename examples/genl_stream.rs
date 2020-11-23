@@ -25,7 +25,7 @@ fn debug_stream() -> Result<(), NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(consts::NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     let flag = match U32BitFlag::new(id) {
         Ok(f) => f,
