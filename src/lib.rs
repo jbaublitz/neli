@@ -104,8 +104,10 @@ use crate::{
 
 #[cfg(feature = "logging")]
 lazy_static! {
-    static ref LOGGING_INITIALIZED: bool =
-        SimpleLogger::new().with_level(LevelFilter::Debug).init().is_ok();
+    static ref LOGGING_INITIALIZED: bool = SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .init()
+        .is_ok();
     static ref SHOW_LOGS: bool = std::env::var("NELI_LOG").is_ok();
 }
 
