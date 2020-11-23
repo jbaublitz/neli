@@ -68,12 +68,6 @@ where
         }
     }
 
-    // If the position has reached the end of the read bytes,
-    // reset the end and position to zero to trigger a new
-    // socket read on the next invocation.
-    if position == end {
-        position = 0;
-    }
     Ok((position, packet))
 }
 

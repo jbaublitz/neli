@@ -45,19 +45,11 @@ use crate::{
     genl::{Genlmsghdr, Nlattr},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr},
-    parse::{packet_length_u32, parse_next},
+    parse::parse_next,
     types::{GenlBuffer, NlBuffer, SockBuffer},
     utils::U32Bitmask,
     Nl,
 };
-
-/// Define the behavior on a netlink packet parsing error
-pub enum OnError {
-    /// Rewind the position to the beginning of the packet to try again
-    Rewind,
-    /// Skip to the next packet, discarding the failed packet
-    FastForward,
-}
 
 /// Low level access to a netlink socket.
 pub struct NlSocket {
@@ -511,7 +503,7 @@ impl NlSocketHandle {
     }
 
     /// Convenience function to begin receiving a stream of `Nlmsghdr` structs
-    pub fn recv<T, P>(&mut self, on_error: OnError) -> Result<Option<Nlmsghdr<T, P>>, NlError>
+    pub fn recv<T, P>(&mut self) -> Result<Option<Nlmsghdr<T, P>>, NlError>
     where
         T: Nl + NlType + Debug,
         P: Nl + Debug,
@@ -536,7 +528,7 @@ impl NlSocketHandle {
             self.end = mem_read;
         }
 
-        let packet = match parse_next(
+        let (position, packet) = parse_next(
             &self
                 .buffer
                 .get_ref()
@@ -544,26 +536,8 @@ impl NlSocketHandle {
                 .as_ref()[..self.end],
             self.position,
             self.expects_ack,
-        ) {
-            Ok((po, pa)) => {
-                self.position += po;
-                pa
-            }
-            Err(e) => match on_error {
-                OnError::Rewind => return Err(e),
-                OnError::FastForward => {
-                    let next_packet_pos = packet_length_u32(
-                        self.buffer
-                            .get_ref()
-                            .expect("Caller borrows mutable self")
-                            .as_ref(),
-                        self.position,
-                    );
-                    self.position += next_packet_pos;
-                    return Err(e);
-                }
-            },
-        };
+        )?;
+        self.position = position;
 
         #[cfg(feature = "logging")]
         log!("Message received: {:#?}", packet);
@@ -665,6 +639,8 @@ pub mod tokio {
         stream::Stream,
     };
     use mio::{self, Evented};
+
+    use crate::parse::packet_length_u32;
 
     fn poll_read_priv(
         mut socket: RefMut<PollEvented<super::NlSocket>>,

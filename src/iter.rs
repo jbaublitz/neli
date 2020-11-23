@@ -6,7 +6,7 @@ use crate::{
     consts::nl::{NlType, NlTypeWrapper, NlmF, Nlmsg},
     err::NlError,
     nl::{NlPayload, Nlmsghdr},
-    socket::{NlSocketHandle, OnError},
+    socket::NlSocketHandle,
     Nl,
 };
 
@@ -86,7 +86,7 @@ where
             return None;
         }
 
-        let next_res = self.sock_ref.recv::<TT, PP>(OnError::FastForward);
+        let next_res = self.sock_ref.recv::<TT, PP>();
         let next = match next_res {
             Ok(Some(n)) => n,
             Ok(None) => return None,
@@ -97,7 +97,7 @@ where
         }
         if next.nl_type.into() == Nlmsg::Done.into() {
             if let Some(true) = self.needs_ack {
-                if let Ok(Some(n)) = self.sock_ref.recv::<TT, PP>(OnError::FastForward) {
+                if let Ok(Some(n)) = self.sock_ref.recv::<TT, PP>() {
                     if let NlPayload::Payload(_) = n.nl_payload {
                         return Some(Err(NlError::NoAck));
                     }
