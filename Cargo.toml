@@ -21,10 +21,6 @@ path = "src/lib.rs"
 byteorder = "1.2"
 libc = "0.2.66"
 
-[dependencies.smallvec]
-version = "0.6"
-optional = true
-
 [dependencies.log]
 version = "0.4"
 optional = true
@@ -51,4 +47,3 @@ default = []
 async = ["tokio", "futures-util"]
 logging = ["log", "simple_logger", "lazy_static"]
 netfilter = []
-low_heap_buffer = ["smallvec"]
