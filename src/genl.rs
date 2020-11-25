@@ -392,8 +392,8 @@ where
         None
     }
 
-    /// Parse binary payload as a type that implements `Nl` using `deserialize` with an option size
-    /// hint
+    /// Parse binary payload as a type that implements [`Nl`] using
+    /// [`deserialize`][crate::Nl::deserialize].
     pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, NlError>
     where
         R: Nl,

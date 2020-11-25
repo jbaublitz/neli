@@ -154,24 +154,16 @@
 mod macros;
 
 pub mod attr;
-/// C constants defined as types
 pub mod consts;
-/// Error module
 pub mod err;
-/// Genetlink (generic netlink) header and attribute helpers
 pub mod genl;
 pub mod iter;
 mod neli_constants;
-/// Top-level netlink header
 pub mod nl;
 mod parse;
-/// Route netlink bindings
 pub mod rtnl;
-/// Wrapper for `libc` sockets
 pub mod socket;
-/// Buffer types for various operations
 pub mod types;
-/// Module with helper methods and data structures
 pub mod utils;
 
 use std::{io::Write, mem, str};
@@ -224,18 +216,22 @@ pub trait Nl: Sized {
     /// Deserialization method
     fn deserialize(m: DeBuffer) -> Result<Self, DeError>;
 
-    /// The size of the binary representation of a type not aligned to work size
+    /// The size of the binary representation of a type not aligned
+    /// to 4-byte boundary size
     fn type_size() -> Option<usize>;
 
-    /// The size of the binary representation of a type not aligned to work size
+    /// The size of the binary representation of a type not aligned
+    /// to 4-byte boundary size
     fn type_asize() -> Option<usize> {
         Self::type_size().map(alignto)
     }
 
-    /// The size of the binary representation of an existing value not aligned to word size
+    /// The size of the binary representation of an existing value
+    /// not aligned to 4-byte boundary size
     fn size(&self) -> usize;
 
-    /// The size of the binary representation of an existing value aligned to word size
+    /// The size of the binary representation of an existing value
+    /// aligned to 4-byte boundary size
     fn asize(&self) -> usize {
         alignto(self.size())
     }

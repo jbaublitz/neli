@@ -1,32 +1,36 @@
-//! This module provides code that glues all of the other modules together and allows message send
-//! and receive operations. This module relies heavily on the `buffering` crate. See `buffering`
-//! for more information on the serialization and deserialization implementations.
+//! This module provides code that glues all of the other modules
+//! together and allows message send and receive operations.
 //!
 //! ## Important methods
-//! * `send` and `recv` methods are meant to be the most low level calls. They essentially do what
-//! the C system calls `send` and `recv` do with very little abstraction.
-//! * `send_nl` and `recv_nl` methods are meant to provide an interface that is more idiomatic for
-//! the library. The are able to operate on any structure wrapped in an `Nlmsghdr` struct that implements
-//! the `Nl` trait.
-//! * `iter` provides a loop based iteration through messages that are received in a stream over
-//! the socket.
-//! * `recv_ack` receives an ACK message and verifies it matches the request.
+//! * [`NlSocket::send`] and [`NlSocket::recv`] methods are meant to
+//! be the most low level calls. They essentially do what the C
+//! system calls `send` and `recv` do with very little abstraction.
+//! * [`NlSocketHandle::send`] and [`NlSocketHandle::recv`] methods
+//! are meant to provide an interface that is more idiomatic for
+//! the library. The are able to operate on any structure wrapped in
+//! an [`Nlmsghdr`][crate::nl::Nlmsghdr] struct that implements
+//! the [`Nl`] trait.
+//! * [`NlSocketHandle::iter`] provides a loop based iteration
+//! through messages that are received in a stream over the socket.
 //!
 //! ## Features
-//! The `async` feature exposed by `cargo` allows the socket to use Rust's tokio for async IO.
+//! The `async` feature exposed by `cargo` allows the socket to use
+//! Rust's [tokio](https://tokio.rs) for async IO.
 //!
 //! ## Additional methods
 //!
-//! There are methods for blocking and non-blocking, resolving generic netlink multicast group IDs,
-//! and other convenience functions so see if your use case is supported. If it isn't, please open
-//! a Github issue and submit a feature request.
+//! There are methods for blocking and non-blocking, resolving
+//! generic netlink multicast group IDs, and other convenience
+//! functions so see if your use case is supported. If it isn't,
+//! please open a Github issue and submit a feature request.
 //!
 //! ## Design decisions
 //!
-//! The buffer allocated in the `NlSocket` structure should
+//! The buffer allocated in the [`NlSocketHandle`] structure should
 //! be allocated on the heap. This is intentional as a buffer
 //! that large could be a problem on the stack. Big thanks to
-//! @vorner for the suggestion on how to minimize allocations.
+//! [@vorner](https://github.com/vorner) for the suggestion on how
+//! to minimize allocations.
 
 use std::{
     fmt::Debug,
@@ -57,7 +61,8 @@ pub struct NlSocket {
 }
 
 impl NlSocket {
-    /// Wrapper around `socket()` syscall filling in the netlink-specific information
+    /// Wrapper around `socket()` syscall filling in the
+    /// netlink-specific information.
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         let fd =
             match unsafe { libc::socket(AddrFamily::Netlink.into(), libc::SOCK_RAW, proto.into()) }
@@ -79,7 +84,7 @@ impl NlSocket {
         Ok(s)
     }
 
-    /// Set underlying socket file descriptor to be blocking
+    /// Set underlying socket file descriptor to be blocking.
     pub fn block(&self) -> Result<(), io::Error> {
         match unsafe {
             libc::fcntl(
@@ -93,7 +98,7 @@ impl NlSocket {
         }
     }
 
-    /// Set underlying socket file descriptor to be non blocking
+    /// Set underlying socket file descriptor to be non blocking.
     pub fn nonblock(&self) -> Result<(), io::Error> {
         match unsafe {
             libc::fcntl(
@@ -107,8 +112,7 @@ impl NlSocket {
         }
     }
 
-    /// Determines if underlying file descriptor is blocking - `Stream` feature will throw an
-    /// error if this function returns false
+    /// Determines if underlying file descriptor is blocking.
     pub fn is_blocking(&self) -> Result<bool, io::Error> {
         let is_blocking = match unsafe { libc::fcntl(self.fd, libc::F_GETFL, 0) } {
             i if i >= 0 => i & libc::O_NONBLOCK == 0,
@@ -117,13 +121,9 @@ impl NlSocket {
         Ok(is_blocking)
     }
 
-    /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
-    /// man pages for more information on netlink IDs and groups.
-    ///
-    /// The pid parameter sets PID checking.
-    /// * `None` means checking is off.
-    /// * `Some(0)` turns checking on, but takes the PID from the first received message.
-    /// * `Some(pid)` uses the given PID.
+    /// Use this function to bind to a netlink ID and subscribe to
+    /// groups. See netlink(7) man pages for more information on
+    /// netlink IDs and groups.
     pub fn bind(&self, pid: Option<u32>, groups: U32Bitmask) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
@@ -145,7 +145,7 @@ impl NlSocket {
         Ok(())
     }
 
-    /// Join multicast groups for a socket
+    /// Join multicast groups for a socket.
     pub fn add_mcast_membership(&self, groups: U32Bitmask) -> Result<(), io::Error> {
         match unsafe {
             libc::setsockopt(
@@ -161,7 +161,7 @@ impl NlSocket {
         }
     }
 
-    /// Leave multicast groups for a socket
+    /// Leave multicast groups for a socket.
     pub fn drop_mcast_membership(&self, groups: U32Bitmask) -> Result<(), io::Error> {
         match unsafe {
             libc::setsockopt(
@@ -177,7 +177,7 @@ impl NlSocket {
         }
     }
 
-    /// List joined groups for a socket
+    /// List joined groups for a socket.
     pub fn list_mcast_membership(&self) -> Result<U32Bitmask, io::Error> {
         let mut grps = 0u32;
         let mut len = size_of::<u32>() as libc::socklen_t;
@@ -195,8 +195,9 @@ impl NlSocket {
         }
     }
 
-    /// Send message encoded as byte slice to the netlink ID specified in the netlink header
-    /// (`neli::nl::Nlmsghdr`)
+    /// Send message encoded as byte slice to the netlink ID
+    /// specified in the netlink header
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr]
     pub fn send<B>(&self, buf: B, flags: i32) -> Result<libc::size_t, io::Error>
     where
         B: AsRef<[u8]>,
@@ -260,7 +261,8 @@ impl FromRawFd for NlSocket {
 }
 
 impl Drop for NlSocket {
-    /// Closes underlying file descriptor to avoid file descriptor leaks.
+    /// Closes underlying file descriptor to avoid file descriptor
+    /// leaks.
     fn drop(&mut self) {
         unsafe {
             libc::close(self.fd);
@@ -279,7 +281,8 @@ pub struct NlSocketHandle {
 }
 
 impl NlSocketHandle {
-    /// Wrapper around `socket()` syscall filling in the netlink-specific information
+    /// Wrapper around `socket()` syscall filling in the
+    /// netlink-specific information
     pub fn new(proto: NlFamily) -> Result<Self, io::Error> {
         Ok(NlSocketHandle {
             socket: NlSocket::new(proto)?,
@@ -307,44 +310,39 @@ impl NlSocketHandle {
         })
     }
 
-    /// Set underlying socket file descriptor to be blocking
+    /// Set underlying socket file descriptor to be blocking.
     pub fn block(&self) -> Result<(), io::Error> {
         self.socket.block()
     }
 
-    /// Set underlying socket file descriptor to be non blocking
+    /// Set underlying socket file descriptor to be non blocking.
     pub fn nonblock(&self) -> Result<(), io::Error> {
         self.socket.nonblock()
     }
 
-    /// Determines if underlying file descriptor is blocking - `Stream` feature will throw an
-    /// error if this function returns false
+    /// Determines if underlying file descriptor is blocking.
     pub fn is_blocking(&self) -> Result<bool, io::Error> {
         self.socket.is_blocking()
     }
 
-    /// Use this function to bind to a netlink ID and subscribe to groups. See netlink(7)
-    /// man pages for more information on netlink IDs and groups.
-    ///
-    /// The pid parameter sets PID checking.
-    /// * `None` means checking is off.
-    /// * `Some(0)` turns checking on, but takes the PID from the first received message.
-    /// * `Some(pid)` uses the given PID.
+    /// Use this function to bind to a netlink ID and subscribe to
+    /// groups. See netlink(7) man pages for more information on
+    /// netlink IDs and groups.
     pub fn bind(&self, pid: Option<u32>, groups: U32Bitmask) -> Result<(), io::Error> {
         self.socket.bind(pid, groups)
     }
 
-    /// Join multicast groups for a socket
+    /// Join multicast groups for a socket.
     pub fn add_mcast_membership(&self, groups: U32Bitmask) -> Result<(), io::Error> {
         self.socket.add_mcast_membership(groups)
     }
 
-    /// Leave multicast groups for a socket
+    /// Leave multicast groups for a socket.
     pub fn drop_mcast_membership(&self, groups: U32Bitmask) -> Result<(), io::Error> {
         self.socket.drop_mcast_membership(groups)
     }
 
-    /// List joined groups for a socket
+    /// List joined groups for a socket.
     pub fn list_mcast_membership(&self) -> Result<U32Bitmask, io::Error> {
         self.socket.list_mcast_membership()
     }
@@ -382,8 +380,8 @@ impl NlSocketHandle {
         Ok(buffer)
     }
 
-    /// Convenience function for resolving a `&str` containing the multicast group name to a
-    /// numeric netlink ID
+    /// Convenience function for resolving a [`str`] containing the
+    /// generic netlink family name to a numeric generic netlink ID.
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs.into_iter() {
@@ -402,8 +400,8 @@ impl NlSocketHandle {
         )))
     }
 
-    /// Convenience function for resolving a `&str` containing the multicast group name to a
-    /// numeric netlink ID
+    /// Convenience function for resolving a [`str`] containing the
+    /// multicast group name to a numeric multicast group ID.
     pub fn resolve_nl_mcast_group(
         &mut self,
         family_name: &str,
@@ -440,7 +438,7 @@ impl NlSocketHandle {
         Err(NlError::new("Failed to resolve multicast group ID"))
     }
 
-    /// Look up netlink family and multicast group name by ID
+    /// Look up netlink family and multicast group name by ID.
     pub fn lookup_id(&mut self, id: u32) -> Result<(String, String), NlError> {
         let attrs = GenlBuffer::new();
         let genlhdr = Genlmsghdr::<CtrlCmd, CtrlAttrMcastGrp>::new(CtrlCmd::Getfamily, 2, attrs);
@@ -482,7 +480,7 @@ impl NlSocketHandle {
         Err(NlError::new("ID does not correspond to a multicast group"))
     }
 
-    /// Convenience function to send an `Nlmsghdr` struct
+    /// Convenience function to send an [`Nlmsghdr`] struct
     pub fn send<T, P>(&mut self, msg: Nlmsghdr<T, P>) -> Result<(), NlError>
     where
         T: Nl + NlType + Debug,
@@ -502,7 +500,8 @@ impl NlSocketHandle {
         Ok(())
     }
 
-    /// Convenience function to begin receiving a stream of `Nlmsghdr` structs
+    /// Convenience function to begin receiving a stream of
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs.
     pub fn recv<T, P>(&mut self) -> Result<Option<Nlmsghdr<T, P>>, NlError>
     where
         T: Nl + NlType + Debug,
@@ -545,14 +544,16 @@ impl NlSocketHandle {
         Ok(Some(packet))
     }
 
-    /// Parse all `Nlmsghdr` structs sent in one network packet
-    /// and return them all in a list.
+    /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
+    /// one network packet and return them all in a list.
     ///
     /// Failure to parse any packet will cause the entire operation
     /// to fail. If an error is detected at the application level,
-    /// this method will discard any non-error `Nlmsghdr` structs and only
-    /// return the error. This method checks for ACKs. For a more granular
-    /// approach, use either `NlSocket::recv_nl` or `NlSocket::iter`.
+    /// this method will discard any non-error
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
+    /// error. This method checks for ACKs. For a more granular
+    /// approach, use either [`NlSocketHandle::recv`] or
+    /// [`NlSocketHandle::iter`].
     pub fn recv_all<T, P>(&mut self) -> Result<NlBuffer<T, P>, NlError>
     where
         T: Nl + NlType + Debug,
@@ -624,7 +625,8 @@ impl FromRawFd for NlSocketHandle {
 pub mod tokio {
     //! Tokio-specific features for neli
     //!
-    //! This module contains a struct that wraps `NlSocket` for async IO.
+    //! This module contains a struct that wraps [`NlSocket`] for
+    //! async IO.
     use super::*;
 
     use std::{
@@ -675,8 +677,9 @@ pub mod tokio {
     where
         T: NlType,
     {
-        /// Setup NlSocket for use with tokio - set to nonblocking
-        /// state and wrap in polling mechanism.
+        /// Set up [`NlSocket`][crate::socket::NlSocket] for use
+        /// with tokio; set to nonblocking state and wrap in polling
+        /// mechanism.
         pub fn new<S>(s: S) -> io::Result<Self>
         where
             S: Into<super::NlSocket>,

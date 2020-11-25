@@ -1,3 +1,11 @@
+//! Module containing various types used across the various netlink
+//! structures used in `neli`.
+//!
+//! # Design decisions
+//! These structures are new types rather than type aliases in most
+//! cases to allow the internal representation to change without
+//! resulting in a breaking change.
+
 pub use std::{
     cell::{Ref, RefCell, RefMut},
     iter::FromIterator,
@@ -8,7 +16,7 @@ pub use std::{
 
 use crate::{genl::Nlattr, neli_constants::MAX_NL_LENGTH, nl::Nlmsghdr, rtnl::Rtattr};
 
-/// A buffer of bytes that, when used, can avoid unnecessary allocations.
+/// A buffer of bytes.
 #[derive(Debug, PartialEq)]
 pub struct Buffer(Vec<u8>);
 
@@ -64,10 +72,10 @@ impl Default for Buffer {
     }
 }
 
-/// Type alias for a buffer to deserialize from.
+/// Type alias for a buffer to serialize into.
 pub type SerBuffer<'a> = &'a mut [u8];
 
-/// Type alias for a buffer to serialize into.
+/// Type alias for a buffer to deserialize from.
 pub type DeBuffer<'a> = &'a [u8];
 
 /// An immutable reference to the socket buffer.

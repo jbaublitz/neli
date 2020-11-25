@@ -1,11 +1,13 @@
-//! This module provides an implementation of routing netlink structures and the routing attributes
-//! that are at the end of most routing netlink responses.
+//! This module provides an implementation of routing netlink
+//! structures and the routing attributes that are at the end of
+//! most routing netlink responses.
 //!
 //! # Design decisions
 //!
-//! This module is based very heavily on the information in `man 7 rtnetlink` so it is mainly a
-//! series of structs organized in a style similar to the rest of the library with implementations
-//! of `Nl` for each.
+//! This module is based very heavily on the information in
+//! `man 7 rtnetlink` so it is mainly a series of structs organized
+//! in a style similar to the rest of the library with implementations
+//! of [`Nl`] for each.
 
 use std::mem;
 
@@ -71,7 +73,7 @@ pub struct Ifinfomsg {
     pub ifi_flags: IffFlags,
     /// Interface change mask
     pub ifi_change: Iff,
-    /// Payload of `Rtattr`s
+    /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Ifla, Buffer>,
 }
 
@@ -96,7 +98,8 @@ impl Ifinfomsg {
         }
     }
 
-    /// Set the link with the given index up (equivalent to `ip link set dev DEV up`)
+    /// Set the link with the given index up (equivalent to
+    /// `ip link set dev DEV up`)
     pub fn up(
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
@@ -114,7 +117,8 @@ impl Ifinfomsg {
         }
     }
 
-    /// Set the link with the given index down (equivalent to `ip link set dev DEV down`)
+    /// Set the link with the given index down (equivalent to
+    /// `ip link set dev DEV down`)
     pub fn down(
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
@@ -200,7 +204,7 @@ pub struct Ifaddrmsg {
     pub ifa_scope: libc::c_uchar,
     /// Interface address index
     pub ifa_index: libc::c_int,
-    /// Payload of `Rtattr`s
+    /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
@@ -253,7 +257,8 @@ impl Nl for Ifaddrmsg {
     }
 }
 
-/// General form of address family dependent message.  Used for requesting things from via rtnetlink.
+/// General form of address family dependent message.  Used for
+/// requesting things from rtnetlink.
 #[derive(Debug)]
 pub struct Rtgenmsg {
     /// Address family for the request
@@ -301,7 +306,7 @@ pub struct Rtmsg {
     pub rtm_type: Rtn,
     /// Routing flags
     pub rtm_flags: RtmFFlags,
-    /// Payload of `Rtattr`s
+    /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Rta, Buffer>,
 }
 
@@ -385,7 +390,7 @@ pub struct Ndmsg {
     pub ndm_flags: NtfFlags,
     /// Type of entry
     pub ndm_type: Rtn,
-    /// Payload of `Rtattr`s
+    /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Nda, Buffer>,
 }
 
@@ -510,7 +515,7 @@ pub struct Tcmsg {
     pub tcm_parent: u32,
     /// Info
     pub tcm_info: u32,
-    /// Payload of `Rtattr`s
+    /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Tca, Buffer>,
 }
 
@@ -616,7 +621,8 @@ where
         Ok(())
     }
 
-    /// Return an `AttrHandle` for attributes nested in the given attribute payload
+    /// Return an [`AttrHandle`][crate::attr::AttrHandle] for
+    /// attributes nested in the given attribute payload.
     pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, NlError>
     where
         R: RtaType,
@@ -626,7 +632,8 @@ where
         ))
     }
 
-    /// Return a mutable `AttrHandle` for attributes nested in the given attribute payload
+    /// Return an [`AttrHandleMut`][crate::attr::AttrHandleMut] for
+    /// attributes nested in the given attribute payload.
     pub fn get_attr_handle_mut<R>(&mut self) -> Result<RtAttrHandleMut<R>, NlError>
     where
         R: RtaType,
@@ -706,7 +713,8 @@ impl<'a, T> AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
 where
     T: RtaType,
 {
-    /// Get the payload of an attribute as a handle for parsing nested attributes
+    /// Get the payload of an attribute as a handle for parsing
+    /// nested attributes.
     pub fn get_nested_attributes<S>(&mut self, subattr: T) -> Result<RtAttrHandle<S>, NlError>
     where
         S: RtaType,
@@ -722,7 +730,7 @@ where
         ))
     }
 
-    /// Get nested attributes from a parsed handle
+    /// Get nested attributes from a parsed handle.
     pub fn get_attribute(&self, t: T) -> Option<&Rtattr<T, Buffer>> {
         for item in self.get_attrs().iter() {
             if item.rta_type == t {
@@ -732,8 +740,8 @@ where
         None
     }
 
-    /// Parse binary payload as a type that implements `Nl` using `deserialize` with an option size
-    /// hint
+    /// Parse binary payload as a type that implements [`Nl`] using
+    /// [`deserialize`][Nl::deserialize].
     pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, NlError>
     where
         R: Nl,

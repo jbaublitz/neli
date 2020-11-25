@@ -57,12 +57,12 @@ impl<'a, O, I> AttrHandle<'a, O, I>
 where
     O: AsRef<[I]>,
 {
-    /// Create new `AttrHandle`
+    /// Create new [`AttrHandle`]
     pub fn new(owned: O) -> Self {
         AttrHandle::Owned(owned)
     }
 
-    /// Create new borrowed `AttrHandle`
+    /// Create new borrowed [`AttrHandle`]
     pub fn new_borrowed(borrowed: &'a [I]) -> Self {
         AttrHandle::Borrowed(borrowed)
     }
@@ -98,7 +98,7 @@ where
         AttrHandleMut::Owned(owned)
     }
 
-    /// Create new borrowed `AttrHandle`
+    /// Create new borrowed [`AttrHandleMut`]
     pub fn new_borrowed(borrowed: &'a mut [I]) -> Self {
         AttrHandleMut::Borrowed(borrowed)
     }
@@ -108,7 +108,8 @@ where
         self.get_mut_attrs().iter_mut()
     }
 
-    /// Get the underlying owned value as a mutable reference or return `None`
+    /// Get the underlying owned value as a mutable reference or
+    /// return [`None`].
     pub fn get_mut_attrs(&mut self) -> &mut [I] {
         match self {
             AttrHandleMut::Owned(ref mut o) => o.as_mut(),

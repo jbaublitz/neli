@@ -1,3 +1,11 @@
+//! A module containing utilities for working with constructs like
+//! bitflags and other low level operations.
+//!
+//! # Design decisions
+//! Some of the less documented aspects of interacting with netlink
+//! are handled internally in the types so that the user does not
+//! have to be aware of them.
+
 use std::{
     error::Error,
     fmt::{self, Display},
@@ -34,7 +42,7 @@ impl Display for BitRepError {
 pub struct U32BitFlag(u32);
 
 impl U32BitFlag {
-    /// Create a new bitflag from which bit number to set
+    /// Create a new bitflag from the index of the bit to set.
     pub fn new(bit_num: u32) -> Result<Self, BitRepError> {
         if bit_num > 32 {
             return Err(BitRepError::new(
@@ -45,13 +53,13 @@ impl U32BitFlag {
         Ok(U32BitFlag(bit_num))
     }
 
-    /// Convert this bitflag into a bitmask with only this bit set
+    /// Convert this bitflag into a bitmask with only this bit set.
     fn into_bitmask(self) -> U32Bitmask {
         U32Bitmask::from(num_to_set_mask(self.0))
     }
 }
 
-/// Struct for handling `u32` bitmask operations
+/// Struct for handling [`u32`] bitmask operations
 pub struct U32Bitmask(u32);
 
 impl U32Bitmask {
@@ -60,13 +68,14 @@ impl U32Bitmask {
         U32Bitmask(0)
     }
 
-    /// Return `true` if the bitmask is empty
+    /// Return [`true`] if the bitmask is empty
     pub fn is_empty(&self) -> bool {
         self.0 == 0
     }
 
-    /// Check if the bit at position `bit` is set - returns false for anything
-    /// larger than 32 as that extends past the boundaries of a 32 bit integer bitmask
+    /// Check if the bit at position `bit` is set - returns false
+    /// for anything larger than 32 as that extends past the
+    /// boundaries of a 32 bit integer bitmask
     pub fn is_set(&self, bit: u32) -> bool {
         if bit > 32 {
             return false;

@@ -105,8 +105,9 @@ macro_rules! serialize {
     }};
 }
 
-/// This macro calculates size from `type_size` methods and returns
-/// an error if `type_size` evaluates to [`None`].
+/// This macro calculates size from
+/// [`type_size`][crate::Nl::type_size] methods and returns an error
+/// if [`type_size`][crate::Nl::type_size] evaluates to [`None`].
 ///
 /// # Examples
 /// ```
