@@ -40,6 +40,11 @@
 ### Bug fixes
 * Bug fixes for rtnetlink
 
+### Documentation
+* Updates to the documentation.
+* More examples.
+* Links to the referenced data structures.
+
 ## 0.5.0-rc1
 ### Additions
 * Feature flagged NFLOG support, in the `netfilter` module.

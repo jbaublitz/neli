@@ -37,7 +37,7 @@ fn debug_stream() -> Result<(), NlError> {
         }
     };
     s.add_mcast_membership(U32Bitmask::from(flag))?;
-    let mut runtime = ::tokio::runtime::Runtime::new().unwrap();
+    let runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
         let mut ss = match NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
             Ok(s) => s,

@@ -24,6 +24,16 @@ pub fn packet_length_u32(buffer: &[u8], position: usize) -> usize {
     <NativeEndian as ByteOrder>::read_u32(len_buffer) as usize
 }
 
+/// Parse the next packet in the buffer.
+///
+/// This parsing method will only parse top level
+/// [`Nlmsghdr`][crate::nl::Nlmsghdr] packets.
+///
+/// The buffer that's passed in should be the entire contents
+/// from a read from the socket.
+///
+/// This position should start at 0. The [`usize`] that is returned
+/// is the updated position and should be stored as the new position.
 pub fn parse_next<T, P>(
     buffer: &[u8],
     mut position: usize,

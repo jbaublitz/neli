@@ -150,6 +150,11 @@ impl<T, P> NlBuffer<T, P> {
         self.0.push(msg);
     }
 
+    /// Get a netlink message from the end of the buffer.
+    pub fn pop(&mut self) -> Option<Nlmsghdr<T, P>> {
+        self.0.pop()
+    }
+
     /// Return an iterator over immutable references to the elements
     /// in the buffer.
     pub fn iter(&self) -> Iter<'_, Nlmsghdr<T, P>> {
@@ -160,6 +165,16 @@ impl<T, P> NlBuffer<T, P> {
     /// in the buffer.
     pub fn iter_mut(&mut self) -> IterMut<'_, Nlmsghdr<T, P>> {
         self.0.iter_mut()
+    }
+
+    /// Returns the number of elements in the buffer.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns whether the number of elements in the buffer is 0.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -223,6 +238,11 @@ impl<T, P> GenlBuffer<T, P> {
         self.0.push(attr)
     }
 
+    /// Get a generic netlink attribute from the end of the buffer.
+    pub fn pop(&mut self) -> Option<Nlattr<T, P>> {
+        self.0.pop()
+    }
+
     /// Return an iterator over immutable references to the elements
     /// in the buffer.
     pub fn iter(&self) -> Iter<'_, Nlattr<T, P>> {
@@ -233,6 +253,16 @@ impl<T, P> GenlBuffer<T, P> {
     /// in the buffer.
     pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, Nlattr<T, P>> {
         self.0.iter_mut()
+    }
+
+    /// Returns the number of elements in the buffer.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns whether the number of elements in the buffer is 0.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -287,6 +317,11 @@ impl<T, P> RtBuffer<T, P> {
         self.0.push(attr)
     }
 
+    /// Get a routing netlink attribute from the end of the buffer.
+    pub fn pop(&mut self) -> Option<Rtattr<T, P>> {
+        self.0.pop()
+    }
+
     /// Return an iterator over immutable references to the elements
     /// in the buffer.
     pub fn iter(&self) -> Iter<'_, Rtattr<T, P>> {
@@ -297,6 +332,16 @@ impl<T, P> RtBuffer<T, P> {
     /// in the buffer.
     pub fn iter_mut(&mut self) -> IterMut<'_, Rtattr<T, P>> {
         self.0.iter_mut()
+    }
+
+    /// Returns the number of elements in the buffer.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns whether the number of elements in the buffer is 0.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 

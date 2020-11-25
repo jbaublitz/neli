@@ -50,6 +50,96 @@
 //! Examples of working code exist in the `examples/` subdirectory on
 //! Github. They have a separate `Cargo.toml` file to provide easy
 //! testing and use.  
+//!
+//! Workflows seem to usually follow a pattern of socket creation,and
+//! then either sending and receiving messages in request/response
+//! formats:
+//!
+//! ```
+//! use neli::{
+//!     consts::{genl::*, nl::*, socket::*},
+//!     err::NlError,
+//!     genl::{Genlmsghdr, Nlattr},
+//!     nl::{Nlmsghdr, NlPayload},
+//!     socket::NlSocketHandle,
+//!     types::{Buffer, GenlBuffer},
+//!     utils::U32Bitmask,
+//! };
+//!
+//! const GENL_VERSION: u8 = 1;
+//!
+//! fn request_response() -> Result<(), NlError> {
+//!     let mut socket = NlSocketHandle::connect(
+//!         NlFamily::Generic,
+//!         None,
+//!         U32Bitmask::empty(),
+//!     )?;
+//!
+//!     let attrs: GenlBuffer<Index, Buffer> = GenlBuffer::new();
+//!     let genlhdr = Genlmsghdr::new(
+//!         CtrlCmd::Getfamily,
+//!         GENL_VERSION,
+//!         attrs,
+//!     );
+//!     let nlhdr = {
+//!         let len = None;
+//!         let nl_type = GenlId::Ctrl;
+//!         let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
+//!         let seq = None;
+//!         let pid = None;
+//!         let payload = NlPayload::Payload(genlhdr);
+//!         Nlmsghdr::new(len, nl_type, flags, seq, pid, payload)
+//!     };
+//!     socket.send(nlhdr)?;
+//!     
+//!     // Do things with multi-message response to request...
+//!     let mut iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+//!     while let Some(Ok(response)) = iter.next() {
+//!         // Do things with response here...
+//!     }
+//!     
+//!     // Or get single message back...
+//!     let msg = socket.recv::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>()?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! or a subscriptions to a stream of event notifications from netlink:
+//!
+//! ```
+//! use std::error::Error;
+//!
+//! use neli::{
+//!     consts::{genl::*, socket::*},
+//!     err::NlError,
+//!     genl::Genlmsghdr,
+//!     socket,
+//!     utils::{U32BitFlag, U32Bitmask},
+//! };
+//!
+//! fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
+//!     let mut s = socket::NlSocketHandle::connect(
+//!         NlFamily::Generic,
+//!         None,
+//!         U32Bitmask::empty(),
+//!     )?;
+//!     let id = s.resolve_nl_mcast_group(
+//!         "my_family_name",
+//!         "my_multicast_group_name",
+//!     )?;
+//!     s.add_mcast_membership(U32Bitmask::from(U32BitFlag::new(id)?))?;
+//!     for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
+//!         // Do stuff here with parsed packets...
+//!     
+//!         // like printing a debug representation of them:
+//!         println!("{:?}", next?);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
 //! ## Documentation
 //!
 //! Each module has been documented extensively to provide information

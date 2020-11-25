@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.5.0-rc2"
+version = "0.5.0"
 edition = "2018"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
@@ -38,17 +38,17 @@ version = "1.4"
 optional = true
 
 [dependencies.tokio]
-version = "0.2"
-features = ["io-driver", "stream", "rt-core"]
+version = "0.3"
+features = ["io-util", "stream", "rt-multi-thread", "sync", "net"]
 optional = true
 
-[dependencies.mio]
-version = "0.6.20"
+[dependencies.futures-util]
+version = "0.3"
 optional = true
 
 [features]
 default = []
-async = ["tokio", "mio"]
+async = ["tokio", "futures-util"]
 logging = ["log", "simple_logger", "lazy_static"]
 netfilter = []
 low_heap_buffer = ["smallvec"]
