@@ -418,7 +418,6 @@ mod test {
             genl::{CtrlAttr, CtrlCmd},
             socket::NlFamily,
         },
-        nl::NlEmpty,
         socket::NlSocketHandle,
         utils::{serialize, U32Bitmask},
     };
@@ -597,7 +596,7 @@ mod test {
     fn test_vec_nlattr_nl() {
         let mut vec_nlattr_desired = Cursor::new(vec![]);
 
-        vec_nlattr_desired.write_u16::<NativeEndian>(36).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(40).unwrap();
         vec_nlattr_desired
             .write_u16::<NativeEndian>(1 << 15 | 1)
             .unwrap();
@@ -612,8 +611,9 @@ mod test {
         vec_nlattr_desired.write_u16::<NativeEndian>(2).unwrap();
         vec_nlattr_desired.write_all(&[0, 1, 2, 3]).unwrap();
 
-        vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
+        vec_nlattr_desired.write_u16::<NativeEndian>(5).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(3).unwrap();
+        vec_nlattr_desired.write_all(&[0, 0, 0, 0]).unwrap();
 
         vec_nlattr_desired.write_u16::<NativeEndian>(6).unwrap();
         vec_nlattr_desired.write_u16::<NativeEndian>(4).unwrap();
@@ -647,7 +647,7 @@ mod test {
             )
             .unwrap();
         nlattr
-            .add_nested_attribute(&Nlattr::new(None, false, false, 3u16, NlEmpty).unwrap())
+            .add_nested_attribute(&Nlattr::new(None, false, false, 3u16, 0u8).unwrap())
             .unwrap();
         nlattr
             .add_nested_attribute(&Nlattr::new(None, false, false, 4u16, 15u16).unwrap())

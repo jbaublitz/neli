@@ -766,13 +766,11 @@ pub mod tokio {
 
     #[cfg(test)]
     mod test {
+        use super::*;
+
         use ::tokio::{runtime::Runtime, stream::StreamExt};
 
-        use super::*;
-        use crate::{
-            nl::NlEmpty,
-            socket::{self, tokio::NlSocket},
-        };
+        use crate::socket::{self, tokio::NlSocket};
 
         #[test]
         fn test_socket_send() {
@@ -781,7 +779,7 @@ pub mod tokio {
             let runtime = Runtime::new().unwrap();
             runtime
                 .block_on(async move {
-                    let mut async_s = NlSocket::<NlTypeWrapper, NlEmpty>::new(s).unwrap();
+                    let mut async_s = NlSocket::<NlTypeWrapper, u8>::new(s).unwrap();
                     ::tokio::task::spawn(async move {
                         let _ = async_s.try_next();
                     })

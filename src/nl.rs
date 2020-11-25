@@ -73,6 +73,8 @@ pub enum NlPayload<P> {
     Err(Nlmsgerr<NlTypeWrapper>),
     /// Represents the requested payload.
     Payload(P),
+    /// Indicates an empty payload.
+    Empty,
 }
 
 impl<P> NlPayload<P> {
@@ -96,6 +98,7 @@ where
             NlPayload::Ack(ref e) => e.serialize(mem),
             NlPayload::Err(ref e) => e.serialize(mem),
             NlPayload::Payload(ref p) => p.serialize(mem),
+            NlPayload::Empty => Ok(()),
         }
     }
 
@@ -111,6 +114,7 @@ where
             NlPayload::Ack(ref e) => e.size(),
             NlPayload::Err(ref e) => e.size(),
             NlPayload::Payload(ref p) => p.size(),
+            NlPayload::Empty => 0,
         }
     }
 
@@ -213,6 +217,8 @@ where
             } else {
                 (NlPayload::Err(nl_payload), pos)
             }
+        } else if deserialize_empty(&mem[pos..]).is_ok() {
+            (NlPayload::Empty, mem.len())
         } else {
             let (nl_payload, pos) = drive_deserialize!(
                 P,
@@ -249,38 +255,13 @@ where
     }
 }
 
-/// Signifies an empty payload for a netlink packet.
-#[derive(Debug, PartialEq)]
-pub struct NlEmpty;
-
-impl Nl for NlEmpty {
-    #[inline]
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        for byte in mem {
-            *byte = 0;
+fn deserialize_empty(mem: DeBuffer) -> Result<(), DeError> {
+    for byte in mem {
+        if *byte != 0 {
+            return Err(DeError::new("Expected an empty buffer or a zeroed buffer"));
         }
-        Ok(())
     }
-
-    #[inline]
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        for byte in mem {
-            if *byte != 0 {
-                return Err(DeError::new("Expected an empty buffer or a zeroed buffer"));
-            }
-        }
-        Ok(NlEmpty)
-    }
-
-    #[inline]
-    fn size(&self) -> usize {
-        0
-    }
-
-    #[inline]
-    fn type_size() -> Option<usize> {
-        None
-    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -298,13 +279,13 @@ mod test {
 
     #[test]
     fn test_nlmsghdr_serialize() {
-        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::new(
+        let nl = Nlmsghdr::<Nlmsg, u8>::new(
             None,
             Nlmsg::Noop,
             NlmFFlags::empty(),
             None,
             None,
-            NlPayload::Payload(NlEmpty),
+            NlPayload::Empty,
         );
         let mem = serialize(&nl, true).unwrap();
         let mut s = [0u8; 16];
@@ -325,15 +306,15 @@ mod test {
             c.write_u16::<NativeEndian>(1).unwrap();
             c.write_u16::<NativeEndian>(NlmF::Ack.into()).unwrap();
         }
-        let nl = Nlmsghdr::<Nlmsg, NlEmpty>::deserialize(&s as &[u8]).unwrap();
+        let nl = Nlmsghdr::<Nlmsg, u8>::deserialize(&s as &[u8]).unwrap();
         assert_eq!(
-            Nlmsghdr::<Nlmsg, NlEmpty>::new(
+            Nlmsghdr::<Nlmsg, u8>::new(
                 None,
                 Nlmsg::Noop,
                 NlmFFlags::new(&[NlmF::Ack]),
                 None,
                 None,
-                NlPayload::Payload(NlEmpty),
+                NlPayload::Empty,
             ),
             nl
         );
