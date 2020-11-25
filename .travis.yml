@@ -32,7 +32,6 @@ jobs:
         - cargo test --features=logging
     - stage: test
       before_install:
-        - docker pull jbaublitz/ubuntu-musl
         - docker build -t rust-musl-ci test/rust-musl-ci
       script:
         - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd /neli &&
@@ -46,7 +45,6 @@ jobs:
           /root/.cargo/bin/cargo test --features=logging"
     - stage: test
       before_install:
-        - docker pull jbaublitz/ubuntu-musl
         - docker build -t rust-musl-ci test/rust-musl-ci
       script:
         - docker run -v $PWD:/neli -ti rust-musl-ci /bin/bash -c "cd /neli &&
