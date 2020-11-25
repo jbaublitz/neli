@@ -1,12 +1,17 @@
-//! This module contains the top level netlink header code and attribute parsing. Every netlink
-//! message will be encapsulated in a top level `Nlmsghdr`.
+//! This module contains the top level netlink header code. Every
+//! netlink message will be encapsulated in a top level `Nlmsghdr`.
 //!
-//! `Nlmsghdr` is the structure representing a header that all netlink protocols require to be
-//! passed to the correct destination.
+//! [`Nlmsghdr`][crate::nl::Nlmsghdr] is the structure representing a
+//! header that all netlink protocols require to be passed to the
+//! correct destination.
 //!
 //! # Design decisions
 //!
-//! Payloads for `Nlmsghdr` can be any type that implements the `Nl` trait.
+//! Payloads for `Nlmsghdr` can be any type that implements the `Nl`
+//! trait.
+//!
+//! The payload is wrapped in an enum to facilitate better
+//! application-level error handling.
 
 use crate::{
     consts::{
@@ -58,8 +63,8 @@ where
 }
 
 /// An enum representing either the desired payload as requested
-/// by the payload type parameter or an ACK received at the end
-/// of a message or stream of messages.
+/// by the payload type parameter, an ACK received at the end
+/// of a message or stream of messages, or an error.
 #[derive(Debug, PartialEq)]
 pub enum NlPayload<P> {
     /// Represents an ACK returned by netlink.
@@ -71,8 +76,9 @@ pub enum NlPayload<P> {
 }
 
 impl<P> NlPayload<P> {
-    /// Get the payload of the netlink packet and return `None`
-    /// if the contained data in the payload is actually an ACK.
+    /// Get the payload of the netlink packet and return [`None`]
+    /// if the contained data in the payload is actually an ACK
+    /// or an error.
     pub fn get_payload(&self) -> Option<&P> {
         match self {
             NlPayload::Payload(ref p) => Some(p),
@@ -124,7 +130,8 @@ pub struct Nlmsghdr<T, P> {
     pub nl_flags: NlmFFlags,
     /// Sequence number for netlink protocol
     pub nl_seq: u32,
-    /// ID of the netlink destination for requests and source for responses
+    /// ID of the netlink destination for requests and source for
+    /// responses.
     pub nl_pid: u32,
     /// Payload of netlink message
     pub nl_payload: NlPayload<P>,
@@ -135,7 +142,7 @@ where
     T: NlType,
     P: Nl,
 {
-    /// Create a new top level netlink packet with a payload
+    /// Create a new top level netlink packet with a payload.
     pub fn new(
         nl_len: Option<u32>,
         nl_type: T,
@@ -160,7 +167,7 @@ where
     pub fn get_payload(&self) -> Result<&P, NlError> {
         match self.nl_payload {
             NlPayload::Payload(ref p) => Ok(p),
-            _ => Err(NlError::new("This packet does not have a payload.")),
+            _ => Err(NlError::new("This packet does not have a payload")),
         }
     }
 
