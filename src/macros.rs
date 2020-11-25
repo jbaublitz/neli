@@ -149,44 +149,85 @@ macro_rules! deserialize_type_size {
 }
 
 /// This macro can be used to deserialize a single field in a struct.
+///
+/// # Examples
+/// ```
+/// use neli::err::DeError;
+///
+/// fn drive_deserialize() -> Result<(), DeError> {
+///     let vec = vec![1];
+///     assert_eq!(
+///         neli::drive_deserialize!(u8, vec.as_slice(), 0),
+///         (1u8, 1)
+///     );
+///     Ok(())
+/// }
+///
+/// drive_deserialize().unwrap();
+/// ```
 #[macro_export]
 macro_rules! drive_deserialize {
-    ($de_type:ty, $buffer:ident, $pos:expr) => {{
-        let size = deserialize_type_size!($de_type => type_size);
+    ($de_type:ty, $buffer:expr, $pos:expr) => {{
+        let size = $crate::deserialize_type_size!($de_type => type_size);
         if $pos + size > $buffer.len() {
-            return Err(DeError::UnexpectedEOB);
+            return Err($crate::err::DeError::UnexpectedEOB);
         }
         let subbuffer = &$buffer[$pos..$pos + size];
-        let t = <$de_type>::deserialize(subbuffer)?;
+        let t = <$de_type as $crate::Nl>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
-    ($de_type:ty, $buffer:ident, $pos:expr, $size:expr) => {{
+    ($de_type:ty, $buffer:expr, $pos:expr, $size:expr) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
-            return Err(DeError::UnexpectedEOB);
+            return Err($crate::err::DeError::UnexpectedEOB);
         }
         let subbuffer = &$buffer[$pos..$pos + size];
-        let t = <$de_type>::deserialize(&subbuffer)?;
+        let t = <$de_type as $crate::Nl>::deserialize(&subbuffer)?;
         (t, $pos + size)
     }};
-    (STRIP $buffer:ident, $pos:ident, $size:expr) => {{
+    (STRIP $buffer:expr, $pos:expr, $size:expr) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
-            return Err(DeError::UnexpectedEOB);
+            return Err($crate::err::DeError::UnexpectedEOB);
         }
         $pos + size
     }};
-    (END $buffer:ident, $pos:ident) => {{
+    (END $buffer:expr, $pos:expr) => {{
         if $buffer.len() != $pos {
-            return Err(DeError::BufferNotParsed);
+            return Err($crate::err::DeError::BufferNotParsed);
         }
     }};
 }
 
 /// This macro can be used to declaratively define deserialization for a struct.
+///
+/// # Examples
+/// ```
+/// use neli::err::DeError;
+///
+/// fn deserialize() -> Result<(), DeError> {
+///     struct MyStruct {
+///         field_one: u16,
+///         field_two: u32,
+///         field_three: u16,
+///     }
+///
+///     let mut vec = vec![0; 8];
+///     neli::deserialize! {
+///         vec.as_mut_slice();
+///         MyStruct {
+///             field_one: u16,
+///             field_two: u32,
+///             field_three: u16
+///         }
+///     };
+///
+///     Ok(())
+/// }
+/// ```
 #[macro_export]
 macro_rules! deserialize {
-    (STRIP $self_de_type:ident; $buffer:ident; $struct_type:path {
+    (STRIP $self_de_type:ident; $buffer:expr; $struct_type:path {
         $($de_name:ident: $de_type:ty $(=> $size:expr)?),*
     } => $struct_size:expr) => {{
         let pos = 0;
@@ -195,22 +236,22 @@ macro_rules! deserialize {
                 $de_type, $buffer, pos $(, $size)?
             );
         )*
-        let pos = drive_deserialize!(STRIP $buffer, pos, $struct_size);
-        drive_deserialize!(END $buffer, pos);
+        let pos = $crate::drive_deserialize!(STRIP $buffer, pos, $struct_size);
+        $crate::drive_deserialize!(END $buffer, pos);
         $struct_type {
             $( $de_name ),*
         }
     }};
-    ($buffer:ident; $struct_type:path {
+    ($buffer:expr; $struct_type:path {
         $($de_name:ident: $de_type:ty $(=> $size:expr)?),*
     }) => {{
         let pos = 0;
         $(
-            let ($de_name, pos) = drive_deserialize!(
+            let ($de_name, pos) = $crate::drive_deserialize!(
                 $de_type, $buffer, pos $(, $size)?
             );
         )*
-        drive_deserialize!(END $buffer, pos);
+        $crate::drive_deserialize!(END $buffer, pos);
         $struct_type {
             $( $de_name ),*
         }
