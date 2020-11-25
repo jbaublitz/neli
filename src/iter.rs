@@ -10,30 +10,37 @@ use crate::{
     Nl,
 };
 
-/// Define iteration behavior when traversing a stream of netlink messages.
+/// Define iteration behavior when traversing a stream of netlink
+/// messages.
 #[derive(PartialEq)]
 pub enum IterationBehavior {
-    /// End iteration of multi-part messages when a DONE message is reached.
+    /// End iteration of multi-part messages when a DONE message is
+    /// reached.
     EndMultiOnDone,
     /// End iteration of multi-part messages when a DONE message
     /// is reached and check for an ACK.
     EndMultiOnDoneAndAck,
-    /// Iterate indefinitely. Mostly useful for multicast subscriptions.
+    /// Iterate indefinitely. Mostly useful for multicast
+    /// subscriptions.
     IterIndefinitely,
 }
 
-/// Iterator over messages in an `NlSocket` type.
+/// Iterator over messages in an
+/// [`NlSocketHandle`][crate::socket::NlSocketHandle] type.
 ///
-/// This iterator has two options:
+/// This iterator has two high-level options:
 /// * Iterate indefinitely over messages. This is most
 /// useful in the case of subscribing to messages in a
 /// multicast group.
-/// * Iterate until a message is returned with `Nlmsg::Done`
-/// is set. This is most useful in the case of request-response
-/// workflows where the iterator will parse and iterate through
-/// all of the messages with `NlmF::Multi` set until a message
-/// with `Nlmsg::Done` is received at which point `None` will
-/// be returned indicating the end of the response.
+/// * Iterate until a message is returned with
+/// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is set.
+/// This is most useful in the case of request-response workflows
+/// where the iterator will parse and iterate through all of the
+/// messages with [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set until
+/// a message with [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is
+/// received at which point [`None`] will be returned indicating the
+/// end of the response. [`IterationBehavior::EndMultiOnDoneAndAck`]
+/// adds optional ACK checking.
 pub struct NlMessageIter<'a, T, P> {
     sock_ref: &'a mut NlSocketHandle,
     needs_ack: Option<bool>,
@@ -47,18 +54,27 @@ where
     T: Nl + NlType + Debug,
     P: Nl + Debug,
 {
-    /// Construct a new iterator that yields `Nlmsghdr` structs
-    /// from the provided buffer. `iterate_indefinitely` set to
-    /// `true` will treat messages as a never-ending stream.
-    /// `false` will cause `NlMessageIter` to respect the
-    /// netlink identifiers [`NlmF::Multi`] and [`Nlmsg::Done`].
+    /// Construct a new iterator that yields
+    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs from the provided
+    /// buffer. `behavior` set to
+    /// [`IterationBehavior::IterIndefinitely`] will treat
+    /// messages as a never-ending stream.
+    /// [`IterationBehavior::EndMultiOnDone`] will cause
+    /// [`NlMessageIter`] to respect the netlink identifiers
+    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] and
+    /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done].
+    /// [`IterationBehavior::EndMultiOnDoneAndAck`] will additionally
+    /// check for the presence of an ACK if one was requested.
     ///
-    /// If `iterate_indefinitely` is `false`, this means that
-    /// `NlMessageIter` will iterate through either exactly one
-    /// message if [`NlmF::Multi`] is not set, or through all
-    /// consecutive messages with [`NlmF::Multi`] set until
-    /// a terminating message with [`Nlmsg::Done`] is reached
-    /// at which point `None` will be returned by the iterator.
+    /// If `behavior` is [`IterationBehavior::EndMultiOnDone`],
+    /// this means that [`NlMessageIter`] will iterate through
+    /// either exactly one message if
+    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] is not
+    /// set, or through all consecutive messages with
+    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set until
+    /// a terminating message with
+    /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is reached
+    /// at which point [`None`] will be returned by the iterator.
     pub fn new(sock_ref: &'a mut NlSocketHandle, behavior: IterationBehavior) -> Self {
         NlMessageIter {
             sock_ref,

@@ -1,23 +1,24 @@
-//! This module contains generic netlink parsing data structures. This is all handled by
-//! the `Genlmsghdr` header struct which contains all of the information needed for the generic
-//! netlink layer.
+//! This module contains generic netlink parsing data structures.
+//! This is all handled by the [`Genlmsghdr`][crate::genl::Genlmsghdr]
+//! header struct which contains all of the information needed for
+//! the generic netlink layer.
 //!
 //! # Design decisions
 //!
-//! The attributes that generic netlink uses are located in `nlattr.rs`. These attributes require
-//! special attention when parsing so they are separated into their own module.
-//!
-//! The generic netlink `attrs` field has been changed to a `Vec` of `Nlattr`s instead of the
-//! original `Vec<u8>` to allow simpler
-//! parsing at the top level when one `Nlattr` structure is not nested within another, a use case
-//! that is instead handled in `nlattr.rs`.
+//! The generic netlink `attrs` field has been changed to a
+//! [`GenlBuffer`][crate::types::GenlBuffer] of
+//! [`Nlattr`][crate::genl::Nlattr]s instead of the
+//! original [`Vec<u8>`][Vec] to allow simpler parsing at the top
+//! level when one [`Nlattr`][crate::genl::Nlattr] structure is not
+//! nested within another, a use case that is instead handled using
+//! [`AttrHandle`][crate::attr::AttrHandle].
 
 use crate::{
     alignto,
-    attr::Attribute,
+    attr::{AttrHandle, AttrHandleMut, Attribute},
     consts::genl::{Cmd, NlAttrType},
     err::NlError,
-    parse::{packet_length_u16, AttrHandle, AttrHandleMut},
+    parse::packet_length_u16,
     types::{Buffer, DeBuffer, GenlBuffer, SerBuffer},
     utils::serialize,
     DeError, Nl, SerError,
@@ -272,14 +273,14 @@ where
         let ser_buffer = serialize(payload, false)?;
         self.nla_payload = Buffer::from(ser_buffer);
 
-        // Update `Nlattr` with new length
+        // Update Nlattr with new length
         self.nla_len = (self.nla_len.size() + self.nla_type.size() + payload.size()) as u16;
 
         Ok(())
     }
 }
 
-/// Generate the bitflag mask for `nla_type`.
+// Generate the bitflag mask for field nla_type in Nlattr.
 fn to_nla_type_bit_flags<T>(nla_nested: bool, nla_network_order: bool, nla_type: T) -> u16
 where
     T: NlAttrType,
@@ -290,7 +291,7 @@ where
         | nla_type_u16
 }
 
-/// Get the bitflags from `nla_type`.
+// Get the bitflags from nla_type in Nlattr.
 fn from_nla_type_bit_flags<T>(nla_type: u16) -> (bool, bool, T)
 where
     T: NlAttrType,

@@ -10,10 +10,10 @@
 use std::mem;
 
 use crate::{
-    attr::Attribute,
+    attr::{AttrHandle, AttrHandleMut, Attribute},
     consts::{alignto, rtnl::*},
     err::{DeError, NlError, SerError},
-    parse::{packet_length_u16, AttrHandle, AttrHandleMut},
+    parse::packet_length_u16,
     types::{Buffer, DeBuffer, RtBuffer, SerBuffer},
     utils::serialize,
     Nl,

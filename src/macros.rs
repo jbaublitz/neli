@@ -1,19 +1,35 @@
 /// This macro can be used to serialize a single field in a struct.
+///
+/// # Examples
+///
+/// ```
+/// use neli::{err::SerError, Nl};
+///
+/// fn drive_serialize() -> Result<(), SerError> {
+///     let int = 6u16;
+///     
+///     let mut vec = vec![0; int.size()];
+///     let pos = neli::drive_serialize!(&int, vec.as_mut_slice(), 0);
+///     neli::drive_serialize!(END vec.as_mut_slice(), pos);
+///     Ok(())
+/// }
+///
+/// ```
 #[macro_export]
 macro_rules! drive_serialize {
-    ($to_ser:expr, $buffer:ident, $pos:expr) => {{
-        let size = $to_ser.size();
+    ($to_ser:expr, $buffer:expr, $pos:expr) => {{
+        let size = $crate::Nl::size($to_ser);
         if $pos + size > $buffer.len() {
-            return Err($crate::SerError::UnexpectedEOB);
+            return Err($crate::err::SerError::UnexpectedEOB);
         }
         let subbuffer = &mut $buffer[$pos..$pos + size];
-        match $to_ser.serialize(subbuffer) {
+        match $crate::Nl::serialize($to_ser, subbuffer) {
             Ok(()) => $pos + size,
             Err(e) => return Err(e),
         }
     }};
-    ($to_ser:expr, $buffer:ident, $pos:expr, $size:ident) => {{
-        let size = $to_ser.$size();
+    ($to_ser:expr, $buffer:expr, $pos:expr, $size:ident) => {{
+        let size = $crate::Nl::$size($to_ser);
         if $pos + size > $buffer.len() {
             return Err($crate::err::SerError::UnexpectedEOB);
         }
@@ -23,8 +39,8 @@ macro_rules! drive_serialize {
             Err(e) => return Err(e),
         }
     }};
-    (PAD $self:expr, $buffer:ident, $pos:ident) => {{
-        let size = $self.asize() - $self.size();
+    (PAD $self:expr, $buffer:expr, $pos:expr) => {{
+        let size = $crate::Nl::asize($self) - $crate::Nl::size($self);
         if $pos + size > $buffer.len() {
             return Err($crate::err::SerError::UnexpectedEOB);
         }
@@ -33,39 +49,80 @@ macro_rules! drive_serialize {
             Err(e) => return Err(e),
         }
     }};
-    (END $buffer:ident, $pos:ident) => {{
+    (END $buffer:expr, $pos:expr) => {{
         if $buffer.len() != $pos {
-            return Err(SerError::BufferNotFilled);
+            return Err($crate::err::SerError::BufferNotFilled);
         }
     }};
 }
 
 /// This macro can be used to declaratively define serialization for a struct.
+///
+/// # Examples
+/// ```
+/// use neli::err::SerError;
+///
+/// struct MyStruct {
+///     field_one: u16,
+///     field_two: String,
+///     field_three: Vec<u8>,
+/// }
+///
+/// fn serialize_my_struct() -> Result<(), SerError> {
+///     let my_struct = MyStruct {
+///         field_one: 6,
+///         field_two: "Hello!".to_string(),
+///         field_three: vec![5; 5],
+///     };
+///     let mut vec = vec![0; 2048];
+///     neli::serialize! {
+///         vec.as_mut_slice();
+///         my_struct.field_one;
+///         my_struct.field_two;
+///         my_struct.field_three
+///     }
+///     
+///     Ok(())
+/// }
+///
+/// ```
 #[macro_export]
 macro_rules! serialize {
-    (PAD $self:ident; $buffer:ident; $($to_ser:expr $(, $size:ident)?);*) => {{
+    (PAD $self:ident; $buffer:expr; $($to_ser:expr $(, $size:ident)?);*) => {{
         let pos = 0;
         $(
-            let pos = drive_serialize!($to_ser, $buffer, pos $(, $size)?);
+            let pos = $crate::drive_serialize!(&$to_ser, $buffer, pos $(, $size)?);
         )*
-        let pos = drive_serialize!(PAD $self, $buffer, pos);
-        drive_serialize!(END $buffer, pos)
+        let pos = $crate::drive_serialize!(PAD $self, $buffer, pos);
+        $crate::drive_serialize!(END $buffer, pos)
     }};
-    ($buffer:ident; $($to_ser:expr $(, $size:ident)?);*) => {{
+    ($buffer:expr; $($to_ser:expr $(, $size:ident)?);*) => {{
         let pos = 0;
         $(
-            let pos = drive_serialize!($to_ser, $buffer, pos $(, $size)?);
+            let pos = $crate::drive_serialize!(&$to_ser, $buffer, pos $(, $size)?);
         )*
-        drive_serialize!(END $buffer, pos)
+        $crate::drive_serialize!(END $buffer, pos)
     }};
 }
 
-/// This macro calculates size from `type_size` methods and returns an error
-/// if `type_size` evaluates to `None`.
+/// This macro calculates size from `type_size` methods and returns
+/// an error if `type_size` evaluates to [`None`].
+///
+/// # Examples
+/// ```
+/// use neli::err::DeError;
+///
+/// fn check_type_size() -> Result<(), DeError> {
+///     assert_eq!(neli::deserialize_type_size!(u16 => type_size), 2);
+///     Ok(())
+/// }
+///
+/// check_type_size().unwrap()
+/// ```
 #[macro_export]
 macro_rules! deserialize_type_size {
     ($de_type:ty => $de_size:ident) => {
-        match <$de_type>::$de_size() {
+        match <$de_type as $crate::Nl>::$de_size() {
             Some(s) => s,
             None => {
                 return Err($crate::err::DeError::Msg(format!(
@@ -76,7 +133,10 @@ macro_rules! deserialize_type_size {
         }
     };
     ($de_type:ty) => {
-        match (<$de_type>::type_asize(), <$de_type>::type_size()) {
+        match (
+            <$de_type as $crate::Nl>::type_asize(),
+            <$de_type as $crate::Nl>::type_size(),
+        ) {
             (Some(a), Some(s)) => a - s,
             (_, _) => {
                 return Err($crate::err::DeError::Msg(format!(

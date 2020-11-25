@@ -160,7 +160,6 @@ pub mod consts;
 pub mod err;
 /// Genetlink (generic netlink) header and attribute helpers
 pub mod genl;
-/// Utilities for iterating through netlink responses
 pub mod iter;
 mod neli_constants;
 /// Top-level netlink header

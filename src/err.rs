@@ -1,10 +1,13 @@
 //! This is the module that contains the error types used in `neli`
 //!
 //! There are four main types:
-//! * `Nlmsgerr` - an error returned from netlink at the protocol level
-//! * `NlError` - typically socket errors
-//! * `DeError` - error while deserializing
-//! * `SerError` - error while serializing
+//! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error returned from netlink as
+//! a packet.
+//! * [`NlError`][crate::err::NlError] - a general netlink error wrapping application
+//! errors, serialization and deserialization errors, and other
+//! errors that occur in `neli`.
+//! * [`DeError`] - error while deserializing
+//! * [`SerError`] - error while serializing
 //!
 //! # Design decisions
 //! All errors implement `std::error::Error` in an attempt to allow
@@ -23,7 +26,8 @@ use crate::{
     Nl,
 };
 
-/// An nlmsghdr struct with no payload returned as part of errors.
+/// An [`Nlmsghdr`][crate::nl::Nlmsghdr] header with no payload
+/// returned as part of errors.
 #[derive(Debug, PartialEq)]
 pub struct NlmsghdrErr<T> {
     /// Length of the netlink message
@@ -146,24 +150,27 @@ macro_rules! err_from {
     };
 }
 
-/// Netlink protocol error
+/// General netlink error
 #[derive(Debug)]
 pub enum NlError {
-    /// Type indicating a message from a converted error
+    /// Variant for [`String`]-based messages.
     Msg(String),
-    /// An error packet sent back by netlink
+    /// An error packet sent back by netlink.
     Nlmsgerr(Nlmsgerr<NlTypeWrapper>),
     /// A serialization error.
     Ser(SerError),
     /// A deserialization error.
     De(DeError),
-    /// A wrapped error from lower in the call stack
+    /// A wrapped error from lower in the call stack.
     Wrapped(WrappedError),
-    /// No ack was received when `NlmF::Ack` was specified in the request
+    /// No ack was received when
+    /// [`NlmF::Ack`][crate::consts::nl::NlmF] was specified in the
+    /// request.
     NoAck,
-    /// The sequence number for the response did not match the request
+    /// The sequence number for the response did not match the
+    /// request.
     BadSeq,
-    /// Incorrect PID socket identifier in received message
+    /// Incorrect PID socket identifier in received message.
     BadPid,
 }
 
@@ -180,7 +187,8 @@ err_from!(
 );
 
 impl NlError {
-    /// Create new error from a data type implementing `Display`
+    /// Create new error from a data type implementing
+    /// [`Display`][std::fmt::Display]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
@@ -189,7 +197,6 @@ impl NlError {
     }
 }
 
-/// Netlink protocol error
 impl Display for NlError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -227,7 +234,7 @@ pub enum SerError {
 }
 
 impl SerError {
-    /// Create a new error with the given message as description
+    /// Create a new error with the given message as description.
     pub fn new<D>(msg: D) -> Self
     where
         D: Display,
@@ -259,22 +266,26 @@ impl Error for SerError {}
 /// Deserialization error
 #[derive(Debug)]
 pub enum DeError {
-    /// Abitrary error message
+    /// Abitrary error message.
     Msg(String),
-    /// A wrapped error from lower in the call stack
+    /// A wrapped error from lower in the call stack.
     Wrapped(WrappedError),
-    /// The end of the buffer was reached before deserialization finished
+    /// The end of the buffer was reached before deserialization
+    /// finished.
     UnexpectedEOB,
-    /// Deserialization did not fill the buffer
+    /// Deserialization did not fill the buffer.
     BufferNotParsed,
-    /// A null byte was found before the end of the serialized `String`
+    /// A null byte was found before the end of the serialized
+    /// [`String`].
     NullError,
-    /// A null byte was not found at the end of the serialized `String`
+    /// A null byte was not found at the end of the serialized
+    /// [`String`].
     NoNullError,
 }
 
 impl DeError {
-    /// Create new error from `&str`
+    /// Create new error from a type implementing
+    /// [`Display`][std::fmt::Display]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
@@ -306,13 +317,13 @@ impl Error for DeError {}
 /// error.
 #[derive(Debug)]
 pub enum WrappedError {
-    /// Wrapper for `std::io::Error`
+    /// Wrapper for [`std::io::Error`]
     IOError(io::Error),
-    /// Wrapper for `std::str::Utf8Error`
+    /// Wrapper for [`std::str::Utf8Error`]
     StrUtf8Error(str::Utf8Error),
-    /// Wrapper for `std::string::FromUtf8Error`
+    /// Wrapper for [`std::string::FromUtf8Error`]
     StringUtf8Error(string::FromUtf8Error),
-    /// Wrapper for `std::ffi::FromBytesWithNulError`
+    /// Wrapper for [`std::ffi::FromBytesWithNulError`]
     FFINullError(std::ffi::FromBytesWithNulError),
 }
 
