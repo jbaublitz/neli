@@ -13,6 +13,9 @@ include = [
     "LICENSE",
 ]
 
+[package.metadata.docs.rs]
+all-features = true
+
 [lib]
 name = "neli"
 path = "src/lib.rs"
