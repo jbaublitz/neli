@@ -45,11 +45,11 @@ use libc::{self, c_int, c_void};
 use crate::log;
 use crate::{
     consts::{genl::*, nl::*, socket::*},
-    err::NlError,
+    err::{DeError, NlError},
     genl::{Genlmsghdr, Nlattr},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr},
-    parse::parse_next,
+    parse::packet_length_u32,
     types::{GenlBuffer, NlBuffer, SockBuffer},
     utils::U32Bitmask,
     Nl,
@@ -277,7 +277,6 @@ pub struct NlSocketHandle {
     position: usize,
     end: usize,
     needs_ack: bool,
-    expects_ack: bool,
 }
 
 impl NlSocketHandle {
@@ -290,7 +289,6 @@ impl NlSocketHandle {
             position: 0,
             end: 0,
             needs_ack: false,
-            expects_ack: false,
         })
     }
 
@@ -306,7 +304,6 @@ impl NlSocketHandle {
             position: 0,
             end: 0,
             needs_ack: false,
-            expects_ack: false,
         })
     }
 
@@ -527,19 +524,66 @@ impl NlSocketHandle {
             self.end = mem_read;
         }
 
-        let (position, packet) = parse_next(
-            &self
-                .buffer
-                .get_ref()
-                .expect("Caller borrows mutable self")
-                .as_ref()[..self.end],
-            self.position,
-            self.expects_ack,
-        )?;
-        self.position = position;
+        let (packet_res, next_packet_len) = {
+            let buffer = self.buffer.get_ref().expect("Caller borrows mutable self");
+            let end = buffer.as_ref().len();
+            // Get the next packet length at the current position of the
+            // buffer for the next read operation.
+            if self.position == end {
+                return Ok(None);
+            }
+            let next_packet_len = packet_length_u32(buffer.as_ref(), self.position);
+            // If the packet extends past the end of the number of bytes
+            // read into the buffer, return an error; something
+            // has gone wrong.
+            if self.position + next_packet_len > end {
+                return Err(NlError::new(DeError::UnexpectedEOB));
+            }
+
+            // Deserialize the next Nlmsghdr struct.
+            let deserialized_packet_result = Nlmsghdr::<T, P>::deserialize(
+                &buffer.as_ref()[self.position..self.position + next_packet_len],
+            );
+
+            (deserialized_packet_result, next_packet_len)
+        };
+
+        let packet = packet_res
+            .map(|packet| {
+                // If successful, forward the position of the buffer
+                // for the next read.
+                self.position += next_packet_len;
+
+                packet
+            })
+            .map_err(NlError::new)?;
 
         #[cfg(feature = "logging")]
         log!("Message received: {:#?}", packet);
+
+        if let NlPayload::Err(e) = packet.nl_payload {
+            return Err(NlError::Nlmsgerr(e));
+        }
+
+        if self.needs_ack
+            && (!packet.nl_flags.contains(&NlmF::Multi)
+                || packet.nl_type.into() == Nlmsg::Done.into())
+        {
+            let is_blocking = self.is_blocking()?;
+            self.nonblock()?;
+            self.needs_ack = false;
+            let potential_ack = self.recv::<T, P>()?;
+            if let Some(NlPayload::Payload(_))
+            | Some(NlPayload::Empty)
+            | Some(NlPayload::Err(_))
+            | None = potential_ack.as_ref().map(|p| &p.nl_payload)
+            {
+                return Err(NlError::NoAck);
+            }
+            if is_blocking {
+                self.block()?;
+            }
+        }
 
         Ok(Some(packet))
     }
@@ -587,10 +631,10 @@ impl NlSocketHandle {
     where
         P: Nl + Debug,
     {
-        let behavior = match (iter_indefinitely, self.needs_ack) {
-            (true, _) => IterationBehavior::IterIndefinitely,
-            (false, true) => IterationBehavior::EndMultiOnDoneAndAck,
-            (_, _) => IterationBehavior::EndMultiOnDone,
+        let behavior = if iter_indefinitely {
+            IterationBehavior::IterIndefinitely
+        } else {
+            IterationBehavior::EndMultiOnDone
         };
         NlMessageIter::new(self, behavior)
     }
@@ -616,7 +660,6 @@ impl FromRawFd for NlSocketHandle {
             end: 0,
             position: 0,
             needs_ack: false,
-            expects_ack: false,
         }
     }
 }
@@ -840,7 +883,6 @@ mod test {
         let mut s = NlSocketHandle {
             socket: unsafe { NlSocket::from_raw_fd(-1) },
             buffer: SockBuffer::from(bytes.as_ref()),
-            expects_ack: false,
             needs_ack: false,
             position: 0,
             end: bytes_len,

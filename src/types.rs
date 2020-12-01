@@ -259,7 +259,7 @@ impl<T, P> GenlBuffer<T, P> {
 
     /// Return an iterator over mutable references to the elements
     /// in the buffer.
-    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, Nlattr<T, P>> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, Nlattr<T, P>> {
         self.0.iter_mut()
     }
 

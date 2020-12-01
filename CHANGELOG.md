@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+### Bug fixes
+* Fixed bug in ACK handling.
+  * This change makes `NlSocketHandle` exclusively responsible
+    for handling ACKs.
+
 ## 0.5.0
 ### Breaking changes
 * Change from `buffering` structs for serialization to regular slices
