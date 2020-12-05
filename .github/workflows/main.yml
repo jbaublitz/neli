@@ -13,7 +13,7 @@ jobs:
   code-quality-checks:
     strategy:
       matrix:
-		toolchain: [nightly, stable]
+        toolchain: [nightly, stable]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -27,8 +27,8 @@ jobs:
   build-and-test-checks:
     strategy:
       matrix:
-		task:
-		  - cargo fmt -- --check
+        task:
+          - cargo fmt -- --check
           - cargo clippy --all-targets -- -D warnings
           - cargo build
           - cargo build --features=async
@@ -38,7 +38,7 @@ jobs:
           - cargo test --features=async
           - cargo test --features=logging
           - cargo test --all-features
-		toolchain:
+        toolchain:
           - nightly
           - stable
     runs-on: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
   musl-checks:
     strategy:
       matrix:
-		task:
+        task:
           - cargo build
           - cargo build --features=async
           - cargo build --features=logging
@@ -63,11 +63,11 @@ jobs:
           - cargo test --features=async
           - cargo test --features=logging
           - cargo test --all-features
-		toolchain:
+        toolchain:
           - nightly
           - stable
     runs-on: ubuntu-latest
-	container: alpine
+    container: alpine
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
