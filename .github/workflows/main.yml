@@ -56,12 +56,12 @@ jobs:
     container: alpine
     steps:
       - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: apk add --no-cache gcc libc6-compat musl-dev
       - uses: actions-rs/toolchain@v1
         with:
           components: cargo
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - name: Install dependencies
-        run: apk add --no-cache gcc libc6-compat musl-dev
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
