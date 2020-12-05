@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          components: [rustfmt, clippy]
+          components: rustfmt,clippy
           toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
