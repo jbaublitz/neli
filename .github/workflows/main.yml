@@ -1,0 +1,81 @@
+---
+name: neli CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+  workflow_dispatch:
+
+jobs:
+  code-quality-checks:
+    strategy:
+      matrix:
+		toolchain: [nightly, stable]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: [rustfmt, clippy]
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
+        run: ${{ matrix.task }}
+  build-and-test-checks:
+    strategy:
+      matrix:
+		task:
+		  - cargo fmt -- --check
+          - cargo clippy --all-targets -- -D warnings
+          - cargo build
+          - cargo build --features=async
+          - cargo build --features=logging
+          - cargo build --all-features
+          - cargo test
+          - cargo test --features=async
+          - cargo test --features=logging
+          - cargo test --all-features
+		toolchain:
+          - nightly
+          - stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: cargo
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
+        run: ${{ matrix.task }}
+  musl-checks:
+    strategy:
+      matrix:
+		task:
+          - cargo build
+          - cargo build --features=async
+          - cargo build --features=logging
+          - cargo build --all-features
+          - cargo test
+          - cargo test --features=async
+          - cargo test --features=logging
+          - cargo test --all-features
+		toolchain:
+          - nightly
+          - stable
+    runs-on: ubuntu-latest
+	container: alpine
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: cargo
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Install dependencies
+        run: apk add --no-cache gcc libc6-compat musl-dev
+      - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
+        run: ${{ matrix.task }}
