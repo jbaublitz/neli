@@ -9,7 +9,7 @@
 use std::{
     error::Error,
     fmt::{self, Display},
-    ops::{BitOr, BitOrAssign, Deref},
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, Not},
 };
 
 use crate::{err::SerError, Nl};
@@ -60,6 +60,7 @@ impl U32BitFlag {
 }
 
 /// Struct for handling [`u32`] bitmask operations
+#[derive(Copy, Clone)]
 pub struct U32Bitmask(u32);
 
 impl U32Bitmask {
@@ -82,6 +83,14 @@ impl U32Bitmask {
         }
         let set_mask = num_to_set_mask(bit);
         set_mask & self.0 == set_mask
+    }
+}
+
+impl Not for U32BitFlag {
+    type Output = U32BitFlag;
+
+    fn not(self) -> Self::Output {
+        U32BitFlag(!self.0)
     }
 }
 
@@ -109,15 +118,63 @@ impl BitOr<U32Bitmask> for U32BitFlag {
     }
 }
 
+impl BitAnd<U32Bitmask> for U32Bitmask {
+    type Output = U32Bitmask;
+
+    fn bitand(self, rhs: U32Bitmask) -> Self::Output {
+        U32Bitmask::from(self.0 & *rhs)
+    }
+}
+
+impl BitAnd<U32BitFlag> for U32Bitmask {
+    type Output = U32Bitmask;
+
+    fn bitand(self, rhs: U32BitFlag) -> Self::Output {
+        self & rhs.into_bitmask()
+    }
+}
+
+impl BitAnd<U32Bitmask> for U32BitFlag {
+    type Output = U32Bitmask;
+
+    fn bitand(self, rhs: U32Bitmask) -> Self::Output {
+        self.into_bitmask() & rhs
+    }
+}
+
 impl<'a> BitOrAssign<&'a U32BitFlag> for U32Bitmask {
     fn bitor_assign(&mut self, rhs: &U32BitFlag) {
         self.0 |= *U32Bitmask::from(*rhs)
     }
 }
 
+impl BitOrAssign<U32BitFlag> for U32Bitmask {
+    fn bitor_assign(&mut self, rhs: U32BitFlag) {
+        self.0 |= *U32Bitmask::from(rhs)
+    }
+}
+
 impl<'a> BitOrAssign<&'a U32BitFlag> for &'a mut U32Bitmask {
     fn bitor_assign(&mut self, rhs: &U32BitFlag) {
         self.0 |= *U32Bitmask::from(*rhs)
+    }
+}
+
+impl<'a> BitAndAssign<&'a U32BitFlag> for U32Bitmask {
+    fn bitand_assign(&mut self, rhs: &U32BitFlag) {
+        self.0 &= *U32Bitmask::from(*rhs)
+    }
+}
+
+impl BitAndAssign<U32BitFlag> for U32Bitmask {
+    fn bitand_assign(&mut self, rhs: U32BitFlag) {
+        self.0 &= *U32Bitmask::from(rhs)
+    }
+}
+
+impl<'a> BitAndAssign<&'a U32BitFlag> for &'a mut U32Bitmask {
+    fn bitand_assign(&mut self, rhs: &U32BitFlag) {
+        self.0 &= *U32Bitmask::from(*rhs)
     }
 }
 

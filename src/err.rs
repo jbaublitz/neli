@@ -22,6 +22,7 @@ use std::{
 
 use crate::{
     consts::nl::{NlType, NlTypeWrapper, NlmFFlags},
+    nl::Nlmsghdr,
     types::{DeBuffer, SerBuffer},
     Nl,
 };
@@ -358,3 +359,57 @@ wrapped_err_from!(
     StringUtf8Error => std::string::FromUtf8Error,
     FFINullError => std::ffi::FromBytesWithNulError
 );
+
+/// An error used when something incorrect is detected in a stream
+/// of multicast messages. This error contains the error related to
+/// the failure and the packet that caused it.
+pub struct NlStreamError<T, P> {
+    /// The error information related to the failure.
+    pub error: NlError,
+    /// The optional packet that caused the failure.
+    pub packet: Option<Nlmsghdr<T, P>>,
+}
+
+impl<T, P> NlStreamError<T, P> {
+    /// Create a new error with an optional packet that caused the
+    /// error.
+    pub fn new(error: NlError, packet: Option<Nlmsghdr<T, P>>) -> Self {
+        NlStreamError { error, packet }
+    }
+}
+
+impl<T, P> Debug for NlStreamError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "NlStreamError {{ error: {:?}, packet: {:?} }}",
+            self.error, self.packet
+        )
+    }
+}
+
+impl<T, P> Display for NlStreamError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Error: {}", self.error)?;
+        if let Some(ref packet) = self.packet {
+            write!(f, ", packet causing error: {:?}", packet)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<T, P> Error for NlStreamError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+}

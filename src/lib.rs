@@ -163,6 +163,7 @@ pub mod nl;
 mod parse;
 pub mod rtnl;
 pub mod socket;
+pub mod stream;
 pub mod types;
 pub mod utils;
 
