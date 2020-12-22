@@ -44,12 +44,12 @@ where
         while pos < mem.len() {
             let packet_len = packet_length_u32(mem, pos);
             let (nlhdr, pos_tmp) = drive_deserialize!(
-                Nlmsghdr<T, P>, mem, pos, alignto(packet_len)
+                Nlmsghdr<T, P>, mem, pos, alignto(packet_len), NlBuffer, Nlmsghdr
             );
             pos = pos_tmp;
             nlhdrs.push(nlhdr);
         }
-        drive_deserialize!(END mem, pos);
+        drive_deserialize!(END mem, pos, NlBuffer);
         Ok(nlhdrs)
     }
 
@@ -204,14 +204,15 @@ where
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        let (nl_len, pos) = drive_deserialize!(u32, mem, 0);
-        let (nl_type, pos) = drive_deserialize!(T, mem, pos);
-        let (nl_flags, pos) = drive_deserialize!(NlmFFlags, mem, pos);
-        let (nl_seq, pos) = drive_deserialize!(u32, mem, pos);
-        let (nl_pid, pos) = drive_deserialize!(u32, mem, pos);
+        let (nl_len, pos) = drive_deserialize!(u32, mem, 0, Nlmsghdr, nl_len);
+        let (nl_type, pos) = drive_deserialize!(T, mem, pos, Nlmsghdr, nl_type);
+        let (nl_flags, pos) = drive_deserialize!(NlmFFlags, mem, pos, Nlmsghdr, nl_flags);
+        let (nl_seq, pos) = drive_deserialize!(u32, mem, pos, Nlmsghdr, nl_seq);
+        let (nl_pid, pos) = drive_deserialize!(u32, mem, pos, Nlmsghdr, nl_pid);
         let nl_type_int: u16 = nl_type.into();
         let (nl_payload, pos) = if nl_type_int == Nlmsg::Error.into() {
-            let (nl_payload, pos) = drive_deserialize!(Nlmsgerr<NlTypeWrapper>, mem, pos);
+            let (nl_payload, pos) =
+                drive_deserialize!(Nlmsgerr<NlTypeWrapper>, mem, pos, Nlmsghdr, nl_payload);
             if nl_payload.error == 0 {
                 (NlPayload::Ack(nl_payload), pos)
             } else {
@@ -224,18 +225,21 @@ where
                 P,
                 mem,
                 pos,
-                (nl_len as usize)
-                    .checked_sub(Self::header_size())
-                    .ok_or(DeError::UnexpectedEOB)?
+                (nl_len as usize).checked_sub(Self::header_size()).ok_or(
+                    DeError::IncompleteType(stringify!(Nlmsghdr), Some(stringify!(nl_payload)))
+                )?,
+                Nlmsghdr::<T, P>,
+                nl_payload
             );
             (NlPayload::Payload(nl_payload), pos)
         };
         let pos = drive_deserialize!(
             STRIP mem,
             pos,
-            alignto(nl_len as usize) - nl_len as usize
+            alignto(nl_len as usize) - nl_len as usize,
+            Nlmsghdr
         );
-        drive_deserialize!(END mem, pos);
+        drive_deserialize!(END mem, pos, Nlmsghdr);
         Ok(Nlmsghdr {
             nl_len,
             nl_type,

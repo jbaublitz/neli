@@ -537,7 +537,10 @@ impl NlSocketHandle {
             // read into the buffer, return an error; something
             // has gone wrong.
             if self.position + next_packet_len > end {
-                return Err(NlError::new(DeError::UnexpectedEOB));
+                return Err(NlError::new(DeError::IncompleteType(
+                    stringify!(Nlmsghdr),
+                    None,
+                )));
             }
 
             // Deserialize the next Nlmsghdr struct.

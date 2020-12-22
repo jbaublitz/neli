@@ -99,7 +99,7 @@ where
                     u8::type_size().expect("Must be static size") +
                     u16::type_size().expect("Must be static size")
                 )
-                .ok_or(DeError::UnexpectedEOB)?
+                .ok_or(DeError::IncompleteType(stringify!(Genlmsghdr), Some(stringify!(attrs))))?
             }
         })
     }
@@ -163,7 +163,9 @@ where
                 Nlattr<T, P>,
                 mem,
                 pos,
-                alignto(packet_length_u16(mem, pos))
+                alignto(packet_length_u16(mem, pos)),
+                GenlBuffer,
+                Nlattr
             );
             vec.push(attr);
             pos = pos_tmp;
@@ -323,8 +325,8 @@ where
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         let pos = 0;
-        let (nla_len, pos) = drive_deserialize!(u16, mem, pos);
-        let (nla_type, pos) = drive_deserialize!(u16, mem, pos);
+        let (nla_len, pos) = drive_deserialize!(u16, mem, pos, Nlattr, nla_len);
+        let (nla_type, pos) = drive_deserialize!(u16, mem, pos, Nlattr, nla_type);
         let (nla_payload, pos) = drive_deserialize!(
             P,
             mem,
@@ -334,12 +336,17 @@ where
                     u16::type_size().expect("Must be a static size")
                         + T::type_size().expect("Must be a static size")
                 )
-                .ok_or(DeError::UnexpectedEOB)?
+                .ok_or(DeError::IncompleteType(
+                    stringify!(Nlattr),
+                    Some(stringify!(nla_payload))
+                ))?,
+            Nlattr,
+            nla_payload
         );
         let pos = drive_deserialize!(
-            STRIP mem, pos, alignto(nla_len as usize) - nla_len as usize
+            STRIP mem, pos, alignto(nla_len as usize) - nla_len as usize, Nlattr
         );
-        drive_deserialize!(END mem, pos);
+        drive_deserialize!(END mem, pos, Nlattr);
 
         let (nla_nested, nla_network_order, nla_type) = from_nla_type_bit_flags(nla_type);
         Ok(Nlattr::<T, P> {

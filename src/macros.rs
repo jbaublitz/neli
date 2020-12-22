@@ -155,10 +155,14 @@ macro_rules! deserialize_type_size {
 /// ```
 /// use neli::err::DeError;
 ///
+/// struct TestStruct {
+///     field_name: u8,
+/// }
+///
 /// fn drive_deserialize() -> Result<(), DeError> {
 ///     let vec = vec![1];
 ///     assert_eq!(
-///         neli::drive_deserialize!(u8, vec.as_slice(), 0),
+///         neli::drive_deserialize!(u8, vec.as_slice(), 0, TestStruct, field_name),
 ///         (1u8, 1)
 ///     );
 ///     Ok(())
@@ -169,6 +173,7 @@ macro_rules! deserialize_type_size {
 #[macro_export]
 macro_rules! drive_deserialize {
     ($de_type:ty, $buffer:expr, $pos:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         let size = $crate::deserialize_type_size!($de_type => type_size);
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
@@ -178,6 +183,7 @@ macro_rules! drive_deserialize {
         (t, $pos + size)
     }};
     ($de_type:ty, $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         let size = $size;
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
@@ -186,16 +192,48 @@ macro_rules! drive_deserialize {
         let t = <$de_type as $crate::Nl>::deserialize(&subbuffer)?;
         (t, $pos + size)
     }};
+    ($de_type:ty, $buffer:expr, $pos:expr, $size:expr, $struct_name:path, $field_name:ident $(,)?) => {{
+        let size = $size;
+        if $pos + size > $buffer.len() {
+            return Err($crate::err::DeError::IncompleteType(stringify!($struct_name), Some(stringify!($field_name))));
+        }
+        let subbuffer = &$buffer[$pos..$pos + size];
+        let t = <$de_type as $crate::Nl>::deserialize(&subbuffer)?;
+        (t, $pos + size)
+    }};
+    ($de_type:ty, $buffer:expr, $pos:expr, $struct_name:path, $field_name:ident $(,)?) => {{
+        let size = $crate::deserialize_type_size!($de_type => type_size);
+        if $pos + size > $buffer.len() {
+            return Err($crate::err::DeError::IncompleteType(stringify!($struct_name), Some(stringify!($field_name))));
+        }
+        let subbuffer = &$buffer[$pos..$pos + size];
+        let t = <$de_type as $crate::Nl>::deserialize(subbuffer)?;
+        (t, $pos + size)
+    }};
     (STRIP $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         let size = $size;
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
         }
         $pos + size
     }};
+    (STRIP $buffer:expr, $pos:expr, $size:expr, $struct_name:path $(,)) => {{
+        let size = $size;
+        if $pos + size > $buffer.len() {
+            return Err($crate::err::DeError::IncompleteType(stringify!($struct_name), Some("padding")));
+        }
+        $pos + size
+    }};
     (END $buffer:expr, $pos:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         if $buffer.len() != $pos {
             return Err($crate::err::DeError::BufferNotParsed);
+        }
+    }};
+    (END $buffer:expr, $pos:expr, $struct_name:path $(,)?) => {{
+        if $buffer.len() != $pos {
+            return Err($crate::err::DeError::DataLeftInBuffer(stringify!($struct_name), None));
         }
     }};
 }
@@ -234,11 +272,11 @@ macro_rules! deserialize {
         let pos = 0;
         $(
             let ($de_name, pos) = drive_deserialize!(
-                $de_type, $buffer, pos $(, $size)?
+                $de_type, $buffer, pos $(, $size)?, $struct_type, $de_name
             );
         )*
-        let pos = $crate::drive_deserialize!(STRIP $buffer, pos, $struct_size);
-        $crate::drive_deserialize!(END $buffer, pos);
+        let pos = $crate::drive_deserialize!(STRIP $buffer, pos, $struct_size, $struct_type);
+        $crate::drive_deserialize!(END $buffer, pos, $struct_type);
         $struct_type {
             $( $de_name ),*
         }
@@ -249,10 +287,10 @@ macro_rules! deserialize {
         let pos = 0;
         $(
             let ($de_name, pos) = $crate::drive_deserialize!(
-                $de_type, $buffer, pos $(, $size)?
+                $de_type, $buffer, pos $(, $size)?, $struct_type, $de_name
             );
         )*
-        $crate::drive_deserialize!(END $buffer, pos);
+        $crate::drive_deserialize!(END $buffer, pos, $struct_type);
         $struct_type {
             $( $de_name ),*
         }
@@ -261,6 +299,7 @@ macro_rules! deserialize {
 
 macro_rules! get_int {
     ($bytes:ident, $get_int:ident) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         let size = Self::type_size().expect("Integers have static size");
         if $bytes.len() < size {
             return Err($crate::err::DeError::UnexpectedEOB);
@@ -269,12 +308,43 @@ macro_rules! get_int {
         }
         byteorder::NativeEndian::$get_int($bytes.as_ref())
     }};
+    ($bytes:ident, $get_int:ident, $de_type:ty) => {{
+        let size = Self::type_size().expect("Integers have static size");
+        if $bytes.len() < size {
+            return Err($crate::err::DeError::IncompleteType(
+                stringify!($de_type),
+                None,
+            ));
+        } else if $bytes.len() > size {
+            return Err($crate::err::DeError::DataLeftInBuffer(
+                stringify!($de_type),
+                None,
+            ));
+        }
+        byteorder::NativeEndian::$get_int($bytes.as_ref())
+    }};
     ($bytes:ident, $get_int:ident, $endian:ty) => {{
+        // FIXME: Deprecated; remove in 0.6.0
         let size = Self::type_size().expect("Integers have static size");
         if $bytes.len() < size {
             return Err($crate::err::DeError::UnexpectedEOB);
         } else if $bytes.len() > size {
             return Err($crate::err::DeError::BufferNotParsed);
+        }
+        <$endian>::$get_int($bytes.as_ref())
+    }};
+    ($bytes:ident, $get_int:ident, $endian:ty, $de_type:ty) => {{
+        let size = Self::type_size().expect("Integers have static size");
+        if $bytes.len() < size {
+            return Err($crate::err::DeError::IncompleteType(
+                stringify!($de_type),
+                None,
+            ));
+        } else if $bytes.len() > size {
+            return Err($crate::err::DeError::DataLeftInBuffer(
+                stringify!($de_type),
+                None,
+            ));
         }
         <$endian>::$get_int($bytes.as_ref())
     }};

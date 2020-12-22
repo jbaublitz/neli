@@ -265,8 +265,8 @@ impl Nl for u8 {
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         let size = Self::type_size().expect("Integers have static size");
         match mem.len() {
-            i if i < size => return Err(DeError::UnexpectedEOB),
-            i if i > size => return Err(DeError::BufferNotParsed),
+            i if i < size => return Err(DeError::IncompleteType(stringify!(u8), None)),
+            i if i > size => return Err(DeError::DataLeftInBuffer(stringify!(u8), None)),
             _ => (),
         };
         Ok(*mem.as_ref().get(0).expect("Length already checked"))
@@ -288,7 +288,7 @@ impl Nl for u16 {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u16))
+        Ok(get_int!(mem, read_u16, u16))
     }
 
     fn size(&self) -> usize {
@@ -307,7 +307,7 @@ impl Nl for u32 {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u32))
+        Ok(get_int!(mem, read_u32, u32))
     }
 
     fn size(&self) -> usize {
@@ -326,7 +326,7 @@ impl Nl for i32 {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_i32))
+        Ok(get_int!(mem, read_i32, i32))
     }
 
     fn size(&self) -> usize {
@@ -345,7 +345,7 @@ impl Nl for u64 {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u64))
+        Ok(get_int!(mem, read_u64, u64))
     }
 
     fn size(&self) -> usize {
@@ -380,7 +380,7 @@ impl Nl for BeU64 {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(BeU64(get_int!(mem, read_u64, byteorder::BE)))
+        Ok(BeU64(get_int!(mem, read_u64, byteorder::BE, BeU64)))
     }
 
     fn size(&self) -> usize {

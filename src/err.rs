@@ -263,7 +263,9 @@ impl Display for SerError {
 
 impl Error for SerError {}
 
-/// Deserialization error
+/// Deserialization error. Most variants contain fields for the
+/// type and an optional struct field where deserialization failed.
+// TODO: Remove deprecated variants in 0.6.0.
 #[derive(Debug)]
 pub enum DeError {
     /// Abitrary error message.
@@ -272,9 +274,17 @@ pub enum DeError {
     Wrapped(WrappedError),
     /// The end of the buffer was reached before deserialization
     /// finished.
+    #[deprecated(since = "0.5.2", note = "Switch to DeError::IncompletePacket")]
     UnexpectedEOB,
-    /// Deserialization did not fill the buffer.
+    /// The end of the buffer was reached before deserialization
+    /// finished
+    IncompleteType(&'static str, Option<&'static str>),
+    /// Deserialization did not consume the entire buffer.
+    #[deprecated(since = "0.5.2", note = "Switch to DeError::DataLeftInBuffer")]
     BufferNotParsed,
+    /// There was additional data at the end of the buffer when
+    /// deserialization completed.
+    DataLeftInBuffer(&'static str, Option<&'static str>),
     /// A null byte was found before the end of the serialized
     /// [`String`].
     NullError,
@@ -298,14 +308,57 @@ impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DeError::Msg(ref s) => write!(f, "{}", s),
+            #[allow(deprecated)]
             DeError::UnexpectedEOB => write!(
                 f,
-                "The buffer was not large enough to complete the deserialize \
-                 operation",
+                "The buffer was not large enough to complete the \
+                deserialize operation",
             ),
+            DeError::IncompleteType(ref type_, ref field) => {
+                write!(f, "Deserializing ")?;
+                if let Some(field_name) = field {
+                    write!(f, "{} in ", field_name,)?;
+                }
+                write!(
+                    f,
+                    "type {} could not be completed: the end of \
+                    the deserialization buffer was reached before \
+                    the deserialization operation could be completed; \
+                    the packet being deserialized may be incomplete \
+                    or an incorrectly sized deserialization buffer \
+                    may have been provided to the deserialization \
+                    operation",
+                    type_,
+                )
+            }
+            #[allow(deprecated)]
             DeError::BufferNotParsed => write!(f, "Unparsed data left in buffer"),
-            DeError::NullError => write!(f, "A null was found before the end of the buffer"),
-            DeError::NoNullError => write!(f, "No terminating null byte was found in the buffer"),
+            DeError::DataLeftInBuffer(ref type_, ref field) => {
+                write!(f, "Deserializing ")?;
+                if let Some(field_name) = field {
+                    write!(f, "{} in ", field_name,)?;
+                }
+                write!(
+                    f,
+                    "type {} could not be completed: the deserialization \
+                    operation completed before all of the data in the \
+                    buffer could be consumed; the packet being \
+                    deserialized may be of the wrong type or an \
+                    incorrectly sized deserialization buffer may have \
+                    been provided to the deserialization operation",
+                    type_,
+                )
+            }
+            DeError::NullError => write!(
+                f,
+                "A null was found before the end of the buffer while \
+                deserializing a String",
+            ),
+            DeError::NoNullError => write!(
+                f,
+                "No terminating null byte was found in the buffer \
+                when deserializing a String",
+            ),
             DeError::Wrapped(ref e) => write!(f, "Error while deserializing: {}", e),
         }
     }
