@@ -372,10 +372,37 @@ impl_flags!(
     #[allow(missing_docs)]
     pub IffFlags, Iff, libc::c_uint
 );
+
 impl_flags!(
     #[allow(missing_docs)]
     pub IfaFFlags, IfaF, libc::c_uint
 );
+
+impl std::convert::TryFrom<&IfaFFlags> for libc::c_uchar {
+    type Error = std::num::TryFromIntError;
+    fn try_from(flags: &IfaFFlags) -> Result<libc::c_uchar, Self::Error> {
+        let mut n: libc::c_uint = 0;
+        for bit in 0..std::mem::size_of::<libc::c_uint>() * 8 {
+            if flags.contains(&IfaF::from(1 << bit)) {
+                n |= 1 << bit;
+            }
+        }
+        libc::c_uchar::try_from(n)
+    }
+}
+
+impl std::convert::From<libc::c_uchar> for IfaFFlags {
+    fn from(byte: libc::c_uchar) -> Self {
+        let mut flags = Self::empty();
+        for bit in 0..8 {
+            if byte & (1 << bit) != 0 {
+                flags.set(IfaF::from(1 << bit))
+            }
+        }
+        flags
+    }
+}
+
 impl_flags!(
     #[allow(missing_docs)]
     pub RtmFFlags, RtmF, libc::c_uint
