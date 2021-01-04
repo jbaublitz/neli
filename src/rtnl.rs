@@ -9,6 +9,7 @@
 //! in a style similar to the rest of the library with implementations
 //! of [`Nl`] for each.
 
+use std::convert::TryFrom;
 use std::mem;
 
 use crate::{
@@ -210,11 +211,13 @@ pub struct Ifaddrmsg {
 
 impl Nl for Ifaddrmsg {
     fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        let flags =
+            libc::c_uchar::try_from(&self.ifa_flags).map_err(|e| SerError::Msg(e.to_string()))?;
         serialize! {
             mem;
             self.ifa_family;
             self.ifa_prefixlen;
-            self.ifa_flags;
+            flags;
             self.ifa_scope;
             self.ifa_index;
             self.rtattrs, asize
@@ -223,30 +226,35 @@ impl Nl for Ifaddrmsg {
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(deserialize! {
-            mem;
-            Ifaddrmsg {
-                ifa_family: RtAddrFamily,
-                ifa_prefixlen: libc::c_uchar,
-                ifa_flags: IfaFFlags,
-                ifa_scope: libc::c_uchar,
-                ifa_index: libc::c_int,
-                rtattrs: RtBuffer<Ifa, Buffer> => mem.len().checked_sub(
-                    ifa_family.size()
-                    + ifa_prefixlen.size()
-                    + ifa_flags.size()
-                    + ifa_scope.size()
-                    + ifa_index.size()
-                )
-                .ok_or(DeError::UnexpectedEOB)?
-            }
+        // Manual serialization to handle ifa_flags field
+        let pos = 0;
+        let (ifa_family, pos) = drive_deserialize!(RtAddrFamily, mem, pos);
+        let (ifa_prefixlen, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
+        let (flags, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
+        let (ifa_scope, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
+        let (ifa_index, pos) = drive_deserialize!(libc::c_int, mem, pos);
+        let rtattrs_size = mem
+            .len()
+            .checked_sub(
+                ifa_family.size() + ifa_prefixlen.size() + 1 + ifa_scope.size() + ifa_index.size(),
+            )
+            .ok_or(DeError::UnexpectedEOB)?;
+        let (rtattrs, pos) = drive_deserialize!(RtBuffer<Ifa, Buffer>, mem, pos, rtattrs_size);
+        drive_deserialize!(END mem, pos);
+        Ok(Ifaddrmsg {
+            ifa_family,
+            ifa_prefixlen,
+            ifa_flags: IfaFFlags::from(flags),
+            ifa_scope,
+            ifa_index,
+            rtattrs,
         })
     }
 
     fn size(&self) -> usize {
         self.ifa_family.size()
             + self.ifa_prefixlen.size()
-            + self.ifa_flags.size()
+            + 1
             + self.ifa_scope.size()
             + self.ifa_index.size()
             + self.rtattrs.size()
