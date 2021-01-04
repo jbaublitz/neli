@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+### Bug fixes
+* Fixed bug in `Ifaddrmsg` serialization and deserialization.
+  Thanks, [`@joshtriplett`](https://github.com/joshtriplett)!
+
 ## 0.5.1
 ### Bug fixes
 * Fixed bug in ACK handling.
