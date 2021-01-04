@@ -1,17 +1,19 @@
-extern crate neli;
-
 use std::net::Ipv4Addr;
 
-use neli::attr::Attribute;
-use neli::consts::nl::{NlmF, NlmFFlags};
-use neli::consts::rtnl::{Ifa, IfaFFlags, RtAddrFamily, RtScope, Rtm};
-use neli::consts::socket::NlFamily;
-use neli::err::NlError;
-use neli::nl::{NlPayload, Nlmsghdr};
-use neli::rtnl::Ifaddrmsg;
-use neli::socket::NlSocketHandle;
-use neli::types::RtBuffer;
-use neli::utils::U32Bitmask;
+use neli::{
+    attr::Attribute,
+    consts::{
+        nl::{NlmF, NlmFFlags},
+        rtnl::{Ifa, IfaFFlags, RtAddrFamily, RtScope, Rtm},
+        socket::NlFamily,
+    },
+    err::NlError,
+    nl::{NlPayload, Nlmsghdr},
+    rtnl::Ifaddrmsg,
+    socket::NlSocketHandle,
+    types::RtBuffer,
+    utils::U32Bitmask,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, U32Bitmask::empty())?;
