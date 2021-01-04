@@ -77,6 +77,7 @@ impl Index {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<u16> for Index {
     fn into(self) -> u16 {
         self.0
