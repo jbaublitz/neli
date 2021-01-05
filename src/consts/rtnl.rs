@@ -199,7 +199,23 @@ impl_var!(
     PhysSwitchId => libc::IFLA_PHYS_SWITCH_ID,
     LinkNetnsid => libc::IFLA_LINK_NETNSID,
     PhysPortName => libc::IFLA_PHYS_PORT_NAME,
-    ProtoDown => libc::IFLA_PROTO_DOWN
+    ProtoDown => libc::IFLA_PROTO_DOWN,
+    GsoMaxSegs => libc::IFLA_GSO_MAX_SEGS,
+    GsoMaxSize => libc::IFLA_GSO_MAX_SIZE,
+    Pad => libc::IFLA_PAD,
+    Xdp => libc::IFLA_XDP,
+    Event => libc::IFLA_EVENT,
+    NewNetnsid => libc::IFLA_NEW_NETNSID,
+    IfNetnsid => libc::IFLA_IF_NETNSID,
+    CarrierUpCount => libc::IFLA_CARRIER_UP_COUNT,
+    CarrierDownCount => libc::IFLA_CARRIER_DOWN_COUNT,
+    NewIfindex => libc::IFLA_NEW_IFINDEX,
+    MinMtu => libc::IFLA_MIN_MTU,
+    MaxMtu => libc::IFLA_MAX_MTU,
+    PropList => libc::IFLA_PROP_LIST,
+    AltIfname => libc::IFLA_ALT_IFNAME,
+    PermAddress => libc::IFLA_PERM_ADDRESS,
+    ProtoDownReason => libc::IFLA_PROTO_DOWN_REASON,
 );
 
 impl_var!(
