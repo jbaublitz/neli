@@ -145,7 +145,6 @@ impl Nl for Ifinfomsg {
             self.ifi_family;
             self.padding;
             self.ifi_type;
-            self.ifi_change;
             self.ifi_index;
             self.ifi_flags;
             self.ifi_change;
