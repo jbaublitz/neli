@@ -335,6 +335,8 @@ impl_var!(
     Eui64 => libc::ARPHRD_EUI64,
     Infiniband => libc::ARPHRD_INFINIBAND,
 
+    Loopback => libc::ARPHRD_LOOPBACK,
+
     // Possibly more types here - need to look into ARP more
 
     Void => libc::ARPHRD_VOID,
