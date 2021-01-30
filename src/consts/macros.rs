@@ -44,6 +44,7 @@ macro_rules! impl_var {
             $( #[cfg($meta:meta)] )*
             $var:ident => $val:expr
         ),*
+        $(,)?
     ) => (
         $(#[$outer])*
         #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -209,6 +210,7 @@ macro_rules! impl_trait {
         )*
         $vis_enum:vis $wrapper_type:ident,
         $( $const_enum:ident ),+
+        $(,)?
     ) => {
         $(#[$outer])*
         $vis_trait trait $trait_name: $crate::Nl
@@ -332,7 +334,7 @@ macro_rules! impl_trait {
 /// `u16`s and bitwise or-ed.
 #[macro_export]
 macro_rules! impl_flags {
-    ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty) => {
+    ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty $(,)?) => {
         #[derive(Debug, PartialEq)]
         $(#[$outer])*
         $vis struct $name($crate::types::FlagBuffer::<$type>);

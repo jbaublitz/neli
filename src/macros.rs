@@ -17,7 +17,7 @@
 /// ```
 #[macro_export]
 macro_rules! drive_serialize {
-    ($to_ser:expr, $buffer:expr, $pos:expr) => {{
+    ($to_ser:expr, $buffer:expr, $pos:expr $(,)?) => {{
         let size = $crate::Nl::size($to_ser);
         if $pos + size > $buffer.len() {
             return Err($crate::err::SerError::UnexpectedEOB);
@@ -28,7 +28,7 @@ macro_rules! drive_serialize {
             Err(e) => return Err(e),
         }
     }};
-    ($to_ser:expr, $buffer:expr, $pos:expr, $size:ident) => {{
+    ($to_ser:expr, $buffer:expr, $pos:expr, $size:ident $(,)?) => {{
         let size = $crate::Nl::$size($to_ser);
         if $pos + size > $buffer.len() {
             return Err($crate::err::SerError::UnexpectedEOB);
@@ -39,7 +39,7 @@ macro_rules! drive_serialize {
             Err(e) => return Err(e),
         }
     }};
-    (PAD $self:expr, $buffer:expr, $pos:expr) => {{
+    (PAD $self:expr, $buffer:expr, $pos:expr $(,)?) => {{
         let size = $crate::Nl::asize($self) - $crate::Nl::size($self);
         if $pos + size > $buffer.len() {
             return Err($crate::err::SerError::UnexpectedEOB);
@@ -49,7 +49,7 @@ macro_rules! drive_serialize {
             Err(e) => return Err(e),
         }
     }};
-    (END $buffer:expr, $pos:expr) => {{
+    (END $buffer:expr, $pos:expr $(,)?) => {{
         if $buffer.len() != $pos {
             return Err($crate::err::SerError::BufferNotFilled);
         }
@@ -168,7 +168,7 @@ macro_rules! deserialize_type_size {
 /// ```
 #[macro_export]
 macro_rules! drive_deserialize {
-    ($de_type:ty, $buffer:expr, $pos:expr) => {{
+    ($de_type:ty, $buffer:expr, $pos:expr $(,)?) => {{
         let size = $crate::deserialize_type_size!($de_type => type_size);
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
@@ -177,7 +177,7 @@ macro_rules! drive_deserialize {
         let t = <$de_type as $crate::Nl>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
-    ($de_type:ty, $buffer:expr, $pos:expr, $size:expr) => {{
+    ($de_type:ty, $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
@@ -186,14 +186,14 @@ macro_rules! drive_deserialize {
         let t = <$de_type as $crate::Nl>::deserialize(&subbuffer)?;
         (t, $pos + size)
     }};
-    (STRIP $buffer:expr, $pos:expr, $size:expr) => {{
+    (STRIP $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::UnexpectedEOB);
         }
         $pos + size
     }};
-    (END $buffer:expr, $pos:expr) => {{
+    (END $buffer:expr, $pos:expr $(,)?) => {{
         if $buffer.len() != $pos {
             return Err($crate::err::DeError::BufferNotParsed);
         }
@@ -229,7 +229,7 @@ macro_rules! drive_deserialize {
 #[macro_export]
 macro_rules! deserialize {
     (STRIP $self_de_type:ident; $buffer:expr; $struct_type:path {
-        $($de_name:ident: $de_type:ty $(=> $size:expr)?),*
+        $($de_name:ident: $de_type:ty $(=> $size:expr)?),* $(,)?
     } => $struct_size:expr) => {{
         let pos = 0;
         $(
@@ -244,7 +244,7 @@ macro_rules! deserialize {
         }
     }};
     ($buffer:expr; $struct_type:path {
-        $($de_name:ident: $de_type:ty $(=> $size:expr)?),*
+        $($de_name:ident: $de_type:ty $(=> $size:expr)?),* $(,)?
     }) => {{
         let pos = 0;
         $(

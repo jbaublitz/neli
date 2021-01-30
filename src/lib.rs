@@ -196,7 +196,7 @@ lazy_static! {
 #[cfg(feature = "logging")]
 #[macro_export]
 macro_rules! log {
-    ($fmt:tt, $($args:expr),*) => {
+    ($fmt:tt, $($args:expr),* $(,)?) => {
         if *$crate::LOGGING_INITIALIZED && *$crate::SHOW_LOGS {
             log::debug!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
         } else {
