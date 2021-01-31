@@ -250,8 +250,7 @@ macro_rules! impl_trait {
             }
         )+
 
-        #[allow(clippy::from_over_into)]
-        #[allow(clippy::unknown_clippy_lints)]
+        #[allow(clippy::all)]
         impl Into<$to_from_ty> for $wrapper_type {
             fn into(self) -> $to_from_ty {
                 match self {

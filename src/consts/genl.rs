@@ -77,8 +77,9 @@ impl Index {
     }
 }
 
-#[allow(clippy::from_over_into)]
-#[allow(clippy::unknown_clippy_lints)]
+// Temporarily allow all lints until clippy::from_over_into makes
+// it into stable.
+#[allow(clippy::all)]
 impl Into<u16> for Index {
     fn into(self) -> u16 {
         self.0
