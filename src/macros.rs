@@ -192,6 +192,20 @@ macro_rules! drive_deserialize {
         let t = <$de_type as $crate::Nl>::deserialize(&subbuffer)?;
         (t, $pos + size)
     }};
+    (STRIP $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
+        let size = $size;
+        if $pos + size > $buffer.len() {
+            return Err($crate::err::DeError::UnexpectedEOB);
+        }
+        $pos + size
+    }};
+    (END $buffer:expr, $pos:expr $(,)?) => {{
+        // FIXME: Deprecated; remove in 0.6.0
+        if $buffer.len() != $pos {
+            return Err($crate::err::DeError::BufferNotParsed);
+        }
+    }};
     ($de_type:ty, $buffer:expr, $pos:expr, $size:expr, $struct_name:path, $field_name:ident $(,)?) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
@@ -210,26 +224,12 @@ macro_rules! drive_deserialize {
         let t = <$de_type as $crate::Nl>::deserialize(subbuffer)?;
         (t, $pos + size)
     }};
-    (STRIP $buffer:expr, $pos:expr, $size:expr $(,)?) => {{
-        // FIXME: Deprecated; remove in 0.6.0
-        let size = $size;
-        if $pos + size > $buffer.len() {
-            return Err($crate::err::DeError::UnexpectedEOB);
-        }
-        $pos + size
-    }};
-    (STRIP $buffer:expr, $pos:expr, $size:expr, $struct_name:path $(,)) => {{
+    (STRIP $buffer:expr, $pos:expr, $size:expr, $struct_name:path $(,)?) => {{
         let size = $size;
         if $pos + size > $buffer.len() {
             return Err($crate::err::DeError::IncompleteType(stringify!($struct_name), Some("padding")));
         }
         $pos + size
-    }};
-    (END $buffer:expr, $pos:expr $(,)?) => {{
-        // FIXME: Deprecated; remove in 0.6.0
-        if $buffer.len() != $pos {
-            return Err($crate::err::DeError::BufferNotParsed);
-        }
     }};
     (END $buffer:expr, $pos:expr, $struct_name:path $(,)?) => {{
         if $buffer.len() != $pos {

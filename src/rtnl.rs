@@ -227,19 +227,24 @@ impl Nl for Ifaddrmsg {
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         // Manual serialization to handle ifa_flags field
         let pos = 0;
-        let (ifa_family, pos) = drive_deserialize!(RtAddrFamily, mem, pos);
-        let (ifa_prefixlen, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
-        let (flags, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
-        let (ifa_scope, pos) = drive_deserialize!(libc::c_uchar, mem, pos);
-        let (ifa_index, pos) = drive_deserialize!(libc::c_int, mem, pos);
+        let (ifa_family, pos) = drive_deserialize!(RtAddrFamily, mem, pos, Ifaddrmsg, ifa_family);
+        let (ifa_prefixlen, pos) =
+            drive_deserialize!(libc::c_uchar, mem, pos, Ifaddrmsg, ifa_prefixlen);
+        let (flags, pos) = drive_deserialize!(libc::c_uchar, mem, pos, Ifaddrmsg, ifa_flags);
+        let (ifa_scope, pos) = drive_deserialize!(libc::c_uchar, mem, pos, Ifaddrmsg, ifa_scope);
+        let (ifa_index, pos) = drive_deserialize!(libc::c_int, mem, pos, Ifaddrmsg, ifa_index);
         let rtattrs_size = mem
             .len()
             .checked_sub(
                 ifa_family.size() + ifa_prefixlen.size() + 1 + ifa_scope.size() + ifa_index.size(),
             )
-            .ok_or(DeError::IncompleteType(stringify!(Ifaddrmsg), Some(stringify!(rtattrs))))?
-        let (rtattrs, pos) = drive_deserialize!(RtBuffer<Ifa, Buffer>, mem, pos, rtattrs_size);
-        drive_deserialize!(END mem, pos);
+            .ok_or(DeError::IncompleteType(
+                stringify!(Ifaddrmsg),
+                Some(stringify!(rtattrs)),
+            ))?;
+        let (rtattrs, pos) =
+            drive_deserialize!(RtBuffer<Ifa, Buffer>, mem, pos, rtattrs_size, Ifaddrmsg, rtattrs);
+        drive_deserialize!(END mem, pos, Ifaddrmsg);
         Ok(Ifaddrmsg {
             ifa_family,
             ifa_prefixlen,

@@ -274,7 +274,7 @@ pub enum DeError {
     Wrapped(WrappedError),
     /// The end of the buffer was reached before deserialization
     /// finished.
-    #[deprecated(since = "0.5.2", note = "Switch to DeError::IncompletePacket")]
+    #[deprecated(since = "0.5.2", note = "Switch to DeError::IncompleteType")]
     UnexpectedEOB,
     /// The end of the buffer was reached before deserialization
     /// finished
