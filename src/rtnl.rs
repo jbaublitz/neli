@@ -401,6 +401,29 @@ pub struct Ndmsg {
     pub rtattrs: RtBuffer<Nda, Buffer>,
 }
 
+impl Ndmsg {
+    /// Create a fully initialized neighbor table struct
+    pub fn new(
+        ndm_family: RtAddrFamily,
+        ndm_index: libc::c_int,
+        ndm_state: NudFlags,
+        ndm_flags: NtfFlags,
+        ndm_type: Rtn,
+        rtattrs: RtBuffer<Nda, Buffer>,
+    ) -> Self {
+        Ndmsg {
+            ndm_family,
+            pad1: 0,
+            pad2: 0,
+            ndm_index,
+            ndm_state,
+            ndm_flags,
+            ndm_type,
+            rtattrs,
+        }
+    }
+}
+
 impl Nl for Ndmsg {
     fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
         serialize! {
