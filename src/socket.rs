@@ -678,11 +678,9 @@ pub mod tokio {
         task::{Context, Poll},
     };
 
-    use ::tokio::{
-        io::{unix::AsyncFd, AsyncRead, AsyncWrite, ReadBuf},
-        stream::Stream,
-    };
+    use ::tokio::io::{unix::AsyncFd, AsyncRead, AsyncWrite, ReadBuf};
     use futures_util::ready;
+    use tokio_stream::Stream;
 
     use crate::neli_constants::MAX_NL_LENGTH;
 
@@ -811,7 +809,8 @@ pub mod tokio {
     mod test {
         use super::*;
 
-        use ::tokio::{runtime::Runtime, stream::StreamExt};
+        use ::tokio::runtime::Runtime;
+        use tokio_stream::StreamExt;
 
         use crate::socket::{self, tokio::NlSocket};
 
