@@ -10,7 +10,7 @@ use neli::{
     utils::{U32BitFlag, U32Bitmask},
 };
 #[cfg(feature = "async")]
-use tokio::stream::StreamExt;
+use tokio_stream::StreamExt;
 
 #[cfg(feature = "async")]
 fn debug_stream() -> Result<(), NlError> {
