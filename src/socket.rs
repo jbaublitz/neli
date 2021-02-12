@@ -638,6 +638,28 @@ impl NlSocketHandle {
         };
         NlMessageIter::new(self, behavior)
     }
+
+    /// Return an iterator object.
+    ///
+    /// This method allows more flexibility than
+    /// `NlSocketHandle::iter()` and allows specifying what the
+    /// type of the netlink packets should be as well as the
+    /// payload.
+    ///
+    /// The argument `iterate_indefinitely` is documented
+    /// in more detail in [`NlMessageIter`]
+    pub fn iter2<T, P>(&mut self, iter_indefinitely: bool) -> NlMessageIter<T, P>
+    where
+        T: NlType + Debug,
+        P: Nl + Debug,
+    {
+        let behavior = if iter_indefinitely {
+            IterationBehavior::IterIndefinitely
+        } else {
+            IterationBehavior::EndMultiOnDone
+        };
+        NlMessageIter::new(self, behavior)
+    }
 }
 
 impl AsRawFd for NlSocketHandle {
