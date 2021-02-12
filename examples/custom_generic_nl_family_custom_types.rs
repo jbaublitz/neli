@@ -2,7 +2,7 @@
 //! family via Generic Netlink. The family is called "gnl_foobar_xmpl" and the
 //! kernel module must be loaded first. Otherwise the family doesn't exist.
 //!
-//! A working kernel module implementation, where you can use this binary,
+//! A working kernel module implementation, with that you can use this binary,
 //! can be found here: https://github.com/phip1611/generic-netlink-user-kernel-rust
 //!
 //! Output might look like this (if the kernel module is loaded)
