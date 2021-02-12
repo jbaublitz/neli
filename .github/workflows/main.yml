@@ -10,12 +10,30 @@ on:
   workflow_dispatch:
 
 jobs:
+  clippy:
+    strategy:
+      matrix:
+        task:
+          - cargo clippy --all-targets -- -D warnings
+        toolchain:
+          - nightly
+          - stable
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: clippy
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
+        run: ${{ matrix.task }}
   glibc-checks:
     strategy:
       matrix:
         task:
           - cargo fmt -- --check
-          - cargo clippy --all-targets -- -D warnings
           - cargo build
           - cargo build --features=async
           - cargo build --features=logging
@@ -32,7 +50,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          components: rustfmt,clippy
+          components: rustfmt
           toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
