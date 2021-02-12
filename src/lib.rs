@@ -160,6 +160,7 @@ mod neli_constants;
 pub mod nl;
 mod parse;
 pub mod rtnl;
+mod serde;
 pub mod socket;
 pub mod types;
 pub mod utils;
@@ -171,6 +172,7 @@ use byteorder::ByteOrder;
 use lazy_static::lazy_static;
 #[cfg(feature = "logging")]
 use log::LevelFilter;
+use ::serde::Serialize;
 #[cfg(feature = "logging")]
 use simple_logger::SimpleLogger;
 
@@ -178,6 +180,7 @@ pub use crate::neli_constants::MAX_NL_LENGTH;
 use crate::{
     consts::alignto,
     err::{DeError, SerError, WrappedError},
+    serde::NeliSerializer,
     types::{Buffer, DeBuffer, SerBuffer},
 };
 
@@ -191,10 +194,10 @@ lazy_static! {
 }
 
 /// Logging mechanism for neli for debugging
-#[cfg(feature = "logging")]
 #[macro_export]
 macro_rules! log {
-    ($fmt:tt, $($args:expr),* $(,)?) => {
+    ($fmt:tt $(, $args:expr)* $(,)?) => {
+        #[cfg(feature = "logging")]
         if *$crate::LOGGING_INITIALIZED && *$crate::SHOW_LOGS {
             log::debug!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
         } else {
@@ -209,151 +212,23 @@ macro_rules! log {
 /// values of more unusual types.
 pub trait Nl: Sized {
     /// Serialization method
-    fn serialize(&self, m: SerBuffer) -> Result<(), SerError>;
+    fn serialize(&self, m: SerBuffer, pad: bool) -> Result<(), SerError> {
+        Serialize::serialize(NeliSerializer::new(m, pad))
+    }
 
     /// Deserialization method
     fn deserialize(m: DeBuffer) -> Result<Self, DeError>;
-
-    /// The size of the binary representation of a type not aligned
-    /// to 4-byte boundary size
-    fn type_size() -> Option<usize>;
-
-    /// The size of the binary representation of a type not aligned
-    /// to 4-byte boundary size
-    fn type_asize() -> Option<usize> {
-        Self::type_size().map(alignto)
-    }
-
-    /// The size of the binary representation of an existing value
-    /// not aligned to 4-byte boundary size
-    fn size(&self) -> usize;
-
-    /// The size of the binary representation of an existing value
-    /// aligned to 4-byte boundary size
-    fn asize(&self) -> usize {
-        alignto(self.size())
-    }
-
-    /// Pad the data serialized data structure to alignment
-    fn pad(&self, mem: SerBuffer) -> Result<(), SerError> {
-        let padding_len = self.asize() - self.size();
-        if let Err(e) = mem
-            .as_mut()
-            .write_all(&[0; libc::NLA_ALIGNTO as usize][..padding_len])
-        {
-            Err(SerError::Wrapped(WrappedError::IOError(e)))
-        } else {
-            Ok(())
-        }
-    }
 }
 
-impl Nl for u8 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        let size = self.size();
-        match mem.len() {
-            i if i < size => return Err(SerError::UnexpectedEOB),
-            i if i > size => return Err(SerError::BufferNotFilled),
-            _ => (),
-        };
-        let _ = mem.as_mut().write(&[*self]);
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        let size = Self::type_size().expect("Integers have static size");
-        match mem.len() {
-            i if i < size => return Err(DeError::UnexpectedEOB),
-            i if i > size => return Err(DeError::BufferNotParsed),
-            _ => (),
-        };
-        Ok(*mem.as_ref().get(0).expect("Length already checked"))
-    }
-
-    fn size(&self) -> usize {
-        mem::size_of::<u8>()
-    }
-
-    fn type_size() -> Option<usize> {
-        Some(mem::size_of::<u8>())
-    }
-}
-
-impl Nl for u16 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        put_int!(*self, mem, write_u16);
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u16))
-    }
-
-    fn size(&self) -> usize {
-        mem::size_of::<u16>()
-    }
-
-    fn type_size() -> Option<usize> {
-        Some(mem::size_of::<u16>())
-    }
-}
-
-impl Nl for u32 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        put_int!(*self, mem, write_u32);
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u32))
-    }
-
-    fn size(&self) -> usize {
-        mem::size_of::<u32>()
-    }
-
-    fn type_size() -> Option<usize> {
-        Some(mem::size_of::<u32>())
-    }
-}
-
-impl Nl for i32 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        put_int!(*self, mem, write_i32);
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_i32))
-    }
-
-    fn size(&self) -> usize {
-        mem::size_of::<i32>()
-    }
-
-    fn type_size() -> Option<usize> {
-        Some(mem::size_of::<i32>())
-    }
-}
-
-impl Nl for u64 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        put_int!(*self, mem, write_u64);
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(get_int!(mem, read_u64))
-    }
-
-    fn size(&self) -> usize {
-        mem::size_of::<u64>()
-    }
-
-    fn type_size() -> Option<usize> {
-        Some(mem::size_of::<u64>())
-    }
-}
+impl_nl_byte!(i8);
+impl_nl_int!(i16, write_i16, read_i16);
+impl_nl_int!(i32, write_i32, read_i32);
+impl_nl_int!(i64, write_i64, read_i64);
+impl_nl_byte!(u8);
+impl_nl_int!(u16, write_u16, read_u16);
+impl_nl_int!(u32, write_u32, read_u32);
+impl_nl_int!(u64, write_u64, read_u64);
+impl_nl_byte!(char);
 
 /// A `u64` data type that will always be serialized as big endian
 #[derive(Copy, Debug, Clone)]
@@ -442,7 +317,7 @@ impl Nl for Buffer {
 
 impl Nl for Vec<u8> {
     fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        self.as_slice().serialize(mem)
+        Nl::serialize(&self.as_slice(), mem)
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
@@ -491,7 +366,7 @@ impl<'a> Nl for &'a str {
 
 impl Nl for String {
     fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        self.as_str().serialize(mem)
+        Nl::serialize(&self.as_str(), mem)
     }
 
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {

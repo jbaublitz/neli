@@ -33,6 +33,8 @@ use std::{
     str, string,
 };
 
+use serde::{Serialize, ser};
+
 use crate::{
     consts::nl::{NlType, NlmFFlags},
     types::{Buffer, DeBuffer, SerBuffer},
@@ -41,7 +43,7 @@ use crate::{
 
 /// An [`Nlmsghdr`][crate::nl::Nlmsghdr] header with no payload
 /// returned as part of errors.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct NlmsghdrErr<T> {
     /// Length of the netlink message
     pub nl_len: u32,
@@ -146,7 +148,7 @@ where
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Nlmsgerr<T> {
     /// Error code
     pub error: libc::c_int,
@@ -166,15 +168,6 @@ impl<T> Nl for Nlmsgerr<T>
 where
     T: NlType,
 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        serialize! {
-            mem;
-            self.error;
-            self.nlmsg
-        };
-        Ok(())
-    }
-
     fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
         Ok(deserialize! {
             mem;
@@ -292,6 +285,15 @@ pub enum SerError {
     BufferNotFilled,
 }
 
+err_from!(
+    SerError,
+    WrappedError { SerError::Wrapped },
+    std::io::Error { |e| SerError::Wrapped(WrappedError::from(e)) },
+    std::str::Utf8Error { |e| SerError::Wrapped(WrappedError::from(e)) },
+    std::string::FromUtf8Error { |e| SerError::Wrapped(WrappedError::from(e)) },
+    std::ffi::FromBytesWithNulError { |e| SerError::Wrapped(WrappedError::from(e)) }
+);
+
 impl SerError {
     /// Create a new error with the given message as description.
     pub fn new<D>(msg: D) -> Self
@@ -299,6 +301,12 @@ impl SerError {
         D: Display,
     {
         SerError::Msg(msg.to_string())
+    }
+}
+
+impl ser::Error for SerError {
+    fn custom<T>(msg: T) -> Self where T: Display {
+        SerError::new(msg)
     }
 }
 
