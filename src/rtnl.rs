@@ -73,7 +73,7 @@ pub struct Ifinfomsg {
     /// Interface flags
     pub ifi_flags: IffFlags,
     /// Interface change mask
-    pub ifi_change: Iff,
+    pub ifi_change: IffFlags,
     /// Payload of [`Rtattr`]s
     pub rtattrs: RtBuffer<Ifla, Buffer>,
 }
@@ -85,7 +85,7 @@ impl Ifinfomsg {
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
         ifi_flags: IffFlags,
-        ifi_change: Iff,
+        ifi_change: IffFlags,
         rtattrs: RtBuffer<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
@@ -113,7 +113,7 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags: IffFlags::new(&[Iff::Up]),
-            ifi_change: Iff::Up,
+            ifi_change: IffFlags::new(&[Iff::Up]),
             rtattrs,
         }
     }
@@ -132,7 +132,7 @@ impl Ifinfomsg {
             ifi_type,
             ifi_index,
             ifi_flags: IffFlags::empty(),
-            ifi_change: Iff::Up,
+            ifi_change: IffFlags::new(&[Iff::Up]),
             rtattrs,
         }
     }
@@ -162,7 +162,7 @@ impl Nl for Ifinfomsg {
                 ifi_type: Arphrd,
                 ifi_index: libc::c_int,
                 ifi_flags: IffFlags,
-                ifi_change: Iff,
+                ifi_change: IffFlags,
                 rtattrs: RtBuffer<Ifla, Buffer> => mem.len().checked_sub(
                     ifi_family.size()
                     + padding.size()
