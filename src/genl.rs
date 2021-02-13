@@ -59,14 +59,14 @@ where
 {
     /// Get handle for attribute parsing and traversal
     pub fn get_attr_handle(&self) -> AttrHandle<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
-        AttrHandle::new_borrowed(self.attrs.as_ref())
+        self.attrs.get_attr_handle()
     }
 
     /// Get handle for attribute mutable and traversal
     pub fn get_attr_handle_mut(
         &mut self,
     ) -> AttrHandleMut<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
-        AttrHandleMut::new_borrowed(self.attrs.as_mut())
+        self.attrs.get_attr_handle_mut()
     }
 }
 

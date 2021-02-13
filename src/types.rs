@@ -14,7 +14,13 @@ pub use std::{
     slice::{Iter, IterMut},
 };
 
-use crate::{genl::Nlattr, neli_constants::MAX_NL_LENGTH, nl::Nlmsghdr, rtnl::Rtattr};
+use crate::{
+    attr::{AttrHandle, AttrHandleMut},
+    genl::Nlattr,
+    neli_constants::MAX_NL_LENGTH,
+    nl::Nlmsghdr,
+    rtnl::Rtattr,
+};
 
 /// A buffer of bytes.
 #[derive(Debug, PartialEq)]
@@ -205,6 +211,20 @@ impl<T, P> Default for NlBuffer<T, P> {
 #[derive(Debug, PartialEq)]
 pub struct GenlBuffer<T, P>(Vec<Nlattr<T, P>>);
 
+impl<T> GenlBuffer<T, Buffer> {
+    /// Get a data structure with an immutable reference to the
+    /// underlying [`Nlattr`]s.
+    pub fn get_attr_handle(&self) -> AttrHandle<Self, Nlattr<T, Buffer>> {
+        AttrHandle::new_borrowed(self.0.as_ref())
+    }
+
+    /// Get a data structure with a mutable reference to the
+    /// underlying [`Nlattr`]s.
+    pub fn get_attr_handle_mut(&mut self) -> AttrHandleMut<Self, Nlattr<T, Buffer>> {
+        AttrHandleMut::new_borrowed(self.0.as_mut())
+    }
+}
+
 impl<T, P> AsRef<[Nlattr<T, P>]> for GenlBuffer<T, P> {
     fn as_ref(&self) -> &[Nlattr<T, P>] {
         self.0.as_slice()
@@ -283,6 +303,20 @@ impl<T, P> Default for GenlBuffer<T, P> {
 /// A buffer of rtnetlink attributes.
 #[derive(Debug)]
 pub struct RtBuffer<T, P>(Vec<Rtattr<T, P>>);
+
+impl<T> RtBuffer<T, Buffer> {
+    /// Get a data structure with an immutable reference to the
+    /// underlying [`Rtattr`]s.
+    pub fn get_attr_handle(&self) -> AttrHandle<Self, Rtattr<T, Buffer>> {
+        AttrHandle::new_borrowed(self.0.as_ref())
+    }
+
+    /// Get a data structure with a mutable reference to the
+    /// underlying [`Rtattr`]s.
+    pub fn get_attr_handle_mut(&mut self) -> AttrHandleMut<Self, Rtattr<T, Buffer>> {
+        AttrHandleMut::new_borrowed(self.0.as_mut())
+    }
+}
 
 impl<T, P> FromIterator<Rtattr<T, P>> for RtBuffer<T, P> {
     fn from_iter<I>(i: I) -> Self
