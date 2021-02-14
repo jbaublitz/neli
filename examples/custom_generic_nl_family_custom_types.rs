@@ -23,7 +23,7 @@ use neli::{
     types::{Buffer, GenlBuffer},
     utils::U32Bitmask,
 };
-use std::{process, process::exit};
+use std::process;
 
 /// Name of the Netlink family registered via Generic Netlink
 const FAMILY_NAME: &str = "gnl_foobar_xmpl";
@@ -73,9 +73,9 @@ fn main() {
                 "The Netlink family '{}' can't be found. Is the kernel module loaded yet? neli-error='{}'",
                 FAMILY_NAME, e
             );
-            // exit without error in order for Continuous Integration and automatic testing not to fail
-            // when the kernel module is not loaded
-            exit(0);
+            // Exit without error in order for Continuous Integration and automatic testing not to fail.
+            // This is because in testing/build scenarios we do not have a Kernel module which we can load.
+            return;
         }
     }
 
