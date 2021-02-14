@@ -2,7 +2,7 @@
 //! family via Generic Netlink. The family is called "gnl_foobar_xmpl" and the
 //! kernel module must be loaded first. Otherwise the family doesn't exist.
 //!
-//! A working kernel module implementation, with that you can use this binary,
+//! A working kernel module implementation with which you can use this binary
 //! can be found here: https://github.com/phip1611/generic-netlink-user-kernel-rust
 //!
 //! Output might look like this (if the kernel module is loaded)
@@ -100,8 +100,8 @@ fn main() {
     //    attributes (actual data) as payload.
     let gnmsghdr = Genlmsghdr::new(
         NlFoobarXmplOperation::Echo,
-        // You can evolve your application over time using different versions or ignore it
-        // Application specific; receiver must take care of it
+        // You can evolve your application over time using different versions or ignore it.
+        // Application specific; receiver can check this value and to specific logic
         1,
         // actual payload
         attrs,
@@ -111,10 +111,14 @@ fn main() {
     let nlmsghdr = Nlmsghdr::new(
         None,
         family_id,
-        // This depends on the receiving side. Do you check there if any flags are present?
-        // Request-flag is required (TODO by neli or by netlink?)
-        // others are up to you
+        // You can use flags in an application specific way (e.g. ACK flag). It is up to you
+        // if you check against flags in your Kernel module. It is required to add NLM_F_REQUEST,
+        // otherwise the Kernel doesn't route the packet to the right Netlink callback handler
+        // in your Kernel module. This might result in a deadlock on the socket if an expected
+        // reply you are waiting for in a blocking way is never received.
+        // Kernel reference: https://elixir.bootlin.com/linux/v5.10.16/source/net/netlink/af_netlink.c#L2487
         NlmFFlags::new(&[NlmF::Request]),
+        // It is up to you if you want to split a data transfer into multiple sequences. (application specific)
         None,
         // Port ID. Not necessarily the process id of the current process. This field
         // could be used to identify different points or threads inside your application
