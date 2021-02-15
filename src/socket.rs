@@ -565,6 +565,12 @@ impl NlSocketHandle {
             return Err(NlError::Nlmsgerr(e));
         }
 
+        // return ack message if no other messages are present
+        if let NlPayload::Ack(_) = packet.nl_payload {
+            self.needs_ack = false;
+            return Ok(Some(packet));
+        }
+
         if self.needs_ack
             && (!packet.nl_flags.contains(&NlmF::Multi)
                 || packet.nl_type.into() == Nlmsg::Done.into())
