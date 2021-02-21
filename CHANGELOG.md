@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.3
+### Bug fixes
+* Bug fix for `Ifinfomsg.ifi_change` being serialized twice.
+* Bug fix for `Ndmsg` where it could not be constructed due to
+  private padding fields.
+* Bug fix for `Ifinfomsg.ifi_change`. This should be of type
+ `IffFlags`, not `Iff`.
+* Fixed assumption in `NlSocketHandle::recv()` where this method
+  never expected an ACK to be returned with no data.
+
+### Additions
+* More constants in `Arphrd`.
+* More constants in `Ifla`.
+* Addition of `NlSocketHandle::iter2()` that does not restrict
+  users to the `NlWrapperType` type for packet parsing.
+* Addition of convenience methods on `RtBuffer` and `GenlBuffer`
+  types to make parsing nested attributes easier.
+
+### Breaking changes
+* Update to tokio 1.0.
+
 ## 0.5.2
 ### Bug fixes
 * Fixed bug in `Ifaddrmsg` serialization and deserialization.
