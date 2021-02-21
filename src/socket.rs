@@ -581,30 +581,39 @@ impl NlSocketHandle {
         log!("Message received: {:#?}", packet);
 
         if let NlPayload::Err(e) = packet.nl_payload {
-            return Err(NlError::Nlmsgerr(e));
-        }
-
-        if self.needs_ack
-            && (!packet.nl_flags.contains(&NlmF::Multi)
-                || packet.nl_type.into() == Nlmsg::Done.into())
-        {
-            let is_blocking = self.is_blocking()?;
-            self.nonblock()?;
-            self.needs_ack = false;
-            let potential_ack = self.recv::<T, P>()?;
-            if let Some(NlPayload::Payload(_))
-            | Some(NlPayload::Empty)
-            | Some(NlPayload::Err(_))
-            | None = potential_ack.as_ref().map(|p| &p.nl_payload)
+            Err(NlError::from(e))
+        } else if let NlPayload::Ack(_) = packet.nl_payload {
+            if self.needs_ack {
+                self.needs_ack = false;
+                Ok(None)
+            } else {
+                Err(NlError::new(
+                    "Socket did not expect an ACK but one was received",
+                ))
+            }
+        } else {
+            if self.needs_ack
+                && (!packet.nl_flags.contains(&NlmF::Multi)
+                    || packet.nl_type.into() == Nlmsg::Done.into())
             {
-                return Err(NlError::NoAck);
+                let is_blocking = self.is_blocking()?;
+                self.nonblock()?;
+                self.needs_ack = false;
+                let potential_ack = self.recv::<T, P>()?;
+                if let Some(NlPayload::Payload(_))
+                | Some(NlPayload::Empty)
+                | Some(NlPayload::Err(_))
+                | None = potential_ack.as_ref().map(|p| &p.nl_payload)
+                {
+                    return Err(NlError::NoAck);
+                }
+                if is_blocking {
+                    self.block()?;
+                }
             }
-            if is_blocking {
-                self.block()?;
-            }
-        }
 
-        Ok(Some(packet))
+            Ok(Some(packet))
+        }
     }
 
     /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
