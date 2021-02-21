@@ -786,7 +786,16 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{consts::rtnl::Rta, utils::serialize};
+
+    use crate::{
+        consts::{
+            nl::{NlmF, NlmFFlags},
+            socket::NlFamily,
+        },
+        nl::{NlPayload, Nlmsghdr},
+        socket::NlSocketHandle,
+        utils::serialize,
+    };
 
     #[test]
     fn test_rta_deserialize() {
@@ -813,5 +822,39 @@ mod test {
         assert!(buf_res.is_ok());
         // padding check
         assert_eq!(buf_res.unwrap().as_slice().len(), 8);
+    }
+
+    #[test]
+    fn real_test_ifinfomsg() {
+        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
+        sock.send(Nlmsghdr::new(
+            None,
+            Rtm::Getlink,
+            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
+            None,
+            None,
+            NlPayload::Payload(Ifinfomsg::new(
+                RtAddrFamily::Unspecified,
+                Arphrd::None,
+                0,
+                IffFlags::empty(),
+                IffFlags::empty(),
+                RtBuffer::new(),
+            )),
+        ))
+        .unwrap();
+        let msgs = sock.recv_all::<Rtm, Ifinfomsg>().unwrap();
+        for msg in msgs {
+            let handle = msg.get_payload().unwrap().rtattrs.get_attr_handle();
+            handle.get_attr_payload_as::<String>(Ifla::Ifname).unwrap();
+            // Assert length of ethernet address
+            assert_eq!(
+                handle
+                    .get_attr_payload_as::<Vec<u8>>(Ifla::Address)
+                    .unwrap()
+                    .len(),
+                6
+            );
+        }
     }
 }
