@@ -105,7 +105,7 @@ where
                 nl_seq: u32,
                 nl_pid: u32,
                 nl_payload: Buffer => {
-                    (nl_len as usize).checked_sub(
+                    mem.len().checked_sub(
                         size_of::<u32>() * 3
                       + T::type_size().expect("Constant size")
                       + NlmFFlags::type_size().expect("Constant size")
