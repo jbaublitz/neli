@@ -211,7 +211,17 @@ where
         let (nl_pid, pos) = drive_deserialize!(u32, mem, pos);
         let nl_type_int: u16 = nl_type.into();
         let (nl_payload, pos) = if nl_type_int == Nlmsg::Error.into() {
-            let (nl_payload, pos) = drive_deserialize!(Nlmsgerr<u16>, mem, pos);
+            let (nl_payload, pos) = drive_deserialize!(
+                Nlmsgerr<u16>,
+                mem,
+                pos,
+                nl_len as usize
+                    - (nl_len.size()
+                        + nl_type.size()
+                        + nl_flags.size()
+                        + nl_seq.size()
+                        + nl_pid.size())
+            );
             if nl_payload.error == 0 {
                 (NlPayload::Ack(nl_payload), pos)
             } else {
