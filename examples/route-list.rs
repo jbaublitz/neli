@@ -9,7 +9,6 @@ use neli::{
     rtnl::*,
     socket::*,
     types::RtBuffer,
-    utils::U32Bitmask,
 };
 
 fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError> {
@@ -67,7 +66,7 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
 /// with the rtnetlink subsystem.  
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, U32Bitmask::empty()).unwrap();
+    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, &[]).unwrap();
 
     let rtmsg = Rtmsg {
         rtm_family: RtAddrFamily::Inet,
