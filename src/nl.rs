@@ -16,7 +16,7 @@
 use crate::{
     consts::{
         alignto,
-        nl::{NlType, NlTypeWrapper, NlmFFlags, Nlmsg},
+        nl::{NlType, NlmFFlags, Nlmsg},
     },
     err::{DeError, NlError, Nlmsgerr, SerError},
     parse::packet_length_u32,
@@ -68,9 +68,9 @@ where
 #[derive(Debug, PartialEq)]
 pub enum NlPayload<P> {
     /// Represents an ACK returned by netlink.
-    Ack(Nlmsgerr<NlTypeWrapper>),
+    Ack(Nlmsgerr<u16>),
     /// Represents an application level error returned by netlink.
-    Err(Nlmsgerr<NlTypeWrapper>),
+    Err(Nlmsgerr<u16>),
     /// Represents the requested payload.
     Payload(P),
     /// Indicates an empty payload.
@@ -211,7 +211,7 @@ where
         let (nl_pid, pos) = drive_deserialize!(u32, mem, pos);
         let nl_type_int: u16 = nl_type.into();
         let (nl_payload, pos) = if nl_type_int == Nlmsg::Error.into() {
-            let (nl_payload, pos) = drive_deserialize!(Nlmsgerr<NlTypeWrapper>, mem, pos);
+            let (nl_payload, pos) = drive_deserialize!(Nlmsgerr<u16>, mem, pos);
             if nl_payload.error == 0 {
                 (NlPayload::Ack(nl_payload), pos)
             } else {
