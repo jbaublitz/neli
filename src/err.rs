@@ -164,7 +164,9 @@ where
             mem;
             Nlmsgerr::<T> {
                 error: libc::c_int,
-                nlmsg: NlmsghdrErr<T>
+                nlmsg: NlmsghdrErr<T> => {
+                    mem.len() - size_of::<libc::c_int>()
+                },
             }
         })
     }
