@@ -55,6 +55,28 @@ jobs:
           override: true
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
+  glibc-examples:
+    strategy:
+      matrix:
+        toolchain:
+          - nightly
+          - stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: cargo
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Build examples
+        run: cd examples && cargo build
+      - name: Run getips
+        run: ./examples/target/debug/getips
+      - name: Run ctrl-list
+        run: ./examples/target/debug/ctrl-list
+      - name: Run route-list
+        run: ./examples/target/debug/route-list
   musl-checks:
     strategy:
       matrix:
@@ -83,3 +105,28 @@ jobs:
           override: true
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
+  musl-examples:
+    strategy:
+      matrix:
+        toolchain:
+          - nightly
+          - stable
+    runs-on: ubuntu-latest
+    container: alpine
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: apk add --no-cache gcc libc6-compat musl-dev
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: cargo
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Build examples
+        run: cd examples && cargo build
+      - name: Run getips
+        run: ./examples/target/debug/getips
+      - name: Run ctrl-list
+        run: ./examples/target/debug/ctrl-list
+      - name: Run route-list
+        run: ./examples/target/debug/route-list
