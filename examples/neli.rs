@@ -13,6 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
     let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty()).unwrap();
+    let _pid = sock.get_pid().unwrap(); // resolve the pid that was affected to this socket
     let _id = sock.resolve_genl_family(family_name).unwrap();
 
     // Resolve generic netlink multicast group ID

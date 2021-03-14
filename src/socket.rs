@@ -232,6 +232,35 @@ impl NlSocket {
             _ => Err(io::Error::last_os_error()),
         }
     }
+
+    /// Get the current pid address from sock name (useful when the pid passed was None)
+    pub fn get_pid_from_sock(&self) -> Result<u32, io::Error> {
+        let mut addr = std::mem::MaybeUninit::uninit();
+        let mut len = std::mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+        match unsafe {
+            libc::getsockname(self.fd, addr.as_mut_ptr() as *mut libc::sockaddr, &mut len)
+        } {
+            i if i == 0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }?;
+        let filled_addr: &libc::sockaddr_storage = unsafe { &addr.assume_init() };
+        let filled_len: usize = len as usize;
+        if filled_len > std::mem::size_of::<libc::sockaddr_un>() {
+            return Err(io::Error::last_os_error());
+        }
+        if filled_len < std::mem::size_of_val(&filled_addr.ss_family) {
+            return Err(io::Error::last_os_error());
+        }
+        match libc::c_int::from(filled_addr.ss_family) {
+            libc::AF_NETLINK => {
+                let snl: *const libc::sockaddr_nl =
+                    filled_addr as *const _ as *const libc::sockaddr_nl;
+                let pid: u32 = unsafe { (*snl).nl_pid };
+                Ok(pid)
+            }
+            _ => Err(io::Error::from(io::ErrorKind::InvalidData)),
+        }
+    }
 }
 
 impl From<NlSocketHandle> for NlSocket {
@@ -320,6 +349,11 @@ impl NlSocketHandle {
     /// Determines if underlying file descriptor is blocking.
     pub fn is_blocking(&self) -> Result<bool, io::Error> {
         self.socket.is_blocking()
+    }
+
+    /// Get the pid from the socket after binding (useful when the pid passed was None)
+    pub fn get_pid(&self) -> Result<u32, io::Error> {
+        self.socket.get_pid_from_sock()
     }
 
     /// Use this function to bind to a netlink ID and subscribe to
