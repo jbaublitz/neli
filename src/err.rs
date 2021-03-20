@@ -42,6 +42,11 @@ pub struct NlmsghdrErr<T> {
     pub nl_seq: u32,
     /// ID of the netlink destination for requests and source for responses
     pub nl_pid: u32,
+    /// Optionally the payload of the packet that caused the error
+    ///
+    /// For ACKs, this will be an empty vector. For errors, this
+    /// will be the serialized payload of the packet that caused
+    /// the error.
     nl_payload: Buffer,
 }
 
