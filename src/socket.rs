@@ -294,7 +294,7 @@ pub struct NlSocketHandle {
     buffer: SockBuffer,
     position: usize,
     end: usize,
-    needs_ack: bool,
+    pub(super) needs_ack: bool,
 }
 
 impl NlSocketHandle {
@@ -394,21 +394,22 @@ impl NlSocketHandle {
     /// Convenience function for resolving a [`str`] containing the
     /// generic netlink family name to a numeric generic netlink ID.
     pub fn resolve_genl_family(&mut self, family_name: &str) -> Result<u16, NlError> {
-        let nlhdrs = self.get_genl_family(family_name)?;
-        for nlhdr in nlhdrs.into_iter() {
-            let attrs = nlhdr
-                .nl_payload
-                .get_payload()
-                .ok_or_else(|| NlError::new("No attributes were returned in this message."))?;
-            let handle = attrs.get_attr_handle();
-            if let Ok(u) = handle.get_attr_payload_as::<u16>(CtrlAttr::FamilyId) {
-                return Ok(u);
-            }
-        }
-        Err(NlError::new(format!(
+        let mut res = Err(NlError::new(format!(
             "Generic netlink family {} was not found",
             family_name
-        )))
+        )));
+
+        let nlhdrs = self.get_genl_family(family_name)?;
+        for nlhdr in nlhdrs.into_iter() {
+            if let NlPayload::Payload(p) = nlhdr.nl_payload {
+                let handle = p.get_attr_handle();
+                if let Ok(u) = handle.get_attr_payload_as::<u16>(CtrlAttr::FamilyId) {
+                    res = Ok(u);
+                }
+            }
+        }
+
+        res
     }
 
     /// Convenience function for resolving a [`str`] containing the
@@ -418,39 +419,45 @@ impl NlSocketHandle {
         family_name: &str,
         mcast_name: &str,
     ) -> Result<u32, NlError> {
+        let mut res = Err(NlError::new(format!(
+            "Failed to resolve multicast group ID for family name {}, multicast group name {}",
+            family_name, mcast_name,
+        )));
+
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs {
-            let attrs = nlhdr
-                .nl_payload
-                .get_payload()
-                .ok_or_else(|| NlError::new("No attributes were returned in this message."))?;
-            let mut handle = attrs.get_attr_handle();
-            let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
-            if let Some(id) = mcast_groups
-                .iter()
-                .filter_map(|item| {
-                    let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
-                    let string = nested_attrs
-                        .get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)
-                        .ok()?;
-                    if string.as_str() == mcast_name {
-                        nested_attrs
-                            .get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
-                            .ok()
-                    } else {
-                        None
-                    }
-                })
-                .next()
-            {
-                return Ok(id);
+            if let NlPayload::Payload(p) = nlhdr.nl_payload {
+                let mut handle = p.get_attr_handle();
+                let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
+                if let Some(id) = mcast_groups
+                    .iter()
+                    .filter_map(|item| {
+                        let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
+                        let string = nested_attrs
+                            .get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)
+                            .ok()?;
+                        if string.as_str() == mcast_name {
+                            nested_attrs
+                                .get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
+                                .ok()
+                        } else {
+                            None
+                        }
+                    })
+                    .next()
+                {
+                    res = Ok(id);
+                }
             }
         }
-        Err(NlError::new("Failed to resolve multicast group ID"))
+
+        res
     }
 
     /// Look up netlink family and multicast group name by ID.
     pub fn lookup_id(&mut self, id: u32) -> Result<(String, String), NlError> {
+        let mut res = Err(NlError::new("ID does not correspond to a multicast group"));
+
         let attrs = GenlBuffer::new();
         let genlhdr = Genlmsghdr::<CtrlCmd, CtrlAttrMcastGrp>::new(CtrlCmd::Getfamily, 2, attrs);
         let nlhdr = Nlmsghdr::new(
@@ -466,29 +473,28 @@ impl NlSocketHandle {
         for res_msg in self.iter::<Genlmsghdr<u8, CtrlAttr>>(false) {
             let msg = res_msg?;
 
-            let mut attributes = msg
-                .nl_payload
-                .get_payload()
-                .ok_or_else(|| NlError::new("No attributes returned in this message."))?
-                .get_attr_handle();
-            let name = attributes.get_attr_payload_as::<String>(CtrlAttr::FamilyName)?;
-            let groups = match attributes.get_nested_attributes::<Index>(CtrlAttr::McastGroups) {
-                Ok(grps) => grps,
-                Err(_) => continue,
-            };
-            for group_by_index in groups.iter() {
-                let attributes = group_by_index.get_attr_handle::<CtrlAttrMcastGrp>()?;
-                if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id) {
-                    if mcid == id {
-                        let mcast_name =
-                            attributes.get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)?;
-                        return Ok((name, mcast_name));
+            if let NlPayload::Payload(p) = msg.nl_payload {
+                let mut attributes = p.get_attr_handle();
+                let name = attributes.get_attr_payload_as::<String>(CtrlAttr::FamilyName)?;
+                let groups = match attributes.get_nested_attributes::<Index>(CtrlAttr::McastGroups)
+                {
+                    Ok(grps) => grps,
+                    Err(_) => continue,
+                };
+                for group_by_index in groups.iter() {
+                    let attributes = group_by_index.get_attr_handle::<CtrlAttrMcastGrp>()?;
+                    if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id) {
+                        if mcid == id {
+                            let mcast_name =
+                                attributes.get_attr_payload_as::<String>(CtrlAttrMcastGrp::Name)?;
+                            res = Ok((name.clone(), mcast_name));
+                        }
                     }
                 }
             }
         }
 
-        Err(NlError::new("ID does not correspond to a multicast group"))
+        res
     }
 
     /// Convenience function to send an [`Nlmsghdr`] struct
@@ -517,7 +523,8 @@ impl NlSocketHandle {
     /// instead for easy iteration over returned packets.
     ///
     /// Returns [`None`] only in non-blocking contexts if no
-    /// message can be immediately returned.
+    /// message can be immediately returned or if the socket
+    /// has been closed.
     pub fn recv<T, P>(&mut self) -> Result<Option<Nlmsghdr<T, P>>, NlError>
     where
         T: Nl + NlType + Debug,
@@ -581,26 +588,14 @@ impl NlSocketHandle {
         log!("Message received: {:#?}", packet);
 
         if let NlPayload::Err(e) = packet.nl_payload {
-            return Err(NlError::Nlmsgerr(e));
-        }
-
-        if self.needs_ack
-            && (!packet.nl_flags.contains(&NlmF::Multi)
-                || packet.nl_type.into() == Nlmsg::Done.into())
-        {
-            let is_blocking = self.is_blocking()?;
-            self.nonblock()?;
-            self.needs_ack = false;
-            let potential_ack = self.recv::<T, P>()?;
-            if let Some(NlPayload::Payload(_))
-            | Some(NlPayload::Empty)
-            | Some(NlPayload::Err(_))
-            | None = potential_ack.as_ref().map(|p| &p.nl_payload)
-            {
-                return Err(NlError::NoAck);
-            }
-            if is_blocking {
-                self.block()?;
+            return Err(NlError::from(e));
+        } else if let NlPayload::Ack(_) = packet.nl_payload {
+            if self.needs_ack {
+                self.needs_ack = false;
+            } else {
+                return Err(NlError::new(
+                    "Socket did not expect an ACK but one was received",
+                ));
             }
         }
 
@@ -969,7 +964,8 @@ mod test {
                 assert!(e2.nlmsg.get_payload_as::<Genlmsghdr<u8, u16>>().is_ok());
                 return;
             }
-            _ => panic!(""),
+            (Err(e), _) => panic!("Unexpected result from resolve_nl_mcast_group: {}", e),
+            (_, Err(e)) => panic!("Unexpected result from resolve_nl_mcast_group: {}", e),
         };
 
         let groups = sock.list_mcast_membership().unwrap();

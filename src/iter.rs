@@ -5,7 +5,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use crate::{
     consts::nl::{NlType, NlTypeWrapper, NlmF, Nlmsg},
     err::NlError,
-    nl::Nlmsghdr,
+    nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     Nl,
 };
@@ -97,14 +97,17 @@ where
             Ok(None) => return None,
             Err(e) => return Some(Err(e)),
         };
-        if self.next_is_none.is_some() && !next.nl_flags.contains(&NlmF::Multi) {
-            self.next_is_none = Some(true);
+
+        if let NlPayload::Ack(_) = next.nl_payload {
+            self.next_is_none = self.next_is_none.map(|_| true);
+        } else if (!next.nl_flags.contains(&NlmF::Multi)
+            || next.nl_type.into() == Nlmsg::Done.into())
+            && !self.sock_ref.needs_ack
+        {
+            self.next_is_none = self.next_is_none.map(|_| true);
         }
-        if next.nl_type.into() == Nlmsg::Done.into() {
-            None
-        } else {
-            Some(Ok(next))
-        }
+
+        Some(Ok(next))
     }
 }
 
