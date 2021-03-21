@@ -6,11 +6,9 @@
 //! cases to allow the internal representation to change without
 //! resulting in a breaking change.
 
-pub use std::{
+use std::{
     cell::{Ref, RefCell, RefMut},
     iter::FromIterator,
-    marker::PhantomData,
-    ops::Range,
     slice::{Iter, IterMut},
 };
 
