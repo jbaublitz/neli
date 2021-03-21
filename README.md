@@ -173,9 +173,7 @@ Steps for a PR:
 * For breaking changes, please target the branch for the next version release - this will
 look like `v[NEXT_VERSION]-dev`
 * Please include a brief description of your change in the CHANGELOG file
-* Once a PR has been reviewed and approved, please rebase onto the target branch and squash your
-commit into one
+* Once a PR has been reviewed and approved, please rebase onto the target branch
   * For those less familiar with git, it should look something like this
-    * `git rebase -i [TARGET_BRANCH] [YOUR_BRANCH]`
-    * Follow the prompts to squash your commits into one and provide your final commit message
-    * _This is a destructive operation so make sure you check carefully before doing this_:`git push -f origin [YOUR_BRANCH]`
+    * `git rebase [TARGET_BRANCH] [YOUR_BRANCH]`
+    * _This is a destructive operation so make sure you check carefully before doing this_: `git push -f origin [YOUR_BRANCH]`
