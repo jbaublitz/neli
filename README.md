@@ -62,7 +62,6 @@ use neli::{
     nl::{Nlmsghdr, NlPayload},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
-    utils::U32Bitmask,
 };
 
 const GENL_VERSION: u8 = 1;
@@ -71,7 +70,7 @@ fn request_response() -> Result<(), NlError> {
     let mut socket = NlSocketHandle::connect(
         NlFamily::Generic,
         None,
-        U32Bitmask::empty(),
+        &[],
     )?;
 
     let attrs: GenlBuffer<Index, Buffer> = GenlBuffer::new();
@@ -114,20 +113,19 @@ use neli::{
     err::NlError,
     genl::Genlmsghdr,
     socket,
-    utils::{U32BitFlag, U32Bitmask},
 };
 
 fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
     let mut s = socket::NlSocketHandle::connect(
         NlFamily::Generic,
         None,
-        U32Bitmask::empty(),
+        &[],
     )?;
     let id = s.resolve_nl_mcast_group(
         "my_family_name",
         "my_multicast_group_name",
     )?;
-    s.add_mcast_membership(U32Bitmask::from(U32BitFlag::new(id)?))?;
+    s.add_mcast_membership(&[id])?;
     for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
         // Do stuff here with parsed packets...
     
