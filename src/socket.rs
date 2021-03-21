@@ -946,16 +946,42 @@ mod test {
     #[test]
     fn real_test_mcast_groups() {
         let mut sock = NlSocketHandle::new(NlFamily::Generic).unwrap();
-        let notify_id = sock.resolve_nl_mcast_group("nlctrl", "notify").unwrap();
-        let nl80211_id = sock.resolve_nl_mcast_group("nl80211", "scan").unwrap();
-        sock.add_mcast_membership(&[notify_id, nl80211_id]).unwrap();
+        let notify_id_result = sock.resolve_nl_mcast_group("nlctrl", "notify");
+        let config_id_result = sock.resolve_nl_mcast_group("devlink", "config");
+
+        let ids = match (notify_id_result, config_id_result) {
+            (Ok(ni), Ok(ci)) => {
+                sock.add_mcast_membership(&[ni, ci]).unwrap();
+                vec![ni, ci]
+            }
+            (Ok(ni), Err(NlError::Nlmsgerr(e))) => {
+                sock.add_mcast_membership(&[ni]).unwrap();
+                assert!(e.nlmsg.get_payload_as::<Genlmsghdr<u8, u16>>().is_ok());
+                vec![ni]
+            }
+            (Err(NlError::Nlmsgerr(e)), Ok(ci)) => {
+                sock.add_mcast_membership(&[ci]).unwrap();
+                assert!(e.nlmsg.get_payload_as::<Genlmsghdr<u8, u16>>().is_ok());
+                vec![ci]
+            }
+            (Err(NlError::Nlmsgerr(e1)), Err(NlError::Nlmsgerr(e2))) => {
+                assert!(e1.nlmsg.get_payload_as::<Genlmsghdr<u8, u16>>().is_ok());
+                assert!(e2.nlmsg.get_payload_as::<Genlmsghdr<u8, u16>>().is_ok());
+                return;
+            }
+            _ => panic!(""),
+        };
+
         let groups = sock.list_mcast_membership().unwrap();
-        assert!(groups.is_set(notify_id as usize));
-        assert!(groups.is_set(nl80211_id as usize));
-        sock.drop_mcast_membership(&[notify_id, nl80211_id])
-            .unwrap();
+        for id in ids.iter() {
+            assert!(groups.is_set(*id as usize));
+        }
+
+        sock.drop_mcast_membership(ids.as_slice()).unwrap();
         let groups = sock.list_mcast_membership().unwrap();
-        assert!(!groups.is_set(notify_id as usize));
-        assert!(!groups.is_set(nl80211_id as usize));
+
+        for id in ids.iter() {
+            assert!(!groups.is_set(*id as usize));
+        }
     }
 }
