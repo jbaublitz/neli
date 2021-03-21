@@ -6,7 +6,6 @@ use neli::{
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
-    utils::U32Bitmask,
 };
 
 const GENL_VERSION: u8 = 2;
@@ -15,7 +14,7 @@ const GENL_VERSION: u8 = 2;
 // the name and identifier of each generic netlink family.
 
 fn main() -> Result<(), NlError> {
-    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
 
     let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
     let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs);

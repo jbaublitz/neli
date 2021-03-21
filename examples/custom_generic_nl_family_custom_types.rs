@@ -21,7 +21,6 @@ use neli::{
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
-    utils::U32Bitmask,
 };
 use std::process;
 
@@ -60,7 +59,7 @@ fn main() {
         NlFamily::Generic,
         // 0 is pid of kernel -> socket is connected to kernel
         Some(0),
-        U32Bitmask::empty(),
+        &[],
     )
     .unwrap();
 

@@ -2,13 +2,7 @@ use std::{env, error::Error};
 
 #[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
-use neli::{
-    consts::socket::NlFamily,
-    err::NlError,
-    genl::Genlmsghdr,
-    socket::NlSocketHandle,
-    utils::{U32BitFlag, U32Bitmask},
-};
+use neli::{consts::socket::NlFamily, err::NlError, genl::Genlmsghdr, socket::NlSocketHandle};
 #[cfg(feature = "async")]
 use tokio_stream::StreamExt;
 
@@ -25,18 +19,9 @@ fn debug_stream() -> Result<(), NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    let flag = match U32BitFlag::new(id) {
-        Ok(f) => f,
-        Err(_) => {
-            return Err(NlError::new(format!(
-                "{} is too large of a group number",
-                id
-            )))
-        }
-    };
-    s.add_mcast_membership(U32Bitmask::from(flag))?;
+    s.add_mcast_membership(&[id])?;
     let runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
         let mut ss = match NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
@@ -54,7 +39,7 @@ fn debug_stream() -> Result<(), NlError> {
 }
 
 #[cfg(not(feature = "async"))]
-fn debug_stream() -> Result<(), neli::err::NlError> {
+fn debug_stream() -> Result<(), NlError> {
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -66,18 +51,9 @@ fn debug_stream() -> Result<(), neli::err::NlError> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, U32Bitmask::empty())?;
+    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    let flag = match U32BitFlag::new(id) {
-        Ok(f) => f,
-        Err(_) => {
-            return Err(NlError::new(format!(
-                "{} is too large of a group number",
-                id
-            )))
-        }
-    };
-    s.add_mcast_membership(U32Bitmask::from(flag))?;
+    s.add_mcast_membership(&[id])?;
     for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
         println!("{:#?}", next?);
     }
