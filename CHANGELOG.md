@@ -9,6 +9,8 @@
  `IffFlags`, not `Iff`.
 * Fixed assumption in `NlSocketHandle::recv()` where this method
   never expected an ACK to be returned with no data.
+* Fixed bug for deserialization of errors returned at the
+  application level.
 
 ### Additions
 * More constants in `Arphrd`.
@@ -18,7 +20,7 @@
 * Addition of convenience methods on `RtBuffer` and `GenlBuffer`
   types to make parsing nested attributes easier.
 
-### Breaking changes
+### Dependency updates
 * Update to tokio 1.0.
 
 ## 0.5.2
