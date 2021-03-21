@@ -40,8 +40,8 @@ path = "error_packet.rs"
 version = "1.0"
 optional = true
 
-[dependencies.tokio-stream]
-version = "0.1"
+[dependencies.futures]
+version = "0.3"
 optional = true
 
 [dependencies.neli]
@@ -49,5 +49,5 @@ version = "0.5.0"
 path = ".."
 
 [features]
-async = ["tokio", "tokio-stream", "neli/async"]
+async = ["tokio", "futures", "neli/async"]
 logging = ["neli/logging"]

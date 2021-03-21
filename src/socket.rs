@@ -10,8 +10,9 @@
 //! the library. The are able to operate on any structure wrapped in
 //! an [`Nlmsghdr`][crate::nl::Nlmsghdr] struct that implements
 //! the [`Nl`] trait.
-//! * [`NlSocketHandle::iter`] provides a loop based iteration
-//! through messages that are received in a stream over the socket.
+//! * [`NlSocketHandle::iter`] and [`NlSocketHandle::iter2`]
+//! provide a loop based iteration through messages that are
+//! received in a stream over the socket.
 //!
 //! ## Features
 //! The `async` feature exposed by `cargo` allows the socket to use
@@ -715,8 +716,8 @@ pub mod tokio {
     };
 
     use ::tokio::io::{unix::AsyncFd, AsyncRead, AsyncWrite, ReadBuf};
-    use futures_util::ready;
-    use tokio_stream::Stream;
+    use futures::ready;
+    use futures::stream::Stream;
 
     use crate::neli_constants::MAX_NL_LENGTH;
 
@@ -846,7 +847,7 @@ pub mod tokio {
         use super::*;
 
         use ::tokio::runtime::Runtime;
-        use tokio_stream::StreamExt;
+        use futures::stream::StreamExt;
 
         use crate::socket::{self, tokio::NlSocket};
 
@@ -858,7 +859,7 @@ pub mod tokio {
                 .block_on(async move {
                     let mut async_s = NlSocket::<NlTypeWrapper, u8>::new(s).unwrap();
                     ::tokio::task::spawn(async move {
-                        let _ = async_s.try_next();
+                        let _ = async_s.next();
                     })
                     .await
                 })
