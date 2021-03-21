@@ -344,9 +344,9 @@ where
         let (nla_nested, nla_network_order, nla_type) = from_nla_type_bit_flags(nla_type);
         Ok(Nlattr::<T, P> {
             nla_len,
-            nla_type,
             nla_nested,
             nla_network_order,
+            nla_type,
             nla_payload,
         })
     }

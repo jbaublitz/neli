@@ -17,12 +17,14 @@
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
-    io, str, string,
+    io,
+    mem::size_of,
+    str, string,
 };
 
 use crate::{
-    consts::nl::{NlType, NlTypeWrapper, NlmFFlags},
-    types::{DeBuffer, SerBuffer},
+    consts::nl::{NlType, NlmFFlags},
+    types::{Buffer, DeBuffer, SerBuffer},
     Nl,
 };
 
@@ -40,6 +42,45 @@ pub struct NlmsghdrErr<T> {
     pub nl_seq: u32,
     /// ID of the netlink destination for requests and source for responses
     pub nl_pid: u32,
+    /// Optionally the payload of the packet that caused the error
+    ///
+    /// For ACKs, this will be an empty vector. For errors, this
+    /// will be the serialized payload of the packet that caused
+    /// the error.
+    nl_payload: Buffer,
+}
+
+impl<T> NlmsghdrErr<T>
+where
+    T: NlType,
+{
+    /// Create a new error packet payload.
+    pub fn new(
+        nl_len: u32,
+        nl_type: T,
+        nl_flags: NlmFFlags,
+        nl_seq: u32,
+        nl_pid: u32,
+        nl_payload: Option<Buffer>,
+    ) -> Self {
+        NlmsghdrErr {
+            nl_len,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload: nl_payload.unwrap_or_default(),
+        }
+    }
+
+    /// Deserialize the payload received in the error packet as
+    /// type parameter `P`.
+    pub fn get_payload_as<P>(&self) -> Result<P, DeError>
+    where
+        P: Nl,
+    {
+        P::deserialize(self.nl_payload.as_ref())
+    }
 }
 
 impl<T> Nl for NlmsghdrErr<T>
@@ -53,7 +94,8 @@ where
             self.nl_type;
             self.nl_flags;
             self.nl_seq;
-            self.nl_pid
+            self.nl_pid;
+            self.nl_payload
         }
         Ok(())
     }
@@ -66,7 +108,14 @@ where
                 nl_type: T,
                 nl_flags: NlmFFlags,
                 nl_seq: u32,
-                nl_pid: u32
+                nl_pid: u32,
+                nl_payload: Buffer => {
+                    mem.len().checked_sub(
+                        size_of::<u32>() * 3
+                      + T::type_size().expect("Constant size")
+                      + NlmFFlags::type_size().expect("Constant size")
+                    ).ok_or(DeError::UnexpectedEOB)?
+                },
             }
         })
     }
@@ -77,14 +126,11 @@ where
             + self.nl_flags.size()
             + self.nl_seq.size()
             + self.nl_pid.size()
+            + self.nl_payload.size()
     }
 
     fn type_size() -> Option<usize> {
-        Some(
-            u32::type_size().expect("Must be constant size") * 3
-                + T::type_size().expect("Must be constant size")
-                + NlmFFlags::type_size().expect("Must be constant size"),
-        )
+        None
     }
 }
 
@@ -123,7 +169,9 @@ where
             mem;
             Nlmsgerr::<T> {
                 error: libc::c_int,
-                nlmsg: NlmsghdrErr<T>
+                nlmsg: NlmsghdrErr<T> => {
+                    mem.len() - size_of::<libc::c_int>()
+                },
             }
         })
     }
@@ -156,7 +204,7 @@ pub enum NlError {
     /// Variant for [`String`]-based messages.
     Msg(String),
     /// An error packet sent back by netlink.
-    Nlmsgerr(Nlmsgerr<NlTypeWrapper>),
+    Nlmsgerr(Nlmsgerr<u16>),
     /// A serialization error.
     Ser(SerError),
     /// A deserialization error.
@@ -176,7 +224,7 @@ pub enum NlError {
 
 err_from!(
     NlError,
-    Nlmsgerr<NlTypeWrapper> { NlError::Nlmsgerr },
+    Nlmsgerr<u16> { NlError::Nlmsgerr },
     SerError { NlError::Ser },
     DeError { NlError::De },
     WrappedError { NlError::Wrapped },
