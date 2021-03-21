@@ -77,6 +77,8 @@ jobs:
         run: ./examples/target/debug/ctrl-list
       - name: Run route-list
         run: ./examples/target/debug/route-list
+      - name: Run error_packet 
+        run: ./examples/target/debug/error_packet
   musl-checks:
     strategy:
       matrix:
@@ -130,3 +132,5 @@ jobs:
         run: ./examples/target/debug/ctrl-list
       - name: Run route-list
         run: ./examples/target/debug/route-list
+      - name: Run error_packet 
+        run: ./examples/target/debug/error_packet
