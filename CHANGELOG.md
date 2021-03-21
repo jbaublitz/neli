@@ -9,8 +9,14 @@
  `IffFlags`, not `Iff`.
 * Fixed assumption in `NlSocketHandle::recv()` where this method
   never expected an ACK to be returned with no data.
+  * The behavior of `NlSocketHandle::recv()` has changed slightly.
+    It will now return ACKs and only returns `None` when nonblocking.
+    Use `NlSocketHandle::iter()` for handling of streams of messages.
 * Fixed bug for deserialization of errors returned at the
   application level.
+* Fixed bug in subscription to multicast groups.
+  * The API has been changed and `U32Bitmask` has been replaced by
+    `NetlinkBitArray`.
 
 ### Additions
 * More constants in `Arphrd`.
