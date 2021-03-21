@@ -1,0 +1,20 @@
+#!/bin/sh
+
+cargo fmt -- --check \
+    && cargo clippy --all-targets --all-features -- -D warnings \
+    && cargo build \
+    && cargo build --all-targets --all-features \
+    && cargo test \
+    && cargo test --all-targets --all-features \
+    || exit 1
+
+cd examples \
+    && cargo fmt -- --check \
+    && cargo clippy -- -D warnings \
+    && cargo build \
+    && ./target/debug/getips \
+    && ./target/debug/route-list \
+    && ./target/debug/ctrl-list \
+    && ./target/debug/error_packet \
+    && cargo build --all-targets --all-features \
+    || exit 1
