@@ -41,17 +41,18 @@ fn main() -> Result<(), NlError> {
             ));
         }
 
-        let handle = response.get_payload()?.get_attr_handle();
-
-        for attr in handle.iter() {
-            match &attr.nla_type {
-                CtrlAttr::FamilyName => {
-                    println!("{}", attr.get_payload_as::<String>()?);
+        if let NlPayload::Payload(p) = response.nl_payload {
+            let handle = p.get_attr_handle();
+            for attr in handle.iter() {
+                match &attr.nla_type {
+                    CtrlAttr::FamilyName => {
+                        println!("{}", attr.get_payload_as::<String>()?);
+                    }
+                    CtrlAttr::FamilyId => {
+                        println!("\tID: 0x{:x}", attr.get_payload_as::<u16>()?);
+                    }
+                    _ => (),
                 }
-                CtrlAttr::FamilyId => {
-                    println!("\tID: 0x{:x}", attr.get_payload_as::<u16>()?);
-                }
-                _ => (),
             }
         }
     }
