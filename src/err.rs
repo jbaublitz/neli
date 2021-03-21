@@ -13,6 +13,17 @@
 //! All errors implement `std::error::Error` in an attempt to allow
 //! them to be used in conjunction with `Result` for easier error
 //! management even at the protocol error level.
+//!
+//! Deserializing the [`NlmsghdrErr`] struct simply consumes the
+//! remaining data available in the deserialization buffer for the
+//! `nl_payload` field. This is due to the fact that ACKs do not
+//! contain the payload of the packet that triggered the ACK, but
+//! errors do contain the payload of the packet that triggered
+//! the error. This means that the `nl_len` field of [`NlmsghdrErr`]
+//! cannot be relied on for deserialization. To access the payload
+//! of the packet that caused the error, use
+//! [`NlmsghdrErr::get_payload_as`]. See the `examples/` directory
+//! for a usage example.
 
 use std::{
     error::Error,

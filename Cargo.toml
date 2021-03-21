@@ -41,16 +41,12 @@ version = "1"
 features = ["io-util", "rt-multi-thread", "sync", "net"]
 optional = true
 
-[dependencies.tokio-stream]
-version = "0.1"
-optional = true
-
-[dependencies.futures-util]
+[dependencies.futures]
 version = "0.3"
 optional = true
 
 [features]
 default = []
-async = ["tokio", "tokio-stream", "futures-util"]
+async = ["tokio", "futures"]
 logging = ["log", "simple_logger", "lazy_static"]
 netfilter = []

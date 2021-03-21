@@ -1,10 +1,10 @@
 use std::{env, error::Error};
 
 #[cfg(feature = "async")]
+use futures::stream::StreamExt;
+#[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{consts::socket::NlFamily, err::NlError, genl::Genlmsghdr, socket::NlSocketHandle};
-#[cfg(feature = "async")]
-use tokio_stream::StreamExt;
 
 #[cfg(feature = "async")]
 fn debug_stream() -> Result<(), NlError> {
@@ -31,7 +31,7 @@ fn debug_stream() -> Result<(), NlError> {
                 return;
             }
         };
-        while let Ok(Some(next)) = ss.try_next().await {
+        while let Some(Ok(next)) = ss.next().await {
             println!("{:#?}", next);
         }
     });
