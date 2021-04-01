@@ -1,6 +1,6 @@
 extern crate neli;
 
-use std::{error::Error, net::IpAddr};
+use std::{convert::TryInto, error::Error, net::IpAddr};
 
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
@@ -11,6 +11,18 @@ use neli::{
     types::RtBuffer,
 };
 
+fn index_to_interface(index: u32) -> String {
+    let mut buff = [0i8; 16];
+    let buff: [u8; 16] = unsafe {
+        libc::if_indextoname(index, &mut buff[0]);
+        std::mem::transmute(buff)
+    };
+    std::str::from_utf8(&buff)
+        .unwrap()
+        .trim_matches(char::from(0))
+        .to_string()
+}
+
 fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError> {
     let payload = rtm.get_payload()?;
     // This sample is only interested in the main table.
@@ -18,6 +30,7 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
         let mut src = None;
         let mut dst = None;
         let mut gateway = None;
+        let mut name = None;
 
         for attr in payload.rtattrs.iter() {
             fn to_addr(b: &[u8]) -> Option<IpAddr> {
@@ -35,6 +48,11 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
                 Rta::Dst => dst = to_addr(attr.rta_payload.as_ref()),
                 Rta::Prefsrc => src = to_addr(attr.rta_payload.as_ref()),
                 Rta::Gateway => gateway = to_addr(attr.rta_payload.as_ref()),
+                Rta::Oif => {
+                    name = Some(index_to_interface(u32::from_le_bytes(
+                        attr.rta_payload.as_ref().try_into().unwrap(),
+                    )))
+                }
                 _ => (),
             }
         }
@@ -48,14 +66,18 @@ fn parse_route_table(rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>) -> Result<(), NlError>
             }
         }
 
+        if let Some(name) = name {
+            print!("dev {} ", name);
+        }
+
         if payload.rtm_scope != RtScope::Universe {
             print!(
-                " proto {:?}  scope {:?} ",
+                "proto {:?} scope {:?} ",
                 payload.rtm_protocol, payload.rtm_scope
             )
         }
         if let Some(src) = src {
-            print!(" src {} ", src);
+            print!("src {} ", src);
         }
         println!();
     }
