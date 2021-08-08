@@ -531,7 +531,7 @@ impl Nl for NdaCacheinfo {
 }
 
 /// Message in response to queuing discipline operations
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Tcmsg {
     /// Family
     pub tcm_family: libc::c_uchar,
