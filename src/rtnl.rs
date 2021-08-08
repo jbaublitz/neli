@@ -591,8 +591,6 @@ impl Nl for Tcmsg {
 
     fn size(&self) -> usize {
         self.tcm_family.size()
-            + mem::size_of::<libc::c_uchar>()
-            + mem::size_of::<libc::c_ushort>()
             + self.tcm_ifindex.size()
             + self.padding_char.size()
             + self.padding_short.size()
