@@ -8,19 +8,6 @@
 
 use std::mem::size_of;
 
-use crate::{err::SerError, Nl};
-
-/// Convenience method for allocating a buffer for serialization.
-pub fn serialize<N>(nl: &N, align: bool) -> Result<Vec<u8>, SerError>
-where
-    N: Nl,
-{
-    let len = if align { nl.asize() } else { nl.size() };
-    let mut vec = vec![0; len];
-    nl.serialize(vec.as_mut_slice())?;
-    Ok(vec)
-}
-
 type BitArrayType = u32;
 
 /// A bit array meant to be compatible with the bit array
@@ -128,8 +115,12 @@ impl NetlinkBitArray {
 mod test {
     use super::*;
 
+    use crate::test::setup;
+
     #[test]
     fn test_bit_array() {
+        setup();
+
         let mut bit_array = NetlinkBitArray::new(7);
         assert_eq!(bit_array.0.len(), 1);
         bit_array.set(4);

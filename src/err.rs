@@ -25,26 +25,30 @@
 //! [`NlmsghdrErr::get_payload_as`]. See the `examples/` directory
 //! for a usage example.
 
+use crate as neli;
+
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
-    io,
-    mem::size_of,
-    str, string,
+    io, str, string,
 };
-
-use serde::{Serialize, ser};
 
 use crate::{
     consts::nl::{NlType, NlmFFlags},
-    types::{Buffer, DeBuffer, SerBuffer},
-    Nl,
+    types::Buffer,
+    FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
-/// An [`Nlmsghdr`][crate::nl::Nlmsghdr] header with no payload
-/// returned as part of errors.
-#[derive(Debug, PartialEq, Serialize)]
-pub struct NlmsghdrErr<T> {
+/// A special struct that represents the contents of an error returned at
+/// the application level. Because the returned
+/// `[nl_len][NlmsghdrErr::nl_len]` cannot always determine the length of
+/// the packet (as in the case of ACKs where no payload will be returned),
+/// this data structure relies on the total packet size for deserialization.
+#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput, Header)]
+#[neli(header_bound = "T: TypeSize")]
+#[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+pub struct NlmsghdrErr<T, P> {
     /// Length of the netlink message
     pub nl_len: u32,
     /// Type of the netlink message
@@ -53,141 +57,37 @@ pub struct NlmsghdrErr<T> {
     pub nl_flags: NlmFFlags,
     /// Sequence number for netlink protocol
     pub nl_seq: u32,
-    /// ID of the netlink destination for requests and source for responses
+    /// ID of the netlink destination for requests and source for
+    /// responses.
     pub nl_pid: u32,
-    /// Optionally the payload of the packet that caused the error
-    ///
-    /// For ACKs, this will be an empty vector. For errors, this
-    /// will be the serialized payload of the packet that caused
-    /// the error.
-    nl_payload: Buffer,
-}
-
-impl<T> NlmsghdrErr<T>
-where
-    T: NlType,
-{
-    /// Create a new error packet payload.
-    pub fn new(
-        nl_len: u32,
-        nl_type: T,
-        nl_flags: NlmFFlags,
-        nl_seq: u32,
-        nl_pid: u32,
-        nl_payload: Option<Buffer>,
-    ) -> Self {
-        NlmsghdrErr {
-            nl_len,
-            nl_type,
-            nl_flags,
-            nl_seq,
-            nl_pid,
-            nl_payload: nl_payload.unwrap_or_default(),
-        }
-    }
-
-    /// Deserialize the payload received in the error packet as
-    /// type parameter `P`.
-    pub fn get_payload_as<P>(&self) -> Result<P, DeError>
-    where
-        P: Nl,
-    {
-        P::deserialize(self.nl_payload.as_ref())
-    }
-}
-
-impl<T> Nl for NlmsghdrErr<T>
-where
-    T: NlType,
-{
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        serialize! {
-            mem;
-            self.nl_len;
-            self.nl_type;
-            self.nl_flags;
-            self.nl_seq;
-            self.nl_pid;
-            self.nl_payload
-        }
-        Ok(())
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(deserialize! {
-            mem;
-            NlmsghdrErr::<T> {
-                nl_len: u32,
-                nl_type: T,
-                nl_flags: NlmFFlags,
-                nl_seq: u32,
-                nl_pid: u32,
-                nl_payload: Buffer => {
-                    mem.len().checked_sub(
-                        size_of::<u32>() * 3
-                      + T::type_size().expect("Constant size")
-                      + NlmFFlags::type_size().expect("Constant size")
-                    ).ok_or(DeError::UnexpectedEOB)?
-                },
-            }
-        })
-    }
-
-    fn size(&self) -> usize {
-        self.nl_len.size()
-            + self.nl_type.size()
-            + self.nl_flags.size()
-            + self.nl_seq.size()
-            + self.nl_pid.size()
-            + self.nl_payload.size()
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
+    /// Payload of netlink message
+    #[neli(input = "input - Self::header_size()")]
+    pub nl_payload: P,
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Debug, PartialEq, Serialize)]
-pub struct Nlmsgerr<T> {
+#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes, Header)]
+#[neli(from_bytes_bound = "T: NlType")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+pub struct Nlmsgerr<T, P> {
     /// Error code
     pub error: libc::c_int,
     /// Packet header for request that failed
-    pub nlmsg: NlmsghdrErr<T>,
+    #[neli(input = "input - Self::header_size()")]
+    pub nlmsg: NlmsghdrErr<T, P>,
 }
 
-impl<T> Display for Nlmsgerr<T> {
+impl<T, P> Display for Nlmsgerr<T, P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", io::Error::from_raw_os_error(self.error))
     }
 }
 
-impl<T> Error for Nlmsgerr<T> where T: Debug {}
-
-impl<T> Nl for Nlmsgerr<T>
+impl<T, P> Error for Nlmsgerr<T, P>
 where
-    T: NlType,
+    T: Debug,
+    P: Debug,
 {
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(deserialize! {
-            mem;
-            Nlmsgerr::<T> {
-                error: libc::c_int,
-                nlmsg: NlmsghdrErr<T> => {
-                    mem.len() - size_of::<libc::c_int>()
-                },
-            }
-        })
-    }
-
-    fn size(&self) -> usize {
-        self.error.size() + self.nlmsg.size()
-    }
-
-    fn type_size() -> Option<usize> {
-        NlmsghdrErr::<T>::type_size()
-            .and_then(|nhdr_sz| libc::c_int::type_size().map(|cint| cint + nhdr_sz))
-    }
 }
 
 macro_rules! err_from {
@@ -204,11 +104,11 @@ macro_rules! err_from {
 
 /// General netlink error
 #[derive(Debug)]
-pub enum NlError {
+pub enum NlError<T = u16, P = Buffer> {
     /// Variant for [`String`]-based messages.
     Msg(String),
     /// An error packet sent back by netlink.
-    Nlmsgerr(Nlmsgerr<u16>),
+    Nlmsgerr(Nlmsgerr<T, P>),
     /// A serialization error.
     Ser(SerError),
     /// A deserialization error.
@@ -226,19 +126,50 @@ pub enum NlError {
     BadPid,
 }
 
+impl<T, P> From<Nlmsgerr<T, P>> for NlError<T, P> {
+    fn from(err: Nlmsgerr<T, P>) -> Self {
+        NlError::Nlmsgerr(err)
+    }
+}
+
+impl<T, P> From<SerError> for NlError<T, P> {
+    fn from(err: SerError) -> Self {
+        NlError::Ser(err)
+    }
+}
+
+impl<T, P> From<DeError> for NlError<T, P> {
+    fn from(err: DeError) -> Self {
+        NlError::De(err)
+    }
+}
+
+impl<T, P> From<io::Error> for NlError<T, P> {
+    fn from(err: io::Error) -> Self {
+        NlError::Wrapped(WrappedError::IOError(err))
+    }
+}
+
 err_from!(
     NlError,
-    Nlmsgerr<u16> { NlError::Nlmsgerr },
-    SerError { NlError::Ser },
-    DeError { NlError::De },
     WrappedError { NlError::Wrapped },
-    std::io::Error { |e| NlError::Wrapped(WrappedError::from(e)) },
     std::str::Utf8Error { |e| NlError::Wrapped(WrappedError::from(e)) },
     std::string::FromUtf8Error { |e| NlError::Wrapped(WrappedError::from(e)) },
     std::ffi::FromBytesWithNulError { |e| NlError::Wrapped(WrappedError::from(e)) }
 );
 
 impl NlError {
+    /// Create new error from a data type implementing
+    /// [`Display`][std::fmt::Display]
+    pub fn msg<D>(s: D) -> Self
+    where
+        D: Display,
+    {
+        NlError::Msg(s.to_string())
+    }
+}
+
+impl<T, P> NlError<T, P> {
     /// Create new error from a data type implementing
     /// [`Display`][std::fmt::Display]
     pub fn new<D>(s: D) -> Self
@@ -249,7 +180,11 @@ impl NlError {
     }
 }
 
-impl Display for NlError {
+impl<T, P> Display for NlError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             NlError::Msg(ref msg) => write!(f, "{}", msg),
@@ -270,7 +205,12 @@ impl Display for NlError {
     }
 }
 
-impl Error for NlError {}
+impl<T, P> Error for NlError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+}
 
 /// Serialization error
 #[derive(Debug)]
@@ -304,12 +244,6 @@ impl SerError {
     }
 }
 
-impl ser::Error for SerError {
-    fn custom<T>(msg: T) -> Self where T: Display {
-        SerError::new(msg)
-    }
-}
-
 impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -329,6 +263,15 @@ impl Display for SerError {
 }
 
 impl Error for SerError {}
+
+err_from!(
+    DeError,
+    WrappedError { DeError::Wrapped },
+    std::io::Error { |e| DeError::Wrapped(WrappedError::from(e)) },
+    std::str::Utf8Error { |e| DeError::Wrapped(WrappedError::from(e)) },
+    std::string::FromUtf8Error { |e| DeError::Wrapped(WrappedError::from(e)) },
+    std::ffi::FromBytesWithNulError { |e| DeError::Wrapped(WrappedError::from(e)) }
+);
 
 /// Deserialization error
 #[derive(Debug)]

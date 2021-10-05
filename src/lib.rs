@@ -23,13 +23,6 @@
 //! and receiving messages and a number of convenience functions for
 //! commonly encountered use cases.
 //!
-//! ## [`Nl`] trait
-//!
-//! `lib.rs` at the top level contains the [`Nl`] trait which
-//! provides buffer size calculation functions, a serialization
-//! method, and a deserialization method. It also contains
-//! implementations of [`Nl`] for common types.
-//!
 //! ## Design decisions
 //!
 //! This is a fairly low level library that currently does not have a
@@ -148,9 +141,6 @@
 
 #![deny(missing_docs)]
 
-#[macro_use]
-mod macros;
-
 pub mod attr;
 pub mod consts;
 pub mod err;
@@ -160,78 +150,340 @@ mod neli_constants;
 pub mod nl;
 mod parse;
 pub mod rtnl;
-mod serde;
 pub mod socket;
 pub mod types;
 pub mod utils;
 
-use std::{io::Write, mem, str};
+use crate as neli;
 
-use byteorder::ByteOrder;
-#[cfg(feature = "logging")]
-use lazy_static::lazy_static;
-#[cfg(feature = "logging")]
-use log::LevelFilter;
-use ::serde::Serialize;
-#[cfg(feature = "logging")]
-use simple_logger::SimpleLogger;
+use std::{
+    fmt::Debug,
+    io::{Cursor, Read, Write},
+    marker::PhantomData,
+    str::from_utf8,
+};
+
+use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
+pub use neli_proc_macros::{neli_enum, FromBytes, FromBytesWithInput, Header, Size, ToBytes};
 
 pub use crate::neli_constants::MAX_NL_LENGTH;
 use crate::{
     consts::alignto,
-    err::{DeError, SerError, WrappedError},
-    serde::NeliSerializer,
-    types::{Buffer, DeBuffer, SerBuffer},
+    err::{DeError, SerError},
 };
 
-#[cfg(feature = "logging")]
-lazy_static! {
-    static ref LOGGING_INITIALIZED: bool = SimpleLogger::new()
-        .with_level(LevelFilter::Debug)
-        .init()
-        .is_ok();
-    static ref SHOW_LOGS: bool = std::env::var("NELI_LOG").is_ok();
+/// A trait defining methods that apply to all netlink data
+/// structures related to sizing of data types.
+pub trait Size {
+    /// Size of the unpadded data structure. This will usually
+    /// only be unaligned for variable length types like
+    /// strings or byte buffers.
+    fn unpadded_size(&self) -> usize;
+
+    /// Get the size of of the payload and align it to
+    /// the required netlink byte alignment.
+    fn padded_size(&self) -> usize {
+        alignto(self.unpadded_size())
+    }
 }
 
-/// Logging mechanism for neli for debugging
-#[macro_export]
-macro_rules! log {
-    ($fmt:tt $(, $args:expr)* $(,)?) => {
-        #[cfg(feature = "logging")]
-        if *$crate::LOGGING_INITIALIZED && *$crate::SHOW_LOGS {
-            log::debug!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
-        } else {
-            println!(concat!($fmt, "\n{}"), $($args),*, ["-"; 80].join(""));
+/// A trait defining methods that apply to constant-sized
+/// data types related to size.
+pub trait TypeSize {
+    /// Get the size of a constant-sized data type.
+    fn type_size() -> usize;
+}
+
+/// A trait defining a netlink data structure's conversion to
+/// a byte buffer.
+pub trait ToBytes: Debug {
+    /// Takes a byte buffer and serializes the data structure into
+    /// it.
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError>;
+
+    /// Pad a netlink message to the appropriate alignment.
+    fn pad(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        let num_pad_bytes = alignto(buffer.position() as usize) - buffer.position() as usize;
+        buffer.write_all(&[0; libc::NLA_ALIGNTO as usize][..num_pad_bytes])?;
+        Ok(())
+    }
+}
+
+/// A trait defining how to convert from a byte buffer to a netlink
+/// data structure.
+pub trait FromBytes<'a>: Sized + Debug {
+    /// Takes a byte buffer and returns the deserialized data
+    /// structure.
+    fn from_bytes(buffer: &mut Cursor<&'a [u8]>) -> Result<Self, DeError>;
+
+    /// Strip padding from a netlink message.
+    fn strip(buffer: &mut Cursor<&'a [u8]>) -> Result<(), DeError> {
+        let num_strip_bytes = alignto(buffer.position() as usize) - buffer.position() as usize;
+        buffer.read_exact(&mut [0; libc::NLA_ALIGNTO as usize][..num_strip_bytes])?;
+        Ok(())
+    }
+}
+
+/// Takes an arbitrary input which serves as additional information
+/// for guiding the conversion from a byte buffer to a data
+/// structure. A common workflow is a data structure that has a size
+/// to determine how much more of the data in the byte buffer is
+/// part of a given data structure.
+pub trait FromBytesWithInput<'a>: Sized + Debug {
+    /// The type of the additional input.
+    type Input: Debug;
+
+    /// Takes a byte buffer and an additional input and returns
+    /// the deserialized data structure.
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'a [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError>;
+}
+
+/// Defined for data structures that contain a header.
+pub trait Header {
+    /// Return the size in bytes of the data structure header.
+    fn header_size() -> usize;
+}
+
+macro_rules! impl_nl_int {
+    (impl__ $ty:ty) => {
+        impl $crate::Size for $ty {
+            fn unpadded_size(&self) -> usize {
+                std::mem::size_of::<$ty>()
+            }
+        }
+
+        impl $crate::TypeSize for $ty {
+            fn type_size() -> usize {
+                std::mem::size_of::<$ty>()
+            }
+        }
+
+    };
+    ($ty:ty, $read_method:ident, $write_method:ident) => {
+        impl_nl_int!(impl__ $ty);
+
+        impl $crate::ToBytes for $ty {
+            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), $crate::err::SerError> {
+                <std::io::Cursor::<Vec<u8>> as byteorder::WriteBytesExt>::$write_method(buffer, *self)?;
+                Ok(())
+            }
+        }
+
+        impl<'lt> $crate::FromBytes<'lt> for $ty {
+            fn from_bytes(buffer: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, $crate::err::DeError> {
+                Ok(<std::io::Cursor<&[u8]> as byteorder::ReadBytesExt>::$read_method(buffer)?)
+            }
+        }
+    };
+    ($ty:ty, $read_method:ident, $write_method:ident, $endianness:ty) => {
+        impl_nl_int!(impl__ $ty);
+
+        impl $crate::ToBytes for $ty {
+            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), $crate::err::SerError> {
+                <std::io::Cursor::<Vec<u8>> as byteorder::WriteBytesExt>::$write_method::<$endianness>(buffer, *self)?;
+                Ok(())
+            }
+        }
+
+        impl<'lt> $crate::FromBytes<'lt> for $ty {
+            fn from_bytes(buffer: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, $crate::err::DeError> {
+                Ok(<std::io::Cursor<&[u8]> as byteorder::ReadBytesExt>::$read_method::<$endianness>(buffer)?)
+            }
         }
     }
 }
 
-/// Trait defining basic actions required for netlink communication.
-/// Implementations for basic and `neli`'s types are provided (see below). Create new
-/// implementations if you have to work with a Netlink API that uses
-/// values of more unusual types.
-pub trait Nl: Sized {
-    /// Serialization method
-    fn serialize(&self, m: SerBuffer, pad: bool) -> Result<(), SerError> {
-        Serialize::serialize(NeliSerializer::new(m, pad))
-    }
+impl_nl_int!(u8, read_u8, write_u8);
+impl_nl_int!(u16, read_u16, write_u16, NativeEndian);
+impl_nl_int!(u32, read_u32, write_u32, NativeEndian);
+impl_nl_int!(u64, read_u64, write_u64, NativeEndian);
+impl_nl_int!(i8, read_i8, write_i8);
+impl_nl_int!(i16, read_i16, write_i16, NativeEndian);
+impl_nl_int!(i32, read_i32, write_i32, NativeEndian);
+impl_nl_int!(i64, read_i64, write_i64, NativeEndian);
+impl_nl_int!(f32, read_f32, write_f32, NativeEndian);
+impl_nl_int!(f64, read_f64, write_f64, NativeEndian);
 
-    /// Deserialization method
-    fn deserialize(m: DeBuffer) -> Result<Self, DeError>;
+impl Size for () {
+    fn unpadded_size(&self) -> usize {
+        0
+    }
 }
 
-impl_nl_byte!(i8);
-impl_nl_int!(i16, write_i16, read_i16);
-impl_nl_int!(i32, write_i32, read_i32);
-impl_nl_int!(i64, write_i64, read_i64);
-impl_nl_byte!(u8);
-impl_nl_int!(u16, write_u16, read_u16);
-impl_nl_int!(u32, write_u32, read_u32);
-impl_nl_int!(u64, write_u64, read_u64);
-impl_nl_byte!(char);
+impl ToBytes for () {
+    fn to_bytes(&self, _: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        Ok(())
+    }
+}
+
+impl<'lt> FromBytes<'lt> for () {
+    fn from_bytes(_: &mut Cursor<&'lt [u8]>) -> Result<Self, DeError> {
+        Ok(())
+    }
+}
+
+impl<'lt> FromBytesWithInput<'lt> for () {
+    type Input = usize;
+
+    fn from_bytes_with_input(_: &mut Cursor<&'lt [u8]>, input: usize) -> Result<Self, DeError> {
+        assert_eq!(input, 0);
+        Ok(())
+    }
+}
+
+impl<T> Size for PhantomData<T> {
+    fn unpadded_size(&self) -> usize {
+        0
+    }
+}
+
+impl<T> ToBytes for PhantomData<T> {
+    fn to_bytes(&self, _: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        Ok(())
+    }
+}
+
+impl<'lt, T> FromBytes<'lt> for PhantomData<T> {
+    fn from_bytes(_: &mut Cursor<&'lt [u8]>) -> Result<Self, DeError> {
+        Ok(PhantomData)
+    }
+}
+
+impl<'a> Size for &'a str {
+    fn unpadded_size(&self) -> usize {
+        self.len() + 1
+    }
+}
+
+impl<'a> ToBytes for &'a str {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        buffer.write_all(self.as_bytes())?;
+        buffer.write_all(&[0])?;
+        Ok(())
+    }
+}
+
+impl<'a> FromBytesWithInput<'a> for &'a str {
+    type Input = usize;
+
+    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
+        let s = from_utf8(
+            &buffer.get_ref()[buffer.position() as usize..buffer.position() as usize + input - 1],
+        )?;
+        buffer.set_position(buffer.position() + input as u64);
+        Ok(s)
+    }
+}
+
+impl Size for String {
+    fn unpadded_size(&self) -> usize {
+        self.as_str().unpadded_size()
+    }
+}
+
+impl ToBytes for String {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        self.as_str().to_bytes(buffer)?;
+        Ok(())
+    }
+}
+
+impl<'a> FromBytesWithInput<'a> for String {
+    type Input = usize;
+
+    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
+        let s = String::from_utf8(
+            buffer.get_ref()[buffer.position() as usize..buffer.position() as usize + input - 1]
+                .to_vec(),
+        )?;
+        buffer.set_position(buffer.position() + input as u64);
+        Ok(s)
+    }
+}
+
+impl<'a> Size for &'a [u8] {
+    fn unpadded_size(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a> ToBytes for &'a [u8] {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        buffer.write_all(self)?;
+        Ok(())
+    }
+}
+
+impl<'a> FromBytesWithInput<'a> for &'a [u8] {
+    type Input = usize;
+
+    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
+        let s = &buffer.get_ref()[buffer.position() as usize..buffer.position() as usize + input];
+        buffer.set_position(buffer.position() + input as u64);
+        Ok(s)
+    }
+}
+
+impl<T> Size for Vec<T>
+where
+    T: Size,
+{
+    fn unpadded_size(&self) -> usize {
+        self.iter()
+            .fold(0, |count, elem| count + elem.unpadded_size())
+    }
+}
+
+impl<T> ToBytes for Vec<T>
+where
+    T: ToBytes,
+{
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        for elem in self.iter() {
+            elem.to_bytes(buffer)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'lt, T> FromBytesWithInput<'lt> for Vec<T>
+where
+    T: FromBytes<'lt>,
+{
+    type Input = usize;
+
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'lt [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        let mut vec = Vec::new();
+        let orig_pos = buffer.position();
+        loop {
+            if buffer.position() as usize == orig_pos as usize + input {
+                break;
+            }
+
+            match T::from_bytes(buffer) {
+                Ok(elem) => vec.push(elem),
+                Err(e) => {
+                    buffer.set_position(orig_pos);
+                    return Err(e);
+                }
+            }
+            if buffer.position() as usize > orig_pos as usize + input {
+                buffer.set_position(orig_pos);
+                return Err(DeError::UnexpectedEOB);
+            }
+        }
+        Ok(vec)
+    }
+}
 
 /// A `u64` data type that will always be serialized as big endian
-#[derive(Copy, Debug, Clone)]
+#[derive(Copy, Debug, Clone, PartialEq, Size)]
 pub struct BeU64(u64);
 
 impl BeU64 {
@@ -246,259 +498,181 @@ impl BeU64 {
     }
 }
 
-impl Nl for BeU64 {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        put_int!(self.0, mem, write_u64, byteorder::BE);
+impl ToBytes for BeU64 {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        buffer.write_all(&self.0.to_be_bytes() as &[u8])?;
         Ok(())
     }
+}
 
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(BeU64(get_int!(mem, read_u64, byteorder::BE)))
-    }
-
-    fn size(&self) -> usize {
-        self.0.size()
-    }
-
-    fn type_size() -> Option<usize> {
-        u64::type_size()
+impl<'a> FromBytes<'a> for BeU64 {
+    fn from_bytes(buffer: &mut Cursor<&'a [u8]>) -> Result<Self, DeError> {
+        Ok(BeU64(buffer.read_u64::<BigEndian>()?))
     }
 }
 
-impl<'a> Nl for &'a [u8] {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        let size = self.size();
-        match mem.len() {
-            i if i > size => return Err(SerError::BufferNotFilled),
-            i if i < size => return Err(SerError::UnexpectedEOB),
-            _ => (),
-        };
-        if let Err(e) = mem.as_mut().write_all(self) {
-            Err(SerError::Wrapped(WrappedError::from(e)))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn deserialize(_m: DeBuffer) -> Result<Self, DeError> {
-        unimplemented!()
-    }
-
-    fn size(&self) -> usize {
-        self.len()
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
-}
-
-impl Nl for Buffer {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        if let Err(e) = mem.as_mut().write(self.as_ref()) {
-            Err(SerError::Wrapped(WrappedError::from(e)))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(Buffer::from(mem))
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
-
-    fn size(&self) -> usize {
-        self.len()
-    }
-}
-
-impl Nl for Vec<u8> {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        Nl::serialize(&self.as_slice(), mem)
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        Ok(mem.as_ref().to_vec())
-    }
-
-    fn size(&self) -> usize {
-        self.len()
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
-}
-
-impl<'a> Nl for &'a str {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        let size = self.size();
-        match mem.len() {
-            i if i > size => return Err(SerError::BufferNotFilled),
-            i if i < size => return Err(SerError::UnexpectedEOB),
-            _ => (),
-        }
-        match mem.as_mut().write(self.as_bytes()) {
-            Ok(write_size) => {
-                assert_eq!(write_size + 1, size);
-                mem[write_size] = 0;
-                Ok(())
-            }
-            Err(e) => Err(SerError::Wrapped(WrappedError::IOError(e))),
-        }
-    }
-
-    fn deserialize(_: DeBuffer) -> Result<Self, DeError> {
-        unimplemented!()
-    }
-
-    fn size(&self) -> usize {
-        self.len() + 1
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
-}
-
-impl Nl for String {
-    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
-        Nl::serialize(&self.as_str(), mem)
-    }
-
-    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
-        let last_elem = mem.len() - 1;
-        match mem.as_ref().get(last_elem) {
-            Some(0) => (),
-            _ => return Err(DeError::NullError),
-        };
-        String::from_utf8((mem[..last_elem]).to_vec()).map_err(DeError::new)
-    }
-
-    fn size(&self) -> usize {
-        self.len() + 1
-    }
-
-    fn type_size() -> Option<usize> {
-        None
-    }
+#[cfg(test)]
+fn serialize<T>(t: &T) -> Result<Vec<u8>, SerError>
+where
+    T: ToBytes,
+{
+    let mut buffer = Cursor::new(Vec::new());
+    t.to_bytes(&mut buffer)?;
+    Ok(buffer.into_inner())
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use crate::utils::serialize;
+    use lazy_static::lazy_static;
+    use log::Level;
+    use simple_logger::init_with_level;
+
+    lazy_static! {
+        static ref LOGGER: () = init_with_level(Level::Trace).unwrap();
+    }
+
+    #[allow(clippy::no_effect)]
+    pub fn setup() {
+        *LOGGER;
+    }
 
     #[test]
     fn test_nl_u8() {
+        setup();
+
         let v = 5u8;
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice()[0], v);
 
-        let s = &[5u8] as &[u8];
-        let de = u8::deserialize(s).unwrap();
+        let de = u8::from_bytes(&mut Cursor::new(&[5u8] as &[u8])).unwrap();
         assert_eq!(de, 5)
     }
 
     #[test]
     fn test_nl_u16() {
+        setup();
+
         let v = 6000u16;
         let desired_buffer = v.to_ne_bytes();
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u16::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
+        let de = u16::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, 6000);
     }
 
     #[test]
     fn test_nl_i32() {
+        setup();
+
         let v = 600_000i32;
         let desired_buffer = v.to_ne_bytes();
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = i32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
+        let de = i32::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, 600_000);
 
         let v = -600_000i32;
         let desired_buffer = v.to_ne_bytes();
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = i32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
+        let de = i32::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, -600_000)
     }
 
     #[test]
     fn test_nl_u32() {
+        setup();
+
         let v = 600_000u32;
         let desired_buffer = v.to_ne_bytes();
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u32::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
+        let de = u32::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, 600_000)
     }
 
     #[test]
     fn test_nl_u64() {
+        setup();
+
         let v = 12_345_678_901_234u64;
         let desired_buffer = v.to_ne_bytes();
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
 
-        let de = u64::deserialize(&v.to_ne_bytes() as &[u8]).unwrap();
+        let de = u64::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, 12_345_678_901_234);
     }
 
     #[test]
     fn test_nl_be_u64() {
+        setup();
+
         let v = 571_987_654u64;
         let desired_buffer = v.to_be_bytes();
-        let ser_buffer = serialize(&BeU64(v), false).unwrap();
+        let ser_buffer = serialize(&BeU64(v)).unwrap();
         assert_eq!(ser_buffer.as_slice(), &desired_buffer);
+
+        let de = BeU64::from_bytes(&mut Cursor::new(&v.to_be_bytes() as &[u8])).unwrap();
+        assert_eq!(de, BeU64(571_987_654));
     }
 
     #[test]
     fn test_nl_slice() {
+        setup();
+
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let ser_buffer = serialize(&v, false).unwrap();
+        let ser_buffer = serialize(&v).unwrap();
         assert_eq!(v, ser_buffer.as_slice());
+
+        let v2: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        let de = <&[u8]>::from_bytes_with_input(&mut Cursor::new(v2), 9).unwrap();
+        assert_eq!(v, de);
     }
 
     #[test]
     fn test_nl_vec() {
-        let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let ser_buffer = serialize(&v, false).unwrap();
-        assert_eq!(v.as_slice(), ser_buffer.as_slice());
+        setup();
+
+        let vec = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let ser_buffer = serialize(&vec).unwrap();
+        assert_eq!(vec.as_slice(), ser_buffer.as_slice());
 
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let de = Vec::<u8>::deserialize(v).unwrap();
-        assert_eq!(v, de.as_slice());
+        let de = Vec::<u8>::from_bytes_with_input(&mut Cursor::new(v), 9).unwrap();
+        assert_eq!(vec, de.as_slice());
     }
 
     #[test]
     fn test_nl_str() {
+        setup();
+
         let s = "AAAAA";
-        let ser_buffer = serialize(&s, false).unwrap();
+        let ser_buffer = serialize(&s).unwrap();
         assert_eq!(&[65, 65, 65, 65, 65, 0], ser_buffer.as_slice());
+
+        let s2 = &[65u8, 65, 65, 65, 65, 0] as &[u8];
+        let de = <&str>::from_bytes_with_input(&mut Cursor::new(s2), 6).unwrap();
+        assert_eq!(s, de);
     }
 
     #[test]
     fn test_nl_string() {
+        setup();
+
         let s = "AAAAA".to_string();
         let desired_s = "AAAAA\0";
-        let ser_buffer = serialize(&s, false).unwrap();
+        let ser_buffer = serialize(&s).unwrap();
         assert_eq!(desired_s.as_bytes(), ser_buffer.as_slice());
 
-        let s = "AAAAAA\0";
-        let de_s = "AAAAAA".to_string();
-        let de = String::deserialize(s.as_bytes()).unwrap();
+        let de_s = "AAAAA".to_string();
+        let de = String::from_bytes_with_input(&mut Cursor::new(desired_s.as_bytes()), 6).unwrap();
         assert_eq!(de_s, de)
     }
 }

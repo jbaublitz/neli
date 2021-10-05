@@ -3,11 +3,11 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
-    consts::nl::{NlType, NlTypeWrapper, NlmF, Nlmsg},
+    consts::nl::{NlType, NlmF, Nlmsg},
     err::NlError,
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
-    Nl,
+    FromBytesWithInput,
 };
 
 /// Define iteration behavior when traversing a stream of netlink
@@ -47,8 +47,8 @@ pub struct NlMessageIter<'a, T, P> {
 
 impl<'a, T, P> NlMessageIter<'a, T, P>
 where
-    T: Nl + NlType + Debug,
-    P: Nl + Debug,
+    T: NlType + Debug,
+    P: FromBytesWithInput<'a, Input = usize> + Debug,
 {
     /// Construct a new iterator that yields
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs from the provided
@@ -82,10 +82,10 @@ where
         }
     }
 
-    fn next<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError>>
+    fn next<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError<TT, PP>>>
     where
         TT: NlType + Debug,
-        PP: Nl + Debug,
+        PP: for<'c> FromBytesWithInput<'c, Input = usize> + Debug,
     {
         if let Some(true) = self.next_is_none {
             return None;
@@ -111,13 +111,14 @@ where
     }
 }
 
-impl<'a, P> Iterator for NlMessageIter<'a, NlTypeWrapper, P>
+impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
 where
-    P: Nl + Debug,
+    T: NlType + Debug,
+    P: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
 {
-    type Item = Result<Nlmsghdr<NlTypeWrapper, P>, NlError>;
+    type Item = Result<Nlmsghdr<T, P>, NlError<T, P>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        NlMessageIter::next::<NlTypeWrapper, P>(self)
+        NlMessageIter::next::<T, P>(self)
     }
 }

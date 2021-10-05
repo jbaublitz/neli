@@ -6,23 +6,29 @@
 //! cases to allow the internal representation to change without
 //! resulting in a breaking change.
 
+use crate as neli;
+
 use std::{
-    cell::{Ref, RefCell, RefMut},
     iter::FromIterator,
+    marker::PhantomData,
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not},
     slice::{Iter, IterMut},
 };
 
+use neli_proc_macros::Size;
+
 use crate::{
     attr::{AttrHandle, AttrHandleMut},
+    consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     genl::Nlattr,
-    neli_constants::MAX_NL_LENGTH,
     nl::Nlmsghdr,
     rtnl::Rtattr,
+    FromBytes, FromBytesWithInput, ToBytes,
 };
 
 /// A buffer of bytes.
-#[derive(Debug, PartialEq)]
-pub struct Buffer(Vec<u8>);
+#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes)]
+pub struct Buffer(#[neli(input)] Vec<u8>);
 
 impl AsRef<[u8]> for Buffer {
     fn as_ref(&self) -> &[u8] {
@@ -76,65 +82,11 @@ impl Default for Buffer {
     }
 }
 
-/// Type alias for a buffer to serialize into.
-pub type SerBuffer<'a> = &'a mut [u8];
-
-/// Type alias for a buffer to deserialize from.
-pub type DeBuffer<'a> = &'a [u8];
-
-/// An immutable reference to the socket buffer.
-pub struct SockBufferRef<'a>(Ref<'a, Vec<u8>>);
-
-impl<'a> AsRef<[u8]> for SockBufferRef<'a> {
-    fn as_ref(&self) -> &[u8] {
-        (*self.0).as_slice()
-    }
-}
-
-/// A mutable reference to the socket buffer.
-pub struct SockBufferRefMut<'a>(RefMut<'a, Vec<u8>>);
-
-impl<'a> AsMut<[u8]> for SockBufferRefMut<'a> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        (*self.0).as_mut_slice()
-    }
-}
-
-/// A buffer to hold data read from sockets
-pub struct SockBuffer(RefCell<Vec<u8>>);
-
-impl SockBuffer {
-    /// Create a new buffer for use when reading from a socket.
-    pub fn new() -> Self {
-        SockBuffer(RefCell::new(vec![0; MAX_NL_LENGTH]))
-    }
-
-    /// Get an immutable reference to the inner buffer.
-    pub fn get_ref(&self) -> Option<SockBufferRef> {
-        self.0.try_borrow().ok().map(SockBufferRef)
-    }
-
-    /// Get a mutable reference to the inner buffer.
-    pub fn get_mut(&self) -> Option<SockBufferRefMut> {
-        self.0.try_borrow_mut().ok().map(SockBufferRefMut)
-    }
-}
-
-impl<'a> From<&'a [u8]> for SockBuffer {
-    fn from(s: &'a [u8]) -> Self {
-        SockBuffer(RefCell::new(s.to_vec()))
-    }
-}
-
-impl Default for SockBuffer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// A buffer of netlink messages.
-#[derive(Debug, PartialEq)]
-pub struct NlBuffer<T, P>(Vec<Nlmsghdr<T, P>>);
+#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes)]
+#[neli(from_bytes_bound = "T: NlType")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+pub struct NlBuffer<T, P>(#[neli(input)] Vec<Nlmsghdr<T, P>>);
 
 impl<T, P> FromIterator<Nlmsghdr<T, P>> for NlBuffer<T, P> {
     fn from_iter<I>(i: I) -> Self
@@ -206,8 +158,11 @@ impl<T, P> Default for NlBuffer<T, P> {
 }
 
 /// A buffer of generic netlink attributes.
-#[derive(Debug, PartialEq)]
-pub struct GenlBuffer<T, P>(Vec<Nlattr<T, P>>);
+#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput)]
+#[neli(to_bytes_bound = "T: NlAttrType")]
+#[neli(from_bytes_bound = "T: NlAttrType")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+pub struct GenlBuffer<T, P>(#[neli(input)] Vec<Nlattr<T, P>>);
 
 impl<T> GenlBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
@@ -299,8 +254,10 @@ impl<T, P> Default for GenlBuffer<T, P> {
 }
 
 /// A buffer of rtnetlink attributes.
-#[derive(Debug)]
-pub struct RtBuffer<T, P>(Vec<Rtattr<T, P>>);
+#[derive(Debug, Size, FromBytesWithInput, ToBytes)]
+#[neli(from_bytes_bound = "T: RtaType")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+pub struct RtBuffer<T, P>(#[neli(input)] Vec<Rtattr<T, P>>);
 
 impl<T> RtBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
@@ -392,46 +349,53 @@ impl<T, P> Default for RtBuffer<T, P> {
 }
 
 /// A buffer of flag constants.
-#[derive(Debug, PartialEq)]
-pub struct FlagBuffer<T>(Vec<T>);
+#[derive(Debug, PartialEq, Size, ToBytes, FromBytes)]
+pub struct FlagBuffer<B, T>(B, PhantomData<T>);
 
-impl<'a, T> From<&'a [T]> for FlagBuffer<T>
+impl<'a, B, T> From<&'a [T]> for FlagBuffer<B, T>
 where
-    T: Clone,
+    B: Default + BitOr<B, Output = B> + From<&'a T>,
 {
-    fn from(slice: &[T]) -> Self {
-        FlagBuffer(Vec::from(slice))
+    fn from(slice: &'a [T]) -> Self {
+        FlagBuffer(
+            slice
+                .iter()
+                .fold(B::default(), |inner, flag| inner | B::from(flag)),
+            PhantomData,
+        )
     }
 }
 
-impl<T> FlagBuffer<T>
+impl<'a, B, T> FlagBuffer<B, T>
 where
-    T: PartialEq + Clone,
+    B: Default
+        + BitAnd<B, Output = B>
+        + BitAndAssign<B>
+        + BitOr<B, Output = B>
+        + BitOrAssign<B>
+        + Not<Output = B>
+        + From<&'a T>
+        + PartialEq
+        + Copy,
+    T: 'a,
 {
     /// Check whether the set of flags is empty.
     pub fn empty() -> Self {
-        FlagBuffer(Vec::new())
+        FlagBuffer(B::default(), PhantomData)
     }
 
     /// Check whether the set of flags contains the given flag.
-    pub fn contains(&self, elem: &T) -> bool {
-        self.0.contains(elem)
+    pub fn contains(&self, elem: &'a T) -> bool {
+        (self.0 & elem.into()) == elem.into()
     }
 
     /// Add a flag to the set of flags.
-    pub fn set(&mut self, flag: T) {
-        if !self.0.contains(&flag) {
-            self.0.push(flag)
-        }
+    pub fn set(&mut self, flag: &'a T) {
+        self.0 |= B::from(flag)
     }
 
     /// Remove a flag from the set of flags.
-    pub fn unset(&mut self, flag: &T) {
-        self.0.retain(|e| flag != e)
-    }
-
-    /// Return an iterator over the immutable contents of the buffer.
-    pub fn iter(&self) -> std::slice::Iter<T> {
-        self.0.iter()
+    pub fn unset(&mut self, flag: &'a T) {
+        self.0 &= !B::from(flag)
     }
 }

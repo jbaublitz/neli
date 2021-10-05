@@ -1,13 +1,13 @@
 extern crate neli;
 
-use std::error::Error;
+use std::{error::Error, io::Cursor};
 
 use neli::{
     consts::{genl::*, nl::*},
     genl::{Genlmsghdr, Nlattr},
     nl::{NlPayload, Nlmsghdr},
     types::GenlBuffer,
-    utils::serialize,
+    ToBytes,
 };
 
 pub fn main() -> Result<(), Box<dyn Error>> {
@@ -35,22 +35,16 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     //            ])];
 
     // Instead, do the following:
-    let mut attr1 = Nlattr::new(None, true, false, 0, Vec::<u8>::new())?;
-    attr1.add_nested_attribute(&Nlattr::new(None, false, false, 1, "this is a string")?)?;
+    let mut attr1 = Nlattr::new(true, false, 0, Vec::<u8>::new())?;
+    attr1.add_nested_attribute(&Nlattr::new(false, false, 1, "this is a string")?)?;
     // This is not a string
-    attr1.add_nested_attribute(&Nlattr::new(None, false, false, 2, 0)?)?;
+    attr1.add_nested_attribute(&Nlattr::new(false, false, 2, 0)?)?;
 
     // And again for another set of nested attributes
-    let mut attr2 = Nlattr::new(None, true, false, 2, Vec::<u8>::new())?;
-    attr2.add_nested_attribute(&Nlattr::new(
-        None,
-        false,
-        false,
-        1,
-        "this is also a string",
-    )?)?;
+    let mut attr2 = Nlattr::new(true, false, 2, Vec::<u8>::new())?;
+    attr2.add_nested_attribute(&Nlattr::new(false, false, 1, "this is also a string")?)?;
     // Not a string
-    attr2.add_nested_attribute(&Nlattr::new(None, false, false, 2, 5)?)?;
+    attr2.add_nested_attribute(&Nlattr::new(false, false, 2, 5)?)?;
 
     let mut attrs = GenlBuffer::new();
     attrs.push(attr1);
@@ -65,7 +59,11 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         None,
         NlPayload::Payload(genlmsg),
     );
-    let buffer = serialize(&nlmsg, true)?;
-    println!("Serialized heterogeneous attributes: {:?}", buffer);
+    let mut buffer = Cursor::new(Vec::new());
+    nlmsg.to_bytes(&mut buffer)?;
+    println!(
+        "Serialized heterogeneous attributes: {:?}",
+        buffer.into_inner()
+    );
     Ok(())
 }

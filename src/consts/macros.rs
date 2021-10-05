@@ -1,138 +1,3 @@
-/// For naming a new enum, passing in what type it serializes to and
-/// deserializes from, and providing a mapping from variants to
-/// expressions (such as libc consts) that will ultimately be used in
-/// the serialization/deserialization step when sending the netlink
-/// message over the wire.
-///
-/// # Usage
-/// Create an enum named `MyNetlinkProtoAttrs` that can be serialized
-/// into `u16`s to use with Netlink.  Represents the
-/// fields on a message you received from Netlink.
-///
-///
-/// Here is an example specifying the enum visibility:
-///
-///  ```
-///  neli::impl_var!(
-///     pub MyNetlinkProtoAttrs,
-///     u16,
-///     Id => 16u16,
-///     Name => 17u16,
-///     Size => 18u16
-///  );
-/// ```
-///
-/// or with doc comments:
-///
-/// ```
-///  neli::impl_var!(
-///     /// These are the attributes returned
-///     /// by a fake netlink protocol.
-///     MyNetlinkProtoAttrs, u16,
-///     Id => 16u16,
-///     Name => 17u16,
-///     Size => 18u16
-///  );
-/// ```
-///
-#[macro_export]
-macro_rules! impl_var {
-    (
-        $( #[$outer:meta] )*
-        $vis:vis $name:ident, $ty:ty,
-        $(
-            $( #[cfg($meta:meta)] )*
-            $var:ident => $val:expr
-        ),*
-        $(,)?
-    ) => (
-        $(#[$outer])*
-        #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-        $vis enum $name {
-            $(
-                $(
-                    #[cfg($meta)]
-                )*
-                #[allow(missing_docs)]
-                $var,
-            )*
-            /// Variant that signifies an invalid value while
-            /// deserializing
-            UnrecognizedVariant($ty),
-        }
-
-        impl $name {
-            /// Returns true if no variant corresponds to the value
-            /// it was parsed from
-            pub fn is_unrecognized(&self) -> bool {
-                matches!(*self, $name::UnrecognizedVariant(_))
-            }
-        }
-
-        impl From<$ty> for $name {
-            fn from(v: $ty) -> Self {
-                match v {
-                    $(
-                        $(
-                            #[cfg($meta)]
-                        )*
-                        i if i == $val => $name::$var,
-                    )*
-                    i => $name::UnrecognizedVariant(i)
-                }
-            }
-        }
-
-        impl From<$name> for $ty {
-            fn from(v: $name) -> Self {
-                match v {
-                    $(
-                        $(
-                            #[cfg($meta)]
-                        )*
-                        $name::$var => $val,
-                    )*
-                    $name::UnrecognizedVariant(i) => i,
-                }
-            }
-        }
-
-        impl<'a> From<&'a $name> for $ty {
-            fn from(v: &'a $name) -> Self {
-                match *v {
-                    $(
-                        $(
-                            #[cfg($meta)]
-                        )*
-                        $name::$var => $val,
-                    )*
-                    $name::UnrecognizedVariant(i) => i,
-                }
-            }
-        }
-
-        impl $crate::Nl for $name {
-            fn serialize(&self, mem: $crate::types::SerBuffer) -> Result<(), $crate::err::SerError> {
-                let v: $ty = self.clone().into();
-                v.serialize(mem)
-            }
-
-            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
-                let v = <$ty>::deserialize(mem)?;
-                Ok(v.into())
-            }
-
-            fn size(&self) -> usize {
-                std::mem::size_of::<$ty>()
-            }
-
-            fn type_size() -> Option<usize> {
-                Some(std::mem::size_of::<$ty>())
-            }
-        }
-    );
-}
-
 /// For generating a marker trait that flags a new enum as usable in a
 /// field that accepts a generic type. This way, the type parameter
 /// can be constrained by a trait bound to only accept enums that
@@ -213,12 +78,16 @@ macro_rules! impl_trait {
         $(,)?
     ) => {
         $(#[$outer])*
-        $vis_trait trait $trait_name: $crate::Nl
-            + PartialEq
+        $vis_trait trait $trait_name: PartialEq
             + Clone
             + From<$to_from_ty>
             + Into<$to_from_ty>
             + Copy
+            + $crate::Size
+            + $crate::TypeSize
+            + for<'a> $crate::FromBytes<'a>
+            + $crate::ToBytes
+            + std::fmt::Debug
         {}
 
         impl $trait_name for $to_from_ty {}
@@ -240,6 +109,37 @@ macro_rules! impl_trait {
             UnrecognizedConst($to_from_ty),
         }
 
+        impl $crate::Size for $wrapper_type {
+            fn unpadded_size(&self) -> usize {
+                std::mem::size_of::<$to_from_ty>()
+            }
+        }
+
+        impl $crate::TypeSize for $wrapper_type {
+            fn type_size() -> usize {
+                std::mem::size_of::<$to_from_ty>()
+            }
+        }
+
+        impl $crate::ToBytes for $wrapper_type {
+            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), $crate::err::SerError> {
+                Ok(match self {
+                    $(
+                        $wrapper_type::$const_enum(val) => val.to_bytes(buffer)?,
+                    )*
+                    $wrapper_type::UnrecognizedConst(val) => val.to_bytes(buffer)?,
+                })
+            }
+        }
+
+        impl<'lt> $crate::FromBytes<'lt> for $wrapper_type {
+            fn from_bytes(buffer: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, $crate::err::DeError> {
+                Ok($wrapper_type::from(<$to_from_ty as $crate::FromBytes>::from_bytes(
+                    buffer
+                )?))
+            }
+        }
+
         impl $trait_name for $wrapper_type {}
 
         $(
@@ -250,10 +150,9 @@ macro_rules! impl_trait {
             }
         )+
 
-        #[allow(clippy::all)]
-        impl Into<$to_from_ty> for $wrapper_type {
-            fn into(self) -> $to_from_ty {
-                match self {
+        impl From<$wrapper_type> for $to_from_ty {
+            fn from(w: $wrapper_type) -> Self {
+                match w {
                     $(
                         $wrapper_type::$const_enum(inner) => inner.into(),
                     )+
@@ -271,30 +170,6 @@ macro_rules! impl_trait {
                     }
                 )*
                 $wrapper_type::UnrecognizedConst(v)
-            }
-        }
-
-        impl $crate::Nl for $wrapper_type {
-            fn serialize(&self, mem: $crate::types::SerBuffer) -> Result<(), $crate::err::SerError> {
-                match *self {
-                    $(
-                        $wrapper_type::$const_enum(ref inner) => inner.serialize(mem),
-                    )+
-                    $wrapper_type::UnrecognizedConst(v) => v.serialize(mem),
-                }
-            }
-
-            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
-                let v = <$to_from_ty>::deserialize(mem)?;
-                Ok($wrapper_type::from(v))
-            }
-
-            fn size(&self) -> usize {
-                std::mem::size_of::<$to_from_ty>()
-            }
-
-            fn type_size() -> Option<usize> {
-                Some(std::mem::size_of::<$to_from_ty>())
             }
         }
     };
@@ -334,69 +209,40 @@ macro_rules! impl_trait {
 #[macro_export]
 macro_rules! impl_flags {
     ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty $(,)?) => {
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, neli_proc_macros::Size, neli_proc_macros::FromBytes, neli_proc_macros::ToBytes)]
         $(#[$outer])*
-        $vis struct $name($crate::types::FlagBuffer::<$type>);
+        $vis struct $name($crate::types::FlagBuffer::<$bin_type, $type>);
 
         impl $name {
             /// Create an empty flag container
             pub fn empty() -> Self {
-                $name($crate::types::FlagBuffer::<$type>::empty())
+                $name($crate::types::FlagBuffer::<$bin_type, $type>::empty())
             }
 
             /// Initialize a flag container with the given flags
             pub fn new(flags: &[$type]) -> Self {
-                $name(<$crate::types::FlagBuffer::<$type> as From<&[$type]>>::from(flags))
+                $name(<$crate::types::FlagBuffer::<$bin_type, $type> as From<&[$type]>>::from(flags))
             }
 
             /// Add a flag
-            pub fn set(&mut self, flag: $type) {
-                $crate::types::FlagBuffer::<$type>::set(&mut self.0, flag)
+            pub fn set(&mut self, flag: &$type) {
+                $crate::types::FlagBuffer::<$bin_type, $type>::set(&mut self.0, flag)
             }
 
             /// Add a flag
             pub fn unset(&mut self, flag: &$type) {
-                $crate::types::FlagBuffer::<$type>::unset(&mut self.0, &flag)
+                $crate::types::FlagBuffer::<$bin_type, $type>::unset(&mut self.0, &flag)
             }
 
             /// Contains a flag
             pub fn contains(&self, flag: &$type) -> bool {
-                $crate::types::FlagBuffer::<$type>::contains(&self.0, &flag)
+                $crate::types::FlagBuffer::<$bin_type, $type>::contains(&self.0, &flag)
             }
         }
 
-        impl $crate::Nl for $name {
-            fn serialize(
-                &self,
-                mem: $crate::types::SerBuffer,
-            ) -> Result<(), $crate::err::SerError> {
-                let int_rep = $crate::types::FlagBuffer::<$type>::iter(
-                    &self.0
-                ).fold(0, |acc, next| {
-                    let result: $bin_type = next.into();
-                    acc | result
-                });
-                int_rep.serialize(mem)
-            }
-
-            fn deserialize(mem: $crate::types::DeBuffer) -> Result<Self, $crate::err::DeError> {
-                let int_rep = <$bin_type>::deserialize(mem)?;
-                let mut flags = $crate::types::FlagBuffer::<$type>::empty();
-                for i in 0..std::mem::size_of::<$bin_type>() * 8 {
-                    let set_bit = 1 << i;
-                    if int_rep & set_bit == set_bit {
-                        $crate::types::FlagBuffer::<$type>::set(&mut flags, <$type>::from(set_bit))
-                    }
-                }
-                Ok($name(flags))
-            }
-
-            fn size(&self) -> usize {
+        impl $crate::TypeSize for $name {
+            fn type_size() -> usize {
                 std::mem::size_of::<$bin_type>()
-            }
-
-            fn type_size() -> Option<usize> {
-                Some(std::mem::size_of::<$bin_type>())
             }
         }
     };

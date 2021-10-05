@@ -39,7 +39,7 @@ fn debug_stream() -> Result<(), NlError> {
 }
 
 #[cfg(not(feature = "async"))]
-fn debug_stream() -> Result<(), NlError> {
+fn debug_stream() -> Result<(), NlError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -54,7 +54,7 @@ fn debug_stream() -> Result<(), NlError> {
     let mut s = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.add_mcast_membership(&[id])?;
-    for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
+    for next in s.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(true) {
         println!("{:#?}", next?);
     }
     Ok(())

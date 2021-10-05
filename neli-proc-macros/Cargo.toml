@@ -1,0 +1,21 @@
+[package]
+name = "neli-proc-macros"
+version = "0.1.0"
+authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1"
+proc-macro2 = "1"
+either = "*"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.syn]
+version = "1"
+features = ["full", "extra-traits"]
