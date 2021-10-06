@@ -66,11 +66,7 @@ fn remove_bad_attrs(attrs: Vec<Attribute>) -> Vec<Attribute> {
             if let Ok(meta) = attr.parse_meta() {
                 match meta {
                     Meta::NameValue(MetaNameValue { path, .. }) => {
-                        if path == parse_str::<Path>("doc").expect("doc should be valid path") {
-                            false
-                        } else {
-                            true
-                        }
+                        !(path == parse_str::<Path>("doc").expect("doc should be valid path"))
                     }
                     _ => true,
                 }
@@ -185,7 +181,7 @@ pub fn generate_unnamed_fields(
         (Vec::new(), Vec::new(), Vec::new()),
         |(mut names, mut types, mut attrs), (index, field)| {
             names.push(Ident::new(
-                &String::from(('a' as u8 + index as u8) as char),
+                &String::from((b'a' + index as u8) as char),
                 Span::call_site(),
             ));
             types.push(field.ty);
@@ -212,7 +208,7 @@ pub fn generate_unnamed_field_indices(
     )
 }
 
-fn attr_present(attrs: &Vec<Attribute>, attr_name: &str) -> bool {
+fn attr_present(attrs: &[Attribute], attr_name: &str) -> bool {
     for attr in attrs {
         let meta = attr
             .parse_meta()
@@ -235,7 +231,7 @@ fn attr_present(attrs: &Vec<Attribute>, attr_name: &str) -> bool {
     false
 }
 
-fn process_attr<T>(attrs: &Vec<Attribute>, attr_name: &str) -> Vec<Option<T>>
+fn process_attr<T>(attrs: &[Attribute], attr_name: &str) -> Vec<Option<T>>
 where
     T: Parse,
 {
@@ -280,14 +276,14 @@ where
     output
 }
 
-pub fn process_trait_bounds(attrs: &Vec<Attribute>, trait_bound_path: &str) -> Vec<WherePredicate> {
+pub fn process_trait_bounds(attrs: &[Attribute], trait_bound_path: &str) -> Vec<WherePredicate> {
     process_attr(attrs, trait_bound_path)
         .into_iter()
         .flatten()
         .collect()
 }
 
-pub fn process_padding(attrs: &Vec<Attribute>) -> bool {
+pub fn process_padding(attrs: &[Attribute]) -> bool {
     attr_present(attrs, "padding")
 }
 
@@ -297,7 +293,7 @@ pub fn process_padding(attrs: &Vec<Attribute>) -> bool {
 /// associated expression
 /// * [`Some(Some(_))`] if the attribute is present and
 /// has an associated expression
-pub fn process_input(attrs: &Vec<Attribute>) -> Option<Option<Expr>> {
+pub fn process_input(attrs: &[Attribute]) -> Option<Option<Expr>> {
     let mut exprs = process_attr(attrs, "input");
     if exprs.len() > 1 {
         panic!("Only one input expression allowed for attribute #[neli(input = \"...\")]");
@@ -306,8 +302,9 @@ pub fn process_input(attrs: &Vec<Attribute>) -> Option<Option<Expr>> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn process_fields<F, I>(
-    attrs: &Vec<Attribute>,
+    attrs: &[Attribute],
     trait_name: Option<&str>,
     trait_bound_path: &str,
     struct_name: Ident,
@@ -341,7 +338,7 @@ where
         field_names,
         field_types,
         field_attrs,
-        process_padding(&attrs),
+        process_padding(attrs),
     )
 }
 
@@ -391,22 +388,19 @@ pub fn generate_trait_bounds(where_predicates: Vec<WherePredicate>) -> TokenStre
 
 fn override_trait_bounds_on_generics(
     generics: &mut Generics,
-    trait_bound_overrides: &Vec<WherePredicate>,
+    trait_bound_overrides: &[WherePredicate],
 ) {
-    let types = trait_bound_overrides
-        .iter()
-        .filter_map(|bound| {
-            if let WherePredicate::Type(ref ty) = bound {
-                if let Type::Path(ref path) = ty.bounded_ty {
-                    Some(path.path.clone())
-                } else {
-                    None
-                }
+    let mut types = trait_bound_overrides.iter().filter_map(|bound| {
+        if let WherePredicate::Type(ref ty) = bound {
+            if let Type::Path(ref path) = ty.bounded_ty {
+                Some(path.path.clone())
             } else {
                 None
             }
-        })
-        .collect::<Vec<_>>();
+        } else {
+            None
+        }
+    });
 
     for generic in generics.params.iter_mut() {
         if let GenericParam::Type(ref mut ty) = generic {
@@ -415,7 +409,7 @@ fn override_trait_bounds_on_generics(
                 #ident
             }))
             .unwrap();
-            if types.contains(&path) {
+            if types.any(|ty| ty == path) {
                 ty.colon_token = None;
                 ty.bounds.clear();
                 ty.eq_token = None;

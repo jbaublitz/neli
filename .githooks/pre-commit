@@ -23,5 +23,5 @@ cargo fmt -- --check \
     && cargo fmt -- --check \
     && cargo clippy -- -D warnings \
     && cargo build \
-    && cargo build --all-targets --all-features) \
+    && cargo test) \
     || exit 1

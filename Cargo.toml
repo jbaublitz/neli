@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.5.3"
+version = "0.6.0"
 edition = "2018"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
@@ -39,8 +39,8 @@ version = "0.3"
 optional = true
 
 [dev-dependencies]
-simple_logger = "*"
-lazy_static = "*"
+simple_logger = "1.13.0"
+lazy_static = "1.4.0"
 
 [features]
 default = []

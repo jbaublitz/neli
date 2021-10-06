@@ -10,6 +10,7 @@ use crate::shared::{
     generate_unnamed_fields, process_impl_generics, process_trait_bounds,
 };
 
+#[allow(clippy::too_many_arguments)]
 fn generate_tobytes<I>(
     struct_name: Ident,
     generics: Generics,
@@ -33,7 +34,7 @@ where
     };
     quote! {
         impl#generics neli::ToBytes for #struct_name#generics_without_bounds #trait_bounds {
-            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::SerError> {
+            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::err::SerError> {
                 #( <#field_types as neli::ToBytes>::to_bytes(&self.#field_names, buffer)?; )*
                 #padding
                 Ok(())
@@ -68,7 +69,7 @@ pub fn impl_tobytes_struct(is: ItemStruct) -> TokenStream2 {
             let struct_name = is.ident;
             quote! {
                 impl neli::ToBytes for #struct_name {
-                    fn to_bytes(&self, _: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::SerError> {
+                    fn to_bytes(&self, _: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::err::SerError> {
                         Ok(())
                     }
                 }
@@ -125,7 +126,7 @@ pub fn impl_tobytes_enum(ie: ItemEnum) -> TokenStream2 {
     );
     quote! {
         impl#generics neli::ToBytes for #enum_name#generics_without_bounds where #( #trait_bounds ),* {
-            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::SerError> {
+            fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::err::SerError> {
                 match self {
                     #(#arms)*
                 }

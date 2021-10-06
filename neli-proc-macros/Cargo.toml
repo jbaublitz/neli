@@ -19,3 +19,6 @@ features = ["derive"]
 [dependencies.syn]
 version = "1"
 features = ["full", "extra-traits"]
+
+[dev-dependencies]
+neli = { version = "0.6.0", path = ".." }

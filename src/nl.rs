@@ -138,7 +138,9 @@ pub struct Nlmsghdr<T, P> {
     /// responses.
     pub nl_pid: u32,
     /// Payload of netlink message
-    #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type)")]
+    #[neli(
+        input = "if nl_type.into() == Nlmsg::Done.into() { (0, nl_type) } else { (nl_len as usize - Self::header_size() as usize, nl_type) }"
+    )]
     pub nl_payload: NlPayload<T, P>,
 }
 

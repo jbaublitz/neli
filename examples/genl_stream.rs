@@ -1,13 +1,19 @@
 use std::{env, error::Error};
 
 #[cfg(feature = "async")]
-use futures::stream::StreamExt;
-#[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
-use neli::{consts::socket::NlFamily, err::NlError, genl::Genlmsghdr, socket::NlSocketHandle};
+use neli::{
+    consts::{
+        genl::{CtrlAttr, CtrlCmd},
+        nl::GenlId,
+        socket::NlFamily,
+    },
+    genl::Genlmsghdr,
+    socket::NlSocketHandle,
+};
 
 #[cfg(feature = "async")]
-fn debug_stream() -> Result<(), NlError> {
+fn debug_stream() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -24,22 +30,22 @@ fn debug_stream() -> Result<(), NlError> {
     s.add_mcast_membership(&[id])?;
     let runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
-        let mut ss = match NlSocket::<u16, Genlmsghdr<u8, u16>>::new(s) {
-            Ok(s) => s,
-            Err(e) => {
-                println!("{}", e);
-                return;
+        let mut ss = NlSocket::new(s)?;
+        let mut buffer = Vec::new();
+        while let Ok(msgs) = ss
+            .recv::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(&mut buffer)
+            .await
+        {
+            for msg in msgs {
+                println!("{:?}", msg);
             }
-        };
-        while let Some(Ok(next)) = ss.next().await {
-            println!("{:#?}", next);
         }
-    });
-    Ok(())
+        Ok(())
+    })
 }
 
 #[cfg(not(feature = "async"))]
-fn debug_stream() -> Result<(), NlError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
+fn debug_stream() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -55,7 +61,7 @@ fn debug_stream() -> Result<(), NlError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>> 
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.add_mcast_membership(&[id])?;
     for next in s.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(true) {
-        println!("{:#?}", next?);
+        println!("{:?}", next?);
     }
     Ok(())
 }

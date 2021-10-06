@@ -1,5 +1,10 @@
 use std::net::Ipv4Addr;
 
+#[cfg(feature = "logging")]
+use log::Level;
+#[cfg(feature = "logging")]
+use simple_logger::init_with_level;
+
 use neli::{
     attr::Attribute,
     consts::{
@@ -15,6 +20,9 @@ use neli::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "logging")]
+    init_with_level(Level::Trace)?;
+
     let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, &[])?;
     let ifaddrmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Inet,

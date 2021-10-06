@@ -10,6 +10,7 @@ use crate::shared::{
     generate_unnamed_fields, process_impl_generics,
 };
 
+#[allow(clippy::too_many_arguments)]
 fn generate_size<I>(
     struct_name: Ident,
     generics: Generics,

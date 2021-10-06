@@ -49,6 +49,8 @@
 //! formats:
 //!
 //! ```
+//! use std::error::Error;
+//!
 //! use neli::{
 //!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
@@ -60,7 +62,7 @@
 //!
 //! const GENL_VERSION: u8 = 1;
 //!
-//! fn request_response() -> Result<(), NlError> {
+//! fn request_response() -> Result<(), Box<dyn Error>> {
 //!     let mut socket = NlSocketHandle::connect(
 //!         NlFamily::Generic,
 //!         None,
@@ -85,7 +87,7 @@
 //!     socket.send(nlhdr)?;
 //!     
 //!     // Do things with multi-message response to request...
-//!     let mut iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+//!     let mut iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
 //!     while let Some(Ok(response)) = iter.next() {
 //!         // Do things with response here...
 //!     }
@@ -103,7 +105,7 @@
 //! use std::error::Error;
 //!
 //! use neli::{
-//!     consts::{genl::*, socket::*},
+//!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
 //!     genl::Genlmsghdr,
 //!     socket,
@@ -120,7 +122,7 @@
 //!         "my_multicast_group_name",
 //!     )?;
 //!     s.add_mcast_membership(&[id])?;
-//!     for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
+//!     for next in s.iter::<NlTypeWrapper, Genlmsghdr<u8, u16>>(true) {
 //!         // Do stuff here with parsed packets...
 //!     
 //!         // like printing a debug representation of them:

@@ -68,6 +68,7 @@ fn process_input_attr(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_shared(
     struct_name: Ident,
     mut generics: Generics,
@@ -114,7 +115,7 @@ fn generate_from_bytes_shared(
     };
     quote! {
         impl#generics neli::FromBytes<#lt> for #struct_name#generics_without_bounds #trait_bounds {
-            fn from_bytes(buffer: &mut std::io::Cursor<&#lt [u8]>) -> Result<Self, neli::DeError> {
+            fn from_bytes(buffer: &mut std::io::Cursor<&#lt [u8]>) -> Result<Self, neli::err::DeError> {
                 log::trace!("Deserializing data type {}", std::any::type_name::<#struct_name#generics_without_bounds>());
                 let pos = buffer.position();
 
@@ -142,6 +143,7 @@ fn generate_from_bytes_shared(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_named(
     struct_name: Ident,
     generics: Generics,
@@ -170,6 +172,7 @@ fn generate_from_bytes_named(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_unnamed(
     struct_name: Ident,
     generics: Generics,
@@ -224,7 +227,7 @@ pub fn impl_frombytes_struct(is: ItemStruct) -> TokenStream2 {
             let struct_name = is.ident;
             quote! {
                 impl<'lt> neli::FromBytes<'lt> for #struct_name {
-                    fn from_bytes(_: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, neli::DeError> {
+                    fn from_bytes(_: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, neli::err::DeError> {
                         Ok(#struct_name)
                     }
                 }
@@ -233,6 +236,7 @@ pub fn impl_frombytes_struct(is: ItemStruct) -> TokenStream2 {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_with_input_shared(
     struct_name: Ident,
     mut generics: Generics,
@@ -281,7 +285,7 @@ fn generate_from_bytes_with_input_shared(
         impl#generics neli::FromBytesWithInput<#lt> for #struct_name#generics_without_bounds #trait_bounds {
             type Input = usize;
 
-            fn from_bytes_with_input(buffer: &mut std::io::Cursor<&#lt [u8]>, input: Self::Input) -> Result<Self, neli::DeError> {
+            fn from_bytes_with_input(buffer: &mut std::io::Cursor<&#lt [u8]>, input: Self::Input) -> Result<Self, neli::err::DeError> {
                 let pos = buffer.position();
 
                 let res = {
@@ -308,6 +312,7 @@ fn generate_from_bytes_with_input_shared(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_with_input_named(
     struct_name: Ident,
     generics: Generics,
@@ -336,6 +341,7 @@ fn generate_from_bytes_with_input_named(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_from_bytes_with_input_unnamed(
     struct_name: Ident,
     generics: Generics,
@@ -392,7 +398,7 @@ pub fn impl_frombyteswithinput_struct(is: ItemStruct) -> TokenStream2 {
                 impl<'lt> neli::FromBytesWithInput<'lt> for #struct_name {
                     type Input = usize;
 
-                    fn from_bytes_with_input(_: &mut std::io::Cursor<&'lt [u8]>, _: Self::Input) -> Result<Self, neli::DeError> {
+                    fn from_bytes_with_input(_: &mut std::io::Cursor<&'lt [u8]>, _: Self::Input) -> Result<Self, neli::err::DeError> {
                         Ok(#struct_name)
                     }
                 }

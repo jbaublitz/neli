@@ -4,6 +4,7 @@ use syn::{Attribute, Fields, Generics, Ident, ItemStruct, Type, WherePredicate};
 
 use crate::shared::{generate_named_fields, generate_trait_bounds, generate_unnamed_field_indices};
 
+#[allow(clippy::too_many_arguments)]
 fn generate_header<I>(
     struct_name: Ident,
     generics: Generics,

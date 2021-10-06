@@ -468,7 +468,7 @@ impl NlSocketHandle {
         let nlhdr = Nlmsghdr::new(
             None,
             GenlId::Ctrl,
-            NlmFFlags::new(&[NlmF::Ack, NlmF::Request, NlmF::Dump]),
+            NlmFFlags::new(&[NlmF::Request, NlmF::Dump]),
             None,
             None,
             NlPayload::Payload(genlhdr),
@@ -511,7 +511,7 @@ impl NlSocketHandle {
     {
         debug!("Message sent:\n{:?}", msg);
 
-        if msg.nl_flags.contains(&NlmF::Ack) {
+        if msg.nl_flags.contains(&NlmF::Ack) && !msg.nl_flags.contains(&NlmF::Dump) {
             self.needs_ack = true;
         }
 
@@ -773,10 +773,7 @@ pub mod tokio {
             }
             let bytes = self.read(buffer.as_mut_slice()).await?;
             buffer.truncate(bytes);
-            Ok(NlBuffer::from_bytes_with_input(
-                &mut Cursor::new(buffer.as_slice()),
-                bytes,
-            )?)
+            NlBuffer::from_bytes_with_input(&mut Cursor::new(buffer.as_slice()), bytes)
         }
     }
 

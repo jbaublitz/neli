@@ -6,23 +6,23 @@
 /// # Usage
 ///
 /// ```
+/// use neli::neli_enum;
+///
 /// /// Define an enum
-/// neli::impl_var!(
-///     MyFamilyEnum,
-///     u16,
-///     One => 1,
-///     Two => 2,
-///     Three => 3
-/// );
+/// #[neli_enum(serialized_type = "u16")]
+/// pub enum MyFamilyEnum {
+///     One = 1,
+///     Two = 2,
+///     Three = 3
+/// }
 ///
 /// /// Define another enum
-/// neli::impl_var!(
-///     MyOtherFamilyEnum,
-///     u16,
-///     Four => 4,
-///     Five => 5,
-///     Six => 6
-/// );
+/// #[neli_enum(serialized_type = "u16")]
+/// pub enum MyOtherFamilyEnum {
+///     Four = 4,
+///     Five = 5,
+///     Six = 6,
+/// }
 ///
 /// /// Define a marker trait and implement it for MyFamilyEnum and
 /// /// MyOtherFamilyEnum.
@@ -181,12 +181,13 @@ macro_rules! impl_trait {
 /// # Usage
 ///
 /// ```
-/// neli::impl_var!(
-///     MyFlags,
-///     u16,
-///     ThisFlag => 1,
-///     ThatFlag => 2
-/// );
+/// use neli::neli_enum;
+///
+/// #[neli_enum(serialized_type = "u16")]
+/// pub enum MyFlags {
+///     ThisFlag = 1,
+///     ThatFlag = 2,
+/// }
 ///
 /// neli::impl_flags!(
 ///     MyFlagSet,
