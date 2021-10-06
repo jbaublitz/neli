@@ -87,11 +87,9 @@ jobs:
         task:
           - cargo build
           - cargo build --features=async
-          - cargo build --features=logging
           - cargo build --all-features
           - cargo test
           - cargo test --features=async
-          - cargo test --features=logging
           - cargo test --all-features
         toolchain:
           - nightly
