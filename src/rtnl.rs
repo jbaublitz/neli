@@ -764,7 +764,7 @@ where
     pub fn get_attribute(&self, t: T) -> Option<&Rtattr<T, Buffer>> {
         for item in self.get_attrs().iter() {
             if item.rta_type == t {
-                return Some(&item);
+                return Some(item);
             }
         }
         None

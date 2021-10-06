@@ -134,11 +134,11 @@ mod test {
         assert_eq!(bit_array.0.len(), 1);
         bit_array.set(4);
         assert_eq!(bit_array.0[0], 0b1000);
-        assert_eq!(bit_array.is_set(4), true);
-        assert_eq!(bit_array.is_set(0), false);
-        assert_eq!(bit_array.is_set(1), false);
-        assert_eq!(bit_array.is_set(2), false);
-        assert_eq!(bit_array.is_set(3), false);
+        assert!(bit_array.is_set(4));
+        assert!(!bit_array.is_set(0));
+        assert!(!bit_array.is_set(1));
+        assert!(!bit_array.is_set(2));
+        assert!(!bit_array.is_set(3));
 
         assert_eq!(bit_array.len(), 4);
         assert_eq!(bit_array.len_bits(), 32);
