@@ -41,7 +41,7 @@ jobs:
           - cargo test
           - cargo test --features=async
           - cargo test --all-features
-          - (cd neli-proc-macros && cargo fmt -- check)
+          - (cd neli-proc-macros && cargo fmt -- --check)
           - (cd neli-proc-macros && cargo build)
           - (cd neli-proc-macros && cargo test)
         toolchain:
