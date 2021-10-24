@@ -1,33 +1,18 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use syn::{
-    Attribute, Fields, FieldsNamed, FieldsUnnamed, Generics, Ident, ItemEnum, ItemStruct, Type,
-    WherePredicate,
-};
+use quote::quote;
+use syn::{FieldsNamed, FieldsUnnamed, Ident, ItemEnum, ItemStruct};
 
 use crate::shared::{
-    generate_arms, generate_named_fields, generate_trait_bounds, generate_unnamed_field_indices,
-    generate_unnamed_fields, process_impl_generics,
+    generate_arms, generate_named_fields, generate_unnamed_fields, process_impl_generics,
+    FieldInfo, StructInfo,
 };
 
-#[allow(clippy::too_many_arguments)]
-fn generate_size<I>(
-    struct_name: Ident,
-    generics: Generics,
-    generics_without_bounds: Generics,
-    trait_bounds: Vec<WherePredicate>,
-    field_names: Vec<I>,
-    field_types: Vec<Type>,
-    _: Vec<Vec<Attribute>>,
-    _: bool,
-) -> TokenStream2
-where
-    I: ToTokens,
-{
-    let trait_bounds = generate_trait_bounds(trait_bounds);
+fn generate_size(i: StructInfo) -> TokenStream2 {
+    let (struct_name, generics, generics_without_bounds, field_names, field_types, _, _) =
+        i.into_tuple();
 
     quote! {
-        impl#generics neli::Size for #struct_name#generics_without_bounds #trait_bounds {
+        impl#generics neli::Size for #struct_name#generics_without_bounds {
             fn unpadded_size(&self) -> usize {
                 #( <#field_types as neli::Size>::unpadded_size(&self.#field_names) )+*
             }
@@ -36,38 +21,8 @@ where
 }
 
 pub fn impl_size_struct(is: ItemStruct) -> TokenStream2 {
-    match is.fields {
-        Fields::Named(fields) => {
-            process_fields!(
-                generate_named_fields,
-                fields,
-                Some("Size"),
-                "size_bound",
-                is,
-                generate_size
-            )
-        }
-        Fields::Unnamed(fields) => {
-            process_fields!(
-                generate_unnamed_field_indices,
-                fields,
-                Some("Size"),
-                "size_bound",
-                is,
-                generate_size
-            )
-        }
-        Fields::Unit => {
-            let struct_name = is.ident;
-            quote! {
-                impl neli::Size for #struct_name {
-                    fn unpadded_size(&self) -> usize {
-                        0
-                    }
-                }
-            }
-        }
-    }
+    let struct_info = StructInfo::from_item_struct(is, Some("Size"), "size_bound", true);
+    generate_size(struct_info)
 }
 
 fn generate_named_pat_and_expr(
@@ -75,7 +30,7 @@ fn generate_named_pat_and_expr(
     var_name: Ident,
     fields: FieldsNamed,
 ) -> TokenStream2 {
-    let (field_names, types, _) = generate_named_fields(fields);
+    let (field_names, types, _) = FieldInfo::to_vecs(generate_named_fields(fields).into_iter());
     quote! {
         #enum_name::#var_name {
             #(#field_names),*
@@ -90,7 +45,8 @@ fn generate_unnamed_pat_and_expr(
     var_name: Ident,
     fields: FieldsUnnamed,
 ) -> TokenStream2 {
-    let (field_names, types, _) = generate_unnamed_fields(fields);
+    let (field_names, types, _) =
+        FieldInfo::to_vecs(generate_unnamed_fields(fields, false).into_iter());
     quote! {
         #enum_name::#var_name(
             #( #field_names ),*

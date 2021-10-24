@@ -2,6 +2,7 @@
 //! [`neli`](https://github.com/jbaublitz/neli).
 
 use proc_macro::TokenStream;
+use quote::quote;
 use syn::{parse, Item, Meta};
 
 #[macro_use]
@@ -54,25 +55,35 @@ pub fn proc_macro_header(ts: TokenStream) -> TokenStream {
     })
 }
 
-#[proc_macro_derive(FromBytes)]
+#[proc_macro_derive(FromBytes, attributes(neli))]
 pub fn proc_macro_frombytes(ts: TokenStream) -> TokenStream {
     let item = parse::<Item>(ts).unwrap();
     TokenStream::from(match item {
-        Item::Struct(strct) => impl_frombytes_struct(strct),
+        Item::Struct(strct) => impl_frombytes_struct(strct, "FromBytes", "from_bytes", None, None),
         _ => panic!("FromBytes can only be derived for structs"),
     })
 }
 
-#[proc_macro_derive(FromBytesWithInput)]
+#[proc_macro_derive(FromBytesWithInput, attributes(neli))]
 pub fn proc_macro_frombyteswithinput(ts: TokenStream) -> TokenStream {
     let item = parse::<Item>(ts).unwrap();
     TokenStream::from(match item {
-        Item::Struct(strct) => impl_frombyteswithinput_struct(strct),
+        Item::Struct(strct) => impl_frombytes_struct(
+            strct,
+            "FromBytesWithInput",
+            "from_bytes_with_input",
+            Some(quote! {
+                type Input = usize;
+            }),
+            Some(quote! {
+                , input: Self::Input
+            }),
+        ),
         _ => panic!("FromBytesWithInput can only be derived for structs"),
     })
 }
 
-#[proc_macro_derive(ToBytes)]
+#[proc_macro_derive(ToBytes, attributes(neli))]
 pub fn proc_macro_tobytes(ts: TokenStream) -> TokenStream {
     let item = parse::<Item>(ts).unwrap();
     TokenStream::from(match item {
