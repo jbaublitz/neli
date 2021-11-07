@@ -163,25 +163,27 @@ fn path_from_idents(idents: &[&str]) -> Path {
 /// # Example:
 /// ## impl block
 ///
-/// ```
-/// impl<T, P> for MyStruct<T, P> {
-///     ...
+/// ```no_compile
+/// trait MyTrait {}
+///
+/// impl<T, P> MyStruct<T, P> {
+///     fn nothing() {}
 /// }
 /// ```
 ///
 /// ## Method call
-/// `process_impl_generics(generics, Some("MyTrait"))`
+/// `neli_proc_macros::process_impl_generics(generics, Some("MyTrait"))`
 ///
 /// ## Result
-/// ```
+/// ```no_compile
 /// (<T: MyTrait, P: MyTrait>, <T, P>)
 /// ```
 ///
 /// or rather:
 ///
-/// ```
-/// impl<T: MyTrait, P: MyTrait> for MyStruct<T, P> {
-///     ...
+/// ```no_compile
+/// impl<T: MyTrait, P: MyTrait> MyStruct<T, P> {
+///     fn nothing() {}
 /// }
 /// ```
 pub fn process_impl_generics(
@@ -498,18 +500,24 @@ pub fn process_lifetime(generics: &mut Generics) -> LifetimeDef {
 /// [`process_impl_generics`][process_impl_generics].
 ///
 /// # Example
-/// ```
-/// // generics contains I and A
-/// // overrides are I: AnotherTrait
-/// let (generics, generics_without_bounds) = process_impl_generics(generics, Some("MyTrait"));
-/// override_trait_bounds_on_generics(&mut generics, overrides)
-/// ```
+/// ```no_compile
+/// use std::marker::PhantomData;
 ///
-/// ## Result
+/// struct MyStruct<I, A>(PhantomData<I>, PhantomData<A>);
 ///
-/// ```
+/// trait MyTrait {}
+/// trait AnotherTrait {}
+///
+/// // Input
+///
+/// impl<I: MyTrait, A: MyTrait> MyStruct<I, A> {
+///     fn nothing() {}
+/// }
+///
+/// // Result
+///
 /// impl<I: AnotherTrait, A: MyTrait> MyStruct<I, A> {
-///     ...
+///     fn nothing() {}
 /// }
 /// ```
 fn override_trait_bounds_on_generics(generics: &mut Generics, trait_bound_overrides: &[TypeParam]) {
