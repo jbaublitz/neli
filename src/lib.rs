@@ -148,7 +148,6 @@ pub mod consts;
 pub mod err;
 pub mod genl;
 pub mod iter;
-mod neli_constants;
 pub mod nl;
 mod parse;
 pub mod rtnl;
@@ -168,7 +167,6 @@ use std::{
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 pub use neli_proc_macros::{neli_enum, FromBytes, FromBytesWithInput, Header, Size, ToBytes};
 
-pub use crate::neli_constants::MAX_NL_LENGTH;
 use crate::{
     consts::alignto,
     err::{DeError, SerError},

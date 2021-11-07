@@ -44,11 +44,10 @@ use libc::{self, c_int, c_void};
 use log::{debug, trace};
 
 use crate::{
-    consts::{genl::*, nl::*, socket::*},
+    consts::{genl::*, nl::*, socket::*, MAX_NL_LENGTH},
     err::{NlError, SerError},
     genl::{Genlmsghdr, Nlattr},
     iter::{IterationBehavior, NlMessageIter},
-    neli_constants::MAX_NL_LENGTH,
     nl::{NlPayload, Nlmsghdr},
     parse::packet_length_u32,
     types::{GenlBuffer, NlBuffer},
@@ -699,7 +698,7 @@ pub mod tokio {
     use ::tokio::io::{unix::AsyncFd, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
     use futures::ready;
 
-    use crate::{err::DeError, neli_constants::MAX_NL_LENGTH, Size};
+    use crate::{err::DeError, Size};
 
     fn poll_read_priv(
         async_fd: &AsyncFd<super::NlSocket>,

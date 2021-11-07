@@ -63,6 +63,10 @@ pub fn alignto(len: usize) -> usize {
     (len + libc::NLA_ALIGNTO as usize - 1) & !(libc::NLA_ALIGNTO as usize - 1)
 }
 
+/// Max supported message length for netlink messages supported by
+/// the kernel.
+pub const MAX_NL_LENGTH: usize = 32768;
+
 #[cfg(test)]
 mod test {
     use super::genl::*;
