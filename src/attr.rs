@@ -9,9 +9,16 @@
 //! [`Nlattr`][crate::genl::Nlattr] types in the
 //! `rtnl.rs` and `genl.rs` modules respectively.
 
-use std::slice::{Iter, IterMut};
+use std::{
+    io::Cursor,
+    slice::{Iter, IterMut},
+};
 
-use crate::{err::NlError, Buffer, Nl};
+use crate::{
+    err::{DeError, SerError},
+    types::Buffer,
+    FromBytes, FromBytesWithInput, Size, ToBytes,
+};
 
 /// Trait that defines shared operations for netlink attributes.
 /// Currently, this applies to generic netlink and routing netlink
@@ -26,22 +33,34 @@ pub trait Attribute<T> {
     /// contained all in the same top level attribute.
     fn payload(&self) -> &Buffer;
 
-    /// Set the payload to a data type that implements `Nl` -
+    /// Set the payload to a data type that implements [`ToBytes`] -
     /// this function will overwrite the current payload.
     ///
     /// This method serializes the `payload` parameter and stores
     /// the resulting byte buffer as the payload.
-    fn set_payload<P>(&mut self, payload: &P) -> Result<(), NlError>
+    fn set_payload<P>(&mut self, payload: &P) -> Result<(), SerError>
     where
-        P: Nl;
+        P: Size + ToBytes;
 
     /// Get an [`Nlattr`][crate::genl::Nlattr] payload as the
     /// provided type parameter, `R`.
-    fn get_payload_as<R>(&self) -> Result<R, NlError>
+    fn get_payload_as<'a, R>(&'a self) -> Result<R, DeError>
     where
-        R: Nl,
+        R: FromBytes<'a>,
     {
-        R::deserialize(self.payload().as_ref()).map_err(NlError::new)
+        R::from_bytes(&mut Cursor::new(self.payload().as_ref()))
+    }
+
+    /// Get an [`Nlattr`][crate::genl::Nlattr] payload as the
+    /// provided type parameter, `R`.
+    fn get_payload_as_with_len<'a, R>(&'a self) -> Result<R, DeError>
+    where
+        R: FromBytesWithInput<'a, Input = usize>,
+    {
+        R::from_bytes_with_input(
+            &mut Cursor::new(self.payload().as_ref()),
+            self.payload().len(),
+        )
     }
 }
 

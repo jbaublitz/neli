@@ -13,7 +13,7 @@ const GENL_VERSION: u8 = 2;
 // This example attempts to mimic the "genl ctrl list" command. For simplicity, it only outputs
 // the name and identifier of each generic netlink family.
 
-fn main() -> Result<(), NlError> {
+fn main() -> Result<(), NlError<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
     let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
 
     let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
@@ -28,25 +28,16 @@ fn main() -> Result<(), NlError> {
     };
     socket.send(nlhdr)?;
 
-    let iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+    let iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
     for response_result in iter {
         let response = response_result?;
 
-        // FIXME: This example could be improved by
-        // reinterpreting the payload as an Nlmsgerr struct
-        // and printing the specific error encountered.
-        if let NlTypeWrapper::Nlmsg(Nlmsg::Error) = response.nl_type {
-            return Err(NlError::new(
-                "An error occurred while retrieving available families",
-            ));
-        }
-
-        if let NlPayload::Payload(p) = response.nl_payload {
+        if let Some(p) = response.nl_payload.get_payload() {
             let handle = p.get_attr_handle();
             for attr in handle.iter() {
-                match &attr.nla_type {
+                match &attr.nla_type.nla_type {
                     CtrlAttr::FamilyName => {
-                        println!("{}", attr.get_payload_as::<String>()?);
+                        println!("{}", attr.get_payload_as_with_len::<String>()?);
                     }
                     CtrlAttr::FamilyId => {
                         println!("\tID: 0x{:x}", attr.get_payload_as::<u16>()?);

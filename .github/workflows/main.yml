@@ -15,6 +15,7 @@ jobs:
       matrix:
         task:
           - cargo clippy --all-targets -- -D warnings
+          - (cd neli-proc-macros && cargo clippy --all-targets -- -D warnings)
         toolchain:
           - nightly
           - stable
@@ -36,12 +37,13 @@ jobs:
           - cargo fmt -- --check
           - cargo build
           - cargo build --features=async
-          - cargo build --features=logging
           - cargo build --all-features
           - cargo test
           - cargo test --features=async
-          - cargo test --features=logging
           - cargo test --all-features
+          - (cd neli-proc-macros && cargo fmt -- --check)
+          - (cd neli-proc-macros && cargo build)
+          - (cd neli-proc-macros && cargo test)
         toolchain:
           - nightly
           - stable
@@ -85,11 +87,9 @@ jobs:
         task:
           - cargo build
           - cargo build --features=async
-          - cargo build --features=logging
           - cargo build --all-features
           - cargo test
           - cargo test --features=async
-          - cargo test --features=logging
           - cargo test --all-features
         toolchain:
           - nightly

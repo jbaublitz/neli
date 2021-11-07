@@ -18,6 +18,7 @@ use neli::{
         socket::NlFamily,
     },
     genl::{Genlmsghdr, Nlattr},
+    neli_enum,
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
@@ -34,24 +35,24 @@ const ECHO_MSG: &str = "Some data that has `Nl` trait implemented, like &str";
 // NlFoobarXmplOperation corresponds to "enum NlFoobarXmplCommand" in kernel module C code.
 // Describes what callback function shall be invoked in the linux kernel module.
 // This is for the "cmd" field in Generic Netlink header.
-neli::impl_var!(
-    NlFoobarXmplOperation,
-    u8,
-    Unspec => 0,
-    Echo => 1
-);
+#[neli_enum(serialized_type = "u8")]
+pub enum NlFoobarXmplOperation {
+    Unspec = 0,
+    Echo = 1,
+}
+
 impl neli::consts::genl::Cmd for NlFoobarXmplOperation {}
 
 // Implements the necessary trait for the "neli" lib on an enum called "NlFoobarXmplAttribute".
 // NlFoobarXmplAttribute corresponds to "enum NlFoobarXmplAttribute" in kernel module C code.
 // Describes the value type to data mappings inside the generic netlink packet payload.
 // This is for the Netlink Attributes (the actual payload) we want to send.
-neli::impl_var!(
-    NlFoobarXmplAttribute,
-    u16,
-    Unspec => 0,
-    Msg => 1
-);
+#[neli_enum(serialized_type = "u16")]
+pub enum NlFoobarXmplAttribute {
+    Unspec = 0,
+    Msg = 1,
+}
+
 impl neli::consts::genl::NlAttrType for NlFoobarXmplAttribute {}
 
 fn main() {
@@ -85,7 +86,6 @@ fn main() {
     let mut attrs: GenlBuffer<NlFoobarXmplAttribute, Buffer> = GenlBuffer::new();
     attrs.push(
         Nlattr::new(
-            None,
             false,
             false,
             // the type of the attribute. This is an u16 and corresponds
@@ -143,7 +143,7 @@ fn main() {
 
     let attr_handle = res.get_payload().unwrap().get_attr_handle();
     let received = attr_handle
-        .get_attr_payload_as::<String>(NlFoobarXmplAttribute::Msg)
+        .get_attr_payload_as_with_len::<String>(NlFoobarXmplAttribute::Msg)
         .unwrap();
     println!("Received from kernel: '{}'", received);
 }

@@ -1,5 +1,10 @@
 use std::net::Ipv4Addr;
 
+#[cfg(feature = "logging")]
+use log::Level;
+#[cfg(feature = "logging")]
+use simple_logger::init_with_level;
+
 use neli::{
     attr::Attribute,
     consts::{
@@ -15,6 +20,9 @@ use neli::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "logging")]
+    init_with_level(Level::Trace)?;
+
     let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, &[])?;
     let ifaddrmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Inet,
@@ -35,24 +43,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     rtnl.send(nl_header)?;
     let mut addrs = Vec::<Ipv4Addr>::with_capacity(1);
     for response in rtnl.iter(false) {
-        let header: Nlmsghdr<_, Ifaddrmsg> = response?;
-        if let NlPayload::Empty = header.nl_payload {
-            continue;
-        }
-        if header.nl_type != Rtm::Newaddr.into() {
-            return Err(Box::new(NlError::new(
-                "Netlink error retrieving IP address",
-            )));
-        }
-        let p = header.get_payload()?;
-        if RtScope::from(p.ifa_scope) != RtScope::Universe {
-            continue;
-        }
-        for rtattr in p.rtattrs.iter() {
-            if rtattr.rta_type == Ifa::Local {
-                addrs.push(Ipv4Addr::from(u32::from_be(
-                    rtattr.get_payload_as::<u32>()?,
+        let header: Nlmsghdr<Rtm, Ifaddrmsg> = response?;
+        if let NlPayload::Payload(p) = header.nl_payload {
+            if header.nl_type != Rtm::Newaddr {
+                return Err(Box::new(NlError::msg(
+                    "Netlink error retrieving IP address",
                 )));
+            }
+            if RtScope::from(p.ifa_scope) != RtScope::Universe {
+                continue;
+            }
+            for rtattr in p.rtattrs.iter() {
+                if rtattr.rta_type == Ifa::Local {
+                    addrs.push(Ipv4Addr::from(u32::from_be(
+                        rtattr.get_payload_as::<u32>()?,
+                    )));
+                }
             }
         }
     }

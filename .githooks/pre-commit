@@ -8,7 +8,7 @@ cargo fmt -- --check \
     && cargo test --all-targets --all-features \
     || exit 1
 
-cd examples \
+(cd examples \
     && cargo fmt -- --check \
     && cargo clippy -- -D warnings \
     && cargo build \
@@ -16,5 +16,12 @@ cd examples \
     && ./target/debug/route-list \
     && ./target/debug/ctrl-list \
     && ./target/debug/error_packet \
-    && cargo build --all-targets --all-features \
+    && cargo build --all-targets --all-features) \
+    || exit 1
+
+(cd neli-proc-macros \
+    && cargo fmt -- --check \
+    && cargo clippy -- -D warnings \
+    && cargo build \
+    && cargo test) \
     || exit 1
