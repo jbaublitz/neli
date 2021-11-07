@@ -7,12 +7,9 @@
 //! system calls `send` and `recv` do with very little abstraction.
 //! * [`NlSocketHandle::send`] and [`NlSocketHandle::recv`] methods
 //! are meant to provide an interface that is more idiomatic for
-//! the library. The are able to operate on any structure wrapped in
-//! an [`Nlmsghdr`][crate::nl::Nlmsghdr] struct that implements
-//! the [`Nl`] trait.
-//! * [`NlSocketHandle::iter`] and [`NlSocketHandle::iter2`]
-//! provide a loop based iteration through messages that are
-//! received in a stream over the socket.
+//! the library.
+//! * [`NlSocketHandle::iter`] provides a loop based iteration
+//! through messages that are received in a stream over the socket.
 //!
 //! ## Features
 //! The `async` feature exposed by `cargo` allows the socket to use
@@ -523,8 +520,8 @@ impl NlSocketHandle {
 
     /// Convenience function to read a stream of
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs one by one.
-    /// Use [`NlSocketHandle::iter`] or [`NlSockHandle::iter2`]
-    /// instead for easy iteration over returned packets.
+    /// Use [`NlSocketHandle::iter`] instead for easy iteration over
+    /// returned packets.
     ///
     /// Returns [`None`] only in non-blocking contexts if no
     /// message can be immediately returned or if the socket

@@ -116,6 +116,8 @@ pub fn proc_macro_header(ts: TokenStream) -> TokenStream {
 /// Acceptable struct attribute is:
 /// * `#[neli(from_bytes_bound = "T: MyTrait")]` which will generate
 /// a trait bound in the impl for the specified type parameter.
+/// * `#[neli(padding)]` which will add special handling for padding
+/// for this struct.
 ///
 /// Acceptable field attribute forms are:
 /// * `#[neli(input = "input_expression")]` which may only be used
@@ -143,6 +145,8 @@ pub fn proc_macro_frombytes(ts: TokenStream) -> TokenStream {
 /// Acceptable struct attribute is:
 /// * `#[neli(from_bytes_bound = "T: MyTrait")]` which will generate
 /// a trait bound in the impl for the specified type parameter.
+/// * `#[neli(padding)]` which will add special handling for padding
+/// for this struct.
 ///
 /// Acceptable field attribute forms are:
 /// * `#[neli(input = "input_expression")]` which may only be used
@@ -180,6 +184,8 @@ pub fn proc_macro_frombyteswithinput(ts: TokenStream) -> TokenStream {
 /// Acceptable struct attribute is:
 /// * `#[neli(to_bytes_bound = "T: MyTrait")]` which will generate a
 /// trait bound in the impl for the specified type parameter.
+/// * `#[neli(padding)]` which will add special handling for padding
+/// for this struct.
 ///
 /// Implicit type parameter bound: `ToBytes`.
 #[proc_macro_derive(ToBytes, attributes(neli))]

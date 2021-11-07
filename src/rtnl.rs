@@ -227,6 +227,30 @@ pub struct Tcmsg {
     pub rtattrs: RtBuffer<Tca, Buffer>,
 }
 
+impl Tcmsg {
+    /// Create a new [`Tcmsg`] structure handling the necessary
+    /// padding.
+    pub fn new(
+        tcm_family: libc::c_uchar,
+        tcm_ifindex: libc::c_int,
+        tcm_handle: u32,
+        tcm_parent: u32,
+        tcm_info: u32,
+        rtattrs: RtBuffer<Tca, Buffer>,
+    ) -> Self {
+        Tcmsg {
+            tcm_family,
+            padding_char: 0,
+            padding_short: 0,
+            tcm_ifindex,
+            tcm_handle,
+            tcm_parent,
+            tcm_info,
+            rtattrs,
+        }
+    }
+}
+
 /// Struct representing route netlink attributes
 #[derive(Debug, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: RtaType")]
@@ -361,8 +385,7 @@ where
         None
     }
 
-    /// Parse binary payload as a type that implements [`Nl`] using
-    /// [`deserialize`][Nl::deserialize].
+    /// Parse binary payload as a type that implements [`FromBytes`].
     pub fn get_attr_payload_as<'b, R>(&'b self, attr: T) -> Result<R, DeError>
     where
         R: FromBytes<'b>,
@@ -373,8 +396,7 @@ where
         }
     }
 
-    /// Parse binary payload as a type that implements [`Nl`] using
-    /// [`deserialize`][Nl::deserialize].
+    /// Parse binary payload as a type that implements [`FromBytesWithInput`].
     pub fn get_attr_payload_as_with_len<'b, R>(&'b self, attr: T) -> Result<R, DeError>
     where
         R: FromBytesWithInput<'b, Input = usize>,

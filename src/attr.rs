@@ -33,7 +33,7 @@ pub trait Attribute<T> {
     /// contained all in the same top level attribute.
     fn payload(&self) -> &Buffer;
 
-    /// Set the payload to a data type that implements `Nl` -
+    /// Set the payload to a data type that implements [`ToBytes`] -
     /// this function will overwrite the current payload.
     ///
     /// This method serializes the `payload` parameter and stores

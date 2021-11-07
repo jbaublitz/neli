@@ -7,8 +7,7 @@
 //!
 //! # Design decisions
 //!
-//! Payloads for [`Nlmsghdr`][crate::nl::Nlmsghdr] can be any type
-//! that implements the [`Nl`] trait.
+//! Payloads for [`Nlmsghdr`][crate::nl::Nlmsghdr] can be any type.
 //!
 //! The payload is wrapped in an enum to facilitate better
 //! application-level error handling.

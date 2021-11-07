@@ -272,7 +272,8 @@ impl<'a, T> AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
 where
     T: NlAttrType,
 {
-    /// Get the payload of an attribute as a handle for parsing nested attributes
+    /// Get the payload of an attribute as a handle for parsing
+    /// nested attributes
     pub fn get_nested_attributes<S>(&mut self, subattr: T) -> Result<GenlAttrHandle<S>, DeError>
     where
         S: NlAttrType,
@@ -296,8 +297,7 @@ where
         None
     }
 
-    /// Parse binary payload as a type that implements [`Nl`] using
-    /// [`deserialize`][crate::Nl::deserialize].
+    /// Parse binary payload as a type that implements [`FromBytes`].
     pub fn get_attr_payload_as<'b, R>(&'b self, attr: T) -> Result<R, DeError>
     where
         R: FromBytes<'b>,
@@ -308,8 +308,8 @@ where
         }
     }
 
-    /// Parse binary payload as a type that implements [`Nl`] using
-    /// [`deserialize`][crate::Nl::deserialize].
+    /// Parse binary payload as a type that implements
+    /// [`FromBytesWithInput`]
     pub fn get_attr_payload_as_with_len<'b, R>(&'b self, attr: T) -> Result<R, DeError>
     where
         R: FromBytesWithInput<'b, Input = usize>,

@@ -14,7 +14,8 @@
 //! * `err` - This module contains all of the protocol and
 //! library-level errors encountered in the code.
 //! * `genl` - This code provides parsing for the generic netlink
-//! subsystem of the netlink protocol.
+//! * `iter` - This code handles iterating over received netlink
+//! packets.
 //! * `nl` - This is the top level netlink header code that handles
 //! the header that all netlink messages are encapsulated in.
 //! * `rtnl` - This module is for the routing netlink subsystem of the
@@ -29,9 +30,7 @@
 //! whole lot of higher level handle-type data structures and
 //! relies mostly on the [`NlSocket`][crate::socket::NlSocket] and
 //! [`NlSocketHandle`][crate::socket::NlSocketHandle] structs
-//! to provide most of the convenience functions. I hope to add a
-//! higher level API sometime in the `v0.5.x` releases to ease some of
-//! the workflows that have been brought to my attention.
+//! to provide most of the convenience functions.
 //!
 //! The goal of this library is completeness for handling netlink and
 //! am working to incorporate features that will make this library

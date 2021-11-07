@@ -19,42 +19,19 @@ within the scope of support for this library.
 This is also a pure Rust implementation and aims to make use of
 idiomatic Rust features.
 
-## Design decisions
-
-This is a very low level library. It aims to give the user control
-over every aspect of the protocol and while a higher level API is in
-the works for this project, currently it relies on a serialization and
-deserialization workflow of packets. A socket handle is provided with
-convenience functions to ease some of the manual aspects of common
-workflows.
-
-At the heart of `neli` is the `Nl` trait which allows you to
-serialize and deserialize as well as calculate the buffer size needed
-to serialize the netlink packet. This can be implemented for
-user-defined types as well and used extensibly with `neli`. `libc`
-constants are wrapped in enums for more intuitive matching of flags
-and constants with struct fields that accept them.
-
-Currently supported subsystems are:
-* genetlink - The generic netlink subsystem
-* rtnetlink (testing and bug reports appreciated!) - The routing
-netlink subsystem
-* nflog - Netfilter logging subsystem
-* User defined netlink subsystems - `neli` can be extended to work
-with anything that can be modeled using the `Nl` trait
-
 ## Examples using `neli`
 
-There is an `examples/` directory that is kept up to date with toy
-programs to play around with and look at for inspiration.
-[pwrsurge](https://github.com/jbaublitz/pwrsurge) is also a good
-resource for a more in depth usage of `neli`.
+Examples of working code exist in the `examples/` subdirectory on
+Github. They have a separate `Cargo.toml` file to provide easy
+testing and use.  
 
 Workflows seem to usually follow a pattern of socket creation,and
 then either sending and receiving messages in request/response
 formats:
 
 ```rust
+use std::error::Error;
+
 use neli::{
     consts::{genl::*, nl::*, socket::*},
     err::NlError,
@@ -66,7 +43,7 @@ use neli::{
 
 const GENL_VERSION: u8 = 1;
 
-fn request_response() -> Result<(), NlError> {
+fn request_response() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocketHandle::connect(
         NlFamily::Generic,
         None,
@@ -91,7 +68,7 @@ fn request_response() -> Result<(), NlError> {
     socket.send(nlhdr)?;
     
     // Do things with multi-message response to request...
-    let mut iter = socket.iter::<Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+    let mut iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
     while let Some(Ok(response)) = iter.next() {
         // Do things with response here...
     }
@@ -109,7 +86,7 @@ or a subscriptions to a stream of event notifications from netlink:
 use std::error::Error;
 
 use neli::{
-    consts::{genl::*, socket::*},
+    consts::{genl::*, nl::*, socket::*},
     err::NlError,
     genl::Genlmsghdr,
     socket,
@@ -126,7 +103,7 @@ fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
         "my_multicast_group_name",
     )?;
     s.add_mcast_membership(&[id])?;
-    for next in s.iter::<Genlmsghdr<u8, u16>>(true) {
+    for next in s.iter::<NlTypeWrapper, Genlmsghdr<u8, u16>>(true) {
         // Do stuff here with parsed packets...
     
         // like printing a debug representation of them:
@@ -141,39 +118,40 @@ I plan to support both of these using a higher level API eventually.
 
 ## Contributing
 
-Your contribution will be licensed under neli's [license](LICENSE). This is non-negotiable mainly
-because, while some projects have legal counsel and additional help, this project is maintained by me.
-I want to keep this aspect as simple as possible so please read over the license file prior to
-contributing to make sure that you feel comfortable with your contributions being released under
-the BSD 3-Clause License.
+Your contribution will be licensed under neli's [license](LICENSE).
+I want to keep this aspect as simple as possible so please read over
+the license file prior to contributing to make sure that you feel
+comfortable with your contributions being released under the BSD
+3-Clause License.
 
-CI is awesome - please add tests for new features wherever possible. I may request this prior to merge
-if I see it is possible and missing. Given that netlink is a messy, systems protocol, for features
-that require actual netlink interaction, this is beyond the scope of CI for now (containers can make
-this harder, netlink is moving to dynamic identifiers, etc.). All of this makes automated testing
-a little too much for right now but a good rule of thumb is if you are writing an `Nl` impl,
-please test that it works.
+CI is awesome - please add tests for new features wherever possible.
+I may request this prior to merge if I see it is possible and missing.
 
-Please document new features not just at a lower level but also with `//!` comments at the module
-for high level documentation and overview of the feature.
+Please document new features not just at a lower level but also with
+`//!` comments at the module for high level documentation and
+overview of the feature.
 
-Before submitting PRs, take a look at the module's documentation that you are changing. I am
-currently in the process of adding a "Design decision" section to each module. If you are
-wondering why I did something the way I did, it should be there. That way, if you have a better
-way to do it, please let me know! I'm always happy to learn. My hope is that this will also
-clarify some questions beforehand about why I did things the way I did and will make your life
-as a contributer easier.
+Before submitting PRs, take a look at the module's documentation that
+you are changing. I am currently in the process of adding a "Design
+decision" section to each module. If you are wondering why I did
+something the way I did, it should be there. That way, if you have a
+better way to do it, please let me know! I'm always happy to learn.
+My hope is that this will also clarify some questions beforehand
+about why I did things the way I did and will make your life as a
+contributer easier.
 
 ### PR target branch
 
-I'm trying to be more principled about the git process for neli moving forward.
-
 Steps for a PR:
-* For bug fixes and improvements that are not breaking changes, please target `master`
-* For breaking changes, please target the branch for the next version release - this will
-look like `v[NEXT_VERSION]-dev`
-* Please include a brief description of your change in the CHANGELOG file
-* Once a PR has been reviewed and approved, please rebase onto the target branch
-  * For those less familiar with git, it should look something like this
+* For bug fixes and improvements that are not breaking changes,
+please target `master`
+* For breaking changes, please target the branch for the next version
+release - this will look like `v[NEXT_VERSION]-dev`
+* Please include a brief description of your change in the CHANGELOG
+file
+* Once a PR has been reviewed and approved, please rebase onto the
+target branch
+  * For those less familiar with git, it should look something like
+this
     * `git rebase [TARGET_BRANCH] [YOUR_BRANCH]`
     * _This is a destructive operation so make sure you check carefully before doing this_: `git push -f origin [YOUR_BRANCH]`

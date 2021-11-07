@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0
+### Bug fixes
+* Fixed problem where `Tcmsg` could not be created due to padding.
+* Fixed problem with listing multicast groups.
+
+### Additions
+* Addition of `neli-proc-macros` crate to handle most of trait
+generation.
+* More testing!
+
+### Breaking changes
+* Changed the core traits from `Nl` to a number of different, more
+granular traits.
+* Consolidated `iter()` and `iter2()`.
+* Major changes to async module.
+* Changes to how bit flag sets are handled.
+
 ## 0.5.3
 ### Bug fixes
 * Bug fix for `Ifinfomsg.ifi_change` being serialized twice.
