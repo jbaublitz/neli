@@ -26,7 +26,7 @@ use neli_enum::*;
 
 /// This method converts a method from the form:
 ///
-/// ```
+/// ```no_compile
 /// use neli_proc_macros::neli_enum;
 ///
 /// #[neli_enum(serialized_type = "u16")]

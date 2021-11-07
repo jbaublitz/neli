@@ -3,6 +3,9 @@ name = "neli-proc-macros"
 version = "0.1.0"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 edition = "2018"
+description = "Procedural macros for neli"
+license = "BSD-3-Clause"
+repository = "https://github.com/jbaublitz/neli"
 
 [lib]
 proc-macro = true
@@ -10,7 +13,7 @@ proc-macro = true
 [dependencies]
 quote = "1"
 proc-macro2 = "1"
-either = "*"
+either = "1.6"
 
 [dependencies.serde]
 version = "1"
@@ -19,6 +22,3 @@ features = ["derive"]
 [dependencies.syn]
 version = "1"
 features = ["full", "extra-traits"]
-
-[dev-dependencies]
-neli = { version = "0.6.0", path = ".." }

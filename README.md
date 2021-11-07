@@ -144,7 +144,7 @@ contributer easier.
 
 Steps for a PR:
 * For bug fixes and improvements that are not breaking changes,
-please target `master`
+please target `main`.
 * For breaking changes, please target the branch for the next version
 release - this will look like `v[NEXT_VERSION]-dev`
 * Please include a brief description of your change in the CHANGELOG
