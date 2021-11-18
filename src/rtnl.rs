@@ -493,4 +493,25 @@ mod test {
             );
         }
     }
+
+    #[test]
+    fn real_test_tcmsg() {
+        setup();
+
+        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
+        sock.send(Nlmsghdr::new(
+            None,
+            Rtm::Getqdisc,
+            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
+            None,
+            None,
+            NlPayload::Payload(Tcmsg::new(0, 0, 0, 0, 0, RtBuffer::new())),
+        ))
+        .unwrap();
+        let msgs = sock.recv_all::<Rtm, Tcmsg>().unwrap();
+        for msg in msgs {
+            assert!(matches!(msg.get_payload().unwrap(), Tcmsg { .. }));
+            assert_eq!(msg.nl_type, Rtm::Newqdisc);
+        }
+    }
 }
