@@ -140,6 +140,14 @@ My hope is that this will also clarify some questions beforehand
 about why I did things the way I did and will make your life as a
 contributer easier.
 
+### Git hooks
+
+I've provided git hooks to simulate a subset of what CI is running.
+If you'd like to enable these, they'll probably catch some errors
+before having to look at CI. If you'd like to enable these, run
+`git config core.hookspath .githooks`. Your commits will be checked
+before the commit is created.
+
 ### PR target branch
 
 Steps for a PR:
