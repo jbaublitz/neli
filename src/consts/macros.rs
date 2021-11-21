@@ -243,7 +243,7 @@ macro_rules! impl_flags {
 
         impl $crate::TypeSize for $name {
             fn type_size() -> usize {
-                std::mem::size_of::<$bin_type>()
+                <$crate::types::FlagBuffer::<$bin_type, $type> as $crate::TypeSize>::type_size()
             }
         }
     };
