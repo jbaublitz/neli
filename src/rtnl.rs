@@ -279,7 +279,7 @@ where
         P: Size + ToBytes,
     {
         let mut attr = Rtattr {
-            rta_len: rta_len.unwrap_or(0),
+            rta_len: rta_len.unwrap_or(4),
             rta_type,
             rta_payload: Buffer::new(),
         };
