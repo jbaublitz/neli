@@ -377,6 +377,13 @@ impl<'a> FromBytesWithInput<'a> for &'a str {
     }
 }
 
+impl<'a> FromBytes<'a> for &'a str {
+    fn from_bytes(buffer: &mut Cursor<&'a [u8]>) -> Result<Self, DeError> {
+        let len = buffer.get_ref().len();
+        <&'a str>::from_bytes_with_input(buffer, len - buffer.position() as usize)
+    }
+}
+
 impl Size for String {
     fn unpadded_size(&self) -> usize {
         self.as_str().unpadded_size()
@@ -400,6 +407,13 @@ impl<'a> FromBytesWithInput<'a> for String {
         )?;
         buffer.set_position(buffer.position() + input as u64);
         Ok(s)
+    }
+}
+
+impl<'a> FromBytes<'a> for String {
+    fn from_bytes(buffer: &mut Cursor<&'a [u8]>) -> Result<Self, DeError> {
+        let len = buffer.get_ref().len();
+        String::from_bytes_with_input(buffer, len - buffer.position() as usize)
     }
 }
 
