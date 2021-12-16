@@ -1,7 +1,13 @@
+use std::error::Error;
+
+#[cfg(feature = "logging")]
+use log::Level;
+#[cfg(feature = "logging")]
+use simple_logger::init_with_level;
+
 use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
-    err::NlError,
     genl::Genlmsghdr,
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
@@ -13,7 +19,10 @@ const GENL_VERSION: u8 = 2;
 // This example attempts to mimic the "genl ctrl list" command. For simplicity, it only outputs
 // the name and identifier of each generic netlink family.
 
-fn main() -> Result<(), NlError<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
+fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(feature = "logging")]
+    init_with_level(Level::Trace)?;
+
     let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
 
     let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();

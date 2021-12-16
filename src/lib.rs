@@ -339,6 +339,12 @@ impl<T> Size for PhantomData<T> {
     }
 }
 
+impl<T> TypeSize for PhantomData<T> {
+    fn type_size() -> usize {
+        0
+    }
+}
+
 impl<T> ToBytes for PhantomData<T> {
     fn to_bytes(&self, _: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
         Ok(())

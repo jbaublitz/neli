@@ -474,6 +474,24 @@ pub fn process_input(attrs: &[Attribute]) -> Option<Option<Expr>> {
     }
 }
 
+/// Handles the attribute `#[neli(size = "...")]`
+/// when deriving [`FromBytes`][neli::FromBytes] implementations.
+///
+/// Returns:
+/// * [`None`] if the attribute is not present
+/// associated expression
+/// * [`Some(_)`] if the attribute is present and has an associated expression
+pub fn process_size(attrs: &[Attribute]) -> Option<Expr> {
+    let mut exprs = process_attr(attrs, "size");
+    if exprs.len() > 1 {
+        panic!("Only one input expression allowed for attribute #[neli(size = \"...\")]");
+    } else {
+        exprs
+            .pop()
+            .map(|opt| opt.expect("#[neli(size = \"...\")] must have associated expression"))
+    }
+}
+
 /// If the first type parameter of a list of type parameters is a lifetime,
 /// extract it for use in other parts of the procedural macro code.
 ///

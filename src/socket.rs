@@ -38,7 +38,7 @@ use std::{
 };
 
 use libc::{self, c_int, c_void};
-use log::{debug, trace};
+use log::debug;
 
 use crate::{
     consts::{genl::*, nl::*, socket::*, MAX_NL_LENGTH},
@@ -563,14 +563,10 @@ impl NlSocketHandle {
                 return Err(NlError::new("Incomplete packet received from socket"));
             }
 
-            trace!(
-                "Buffer before deserialization: {:?}",
-                &self.buffer[self.position..self.position + next_packet_len]
-            );
-
             // Deserialize the next Nlmsghdr struct.
-            let deserialized_packet_result =
-                Nlmsghdr::<T, P>::from_bytes(&mut Cursor::new(&self.buffer[self.position..]));
+            let deserialized_packet_result = Nlmsghdr::<T, P>::from_bytes(&mut Cursor::new(
+                &self.buffer[self.position..self.position + next_packet_len],
+            ));
 
             (deserialized_packet_result, next_packet_len)
         };

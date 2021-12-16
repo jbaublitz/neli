@@ -1,5 +1,10 @@
 use std::{env, error::Error};
 
+#[cfg(feature = "logging")]
+use log::Level;
+#[cfg(feature = "logging")]
+use simple_logger::init_with_level;
+
 #[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{
@@ -67,6 +72,9 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(feature = "logging")]
+    init_with_level(Level::Trace)?;
+
     #[cfg(feature = "async")]
     debug_stream()?;
     #[cfg(not(feature = "async"))]

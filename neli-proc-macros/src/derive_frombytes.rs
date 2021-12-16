@@ -5,7 +5,7 @@ use syn::{
     Ident, ItemStruct, LifetimeDef, PathArguments, Token, TraitBound, Type, TypeParamBound,
 };
 
-use crate::shared::{process_input, process_lifetime, StructInfo};
+use crate::shared::{process_input, process_lifetime, process_size, StructInfo};
 
 fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeDef) {
     trt.path.segments.iter_mut().for_each(|elem| {
@@ -28,34 +28,61 @@ fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeDef) {
     });
 }
 
-fn process_input_attr(
-    lt: &LifetimeDef,
-    field_type: Type,
-    field_attrs: Vec<Attribute>,
-) -> TokenStream2 {
-    match process_input(&field_attrs) {
+fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 {
+    let input = process_input(&field_attrs);
+    let size = process_size(&field_attrs)
+        .unwrap_or_else(|| parse_str("input").expect("input is a valid expression"));
+    match input {
         Some(Some(input)) => quote! {
             {
                 let input = #input;
-                log::trace!("Deserializing field type {}", std::any::type_name::<#field_type>());
-                log::trace!("Input: {:?}", input);
-                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(buffer, input)?;
+                log::trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<#field_type>(),
+                );
+                let position = buffer.position() as usize;
+                log::trace!(
+                    "Buffer to be deserialized: {:?}",
+                    &buffer.get_ref()[position..position + #size],
+                );
+                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(
+                    buffer,
+                    input,
+                )?;
                 log::trace!("Field deserialized: {:?}", ok);
                 ok
             }
         },
         Some(None) => quote! {
             {
-                log::trace!("Deserializing field type {}", std::any::type_name::<#field_type>());
-                log::trace!("Input: {:?}", input);
-                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(buffer, input)?;
+                log::trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<#field_type>(),
+                );
+                let position = buffer.position() as usize;
+                log::trace!(
+                    "Buffer to be deserialized: {:?}",
+                    &buffer.get_ref()[position..position + #size],
+                );
+                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(
+                    buffer,
+                    input,
+                )?;
                 log::trace!("Field deserialized: {:?}", ok);
                 ok
             }
         },
         None => quote! {
             {
-                log::trace!("Deserializing field type {}", std::any::type_name::<#field_type>());
+                log::trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<#field_type>(),
+                );
+                let position = buffer.position() as usize;
+                log::trace!(
+                    "Buffer to be deserialized: {:?}",
+                    &buffer.get_ref()[position..position + <#field_type as neli::TypeSize>::type_size()],
+                );
                 let ok = <#field_type as neli::FromBytes<#lt>>::from_bytes(buffer)?;
                 log::trace!("Field deserialized: {:?}", ok);
                 ok
@@ -129,7 +156,7 @@ pub fn impl_frombytes_struct(
     let from_bytes_exprs = field_types
         .into_iter()
         .zip(field_attrs.into_iter())
-        .map(|(field_type, field_attrs)| process_input_attr(&lt, field_type, field_attrs));
+        .map(|(field_type, field_attrs)| process_attrs(&lt, field_type, field_attrs));
 
     let padding = if padded {
         quote! {

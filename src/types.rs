@@ -9,6 +9,7 @@
 use crate as neli;
 
 use std::{
+    fmt::{self, Debug},
     iter::FromIterator,
     marker::PhantomData,
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not},
@@ -23,12 +24,18 @@ use crate::{
     genl::Nlattr,
     nl::Nlmsghdr,
     rtnl::Rtattr,
-    FromBytes, FromBytesWithInput, ToBytes,
+    FromBytes, FromBytesWithInput, ToBytes, TypeSize,
 };
 
 /// A buffer of bytes.
-#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes)]
+#[derive(PartialEq, Size, FromBytesWithInput, ToBytes)]
 pub struct Buffer(#[neli(input)] Vec<u8>);
+
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Buffer")
+    }
+}
 
 impl AsRef<[u8]> for Buffer {
     fn as_ref(&self) -> &[u8] {
@@ -349,7 +356,10 @@ impl<T, P> Default for RtBuffer<T, P> {
 }
 
 /// A buffer of flag constants.
+// FIXME: Fix the debug implementation for flags to actually display which flags
+// have been set.
 #[derive(Debug, PartialEq, Size, ToBytes, FromBytes)]
+#[neli(from_bytes_bound = "B: FromBytes + TypeSize + Debug")]
 pub struct FlagBuffer<B, T>(B, PhantomData<T>);
 
 impl<'a, B, T> From<&'a [T]> for FlagBuffer<B, T>
@@ -363,6 +373,15 @@ where
                 .fold(B::default(), |inner, flag| inner | B::from(flag)),
             PhantomData,
         )
+    }
+}
+
+impl<B, T> TypeSize for FlagBuffer<B, T>
+where
+    B: TypeSize,
+{
+    fn type_size() -> usize {
+        B::type_size()
     }
 }
 
