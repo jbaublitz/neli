@@ -64,10 +64,9 @@ fn main() {
     )
     .unwrap();
 
-    let family_id;
     let res = sock.resolve_genl_family(FAMILY_NAME);
-    match res {
-        Ok(id) => family_id = id,
+    let family_id = match res {
+        Ok(id) => id,
         Err(e) => {
             eprintln!(
                 "The Netlink family '{}' can't be found. Is the kernel module loaded yet? neli-error='{}'",
@@ -77,7 +76,7 @@ fn main() {
             // This is because in testing/build scenarios we do not have a Kernel module which we can load.
             return;
         }
-    }
+    };
 
     println!("Generic family number is {}", family_id);
 
