@@ -38,12 +38,12 @@ jobs:
           - cargo build
           - cargo build --features=async
           - cargo build --all-features
-          - cargo test
-          - cargo test --features=async
-          - cargo test --all-features
+          - RUST_TEST_THREADS=1 cargo test
+          - RUST_TEST_THREADS=1 cargo test --features=async
+          - RUST_TEST_THREADS=1 cargo test --all-features
           - (cd neli-proc-macros && cargo fmt -- --check)
           - (cd neli-proc-macros && cargo build)
-          - (cd neli-proc-macros && cargo test)
+          - (cd neli-proc-macros && RUST_TEST_THREADS=1 cargo test)
         toolchain:
           - nightly
           - stable
@@ -88,9 +88,9 @@ jobs:
           - cargo build
           - cargo build --features=async
           - cargo build --all-features
-          - cargo test
-          - cargo test --features=async
-          - cargo test --all-features
+          - RUST_TEST_THREADS=1 cargo test
+          - RUST_TEST_THREADS=1 cargo test --features=async
+          - RUST_TEST_THREADS=1 cargo test --all-features
         toolchain:
           - nightly
           - stable
