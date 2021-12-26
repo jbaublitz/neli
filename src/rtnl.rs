@@ -274,12 +274,12 @@ where
     T: RtaType,
 {
     /// Create a new [`Rtattr`].
-    pub fn new<P>(rta_len: Option<u16>, rta_type: T, rta_payload: P) -> Result<Self, SerError>
+    pub fn new<P>(_: Option<u16>, rta_type: T, rta_payload: P) -> Result<Self, SerError>
     where
         P: Size + ToBytes,
     {
         let mut attr = Rtattr {
-            rta_len: rta_len.unwrap_or(0),
+            rta_len: Self::header_size() as u16,
             rta_type,
             rta_payload: Buffer::new(),
         };
