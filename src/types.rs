@@ -6,7 +6,7 @@
 //! cases to allow the internal representation to change without
 //! resulting in a breaking change.
 
-use crate as neli;
+use crate::{self as neli, consts::alignto};
 
 use std::{
     fmt::{self, Debug},
@@ -165,11 +165,16 @@ impl<T, P> Default for NlBuffer<T, P> {
 }
 
 /// A buffer of generic netlink attributes.
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput)]
+#[derive(Debug, PartialEq, ToBytes, FromBytesWithInput)]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct GenlBuffer<T, P>(#[neli(input)] Vec<Nlattr<T, P>>);
+impl<T,P> neli::Size for GenlBuffer<T, P> {
+    fn unpadded_size(&self) -> usize {
+        self.0.iter().map(|attr|{alignto(attr.nla_len as usize)}).sum()
+    }
+}
 
 impl<T> GenlBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
