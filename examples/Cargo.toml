@@ -36,9 +36,15 @@ path = "lookup_id.rs"
 name = "error_packet"
 path = "error_packet.rs"
 
+[[bin]]
+name = "async_nl80211"
+path = "async_nl80211.rs"
+required-features = ["async"]
+
 [dependencies.tokio]
-version = "1.0"
+version = "1"
 optional = true
+features = ["macros"]
 
 [dependencies.futures]
 version = "0.3"

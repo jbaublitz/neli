@@ -14,7 +14,10 @@
 
 use crate as neli;
 
-use std::{any::type_name, io::Cursor};
+use std::{
+    any::type_name,
+    io::{Cursor, Read},
+};
 
 use log::trace;
 
@@ -63,57 +66,59 @@ where
         (input_size, input_type): (usize, T),
     ) -> Result<Self, DeError> {
         trace!("Deserializing data type {}", type_name::<Self>());
-        if input_size == 0 {
+        let ty_const: u16 = input_type.into();
+        if ty_const == Nlmsg::Done.into() {
+            trace!("Received empty payload");
+            let mut bytes = Vec::new();
+            buffer.read_to_end(&mut bytes)?;
+            trace!("Padding: {:?}", bytes);
             Ok(NlPayload::Empty)
-        } else {
-            let ty_const: u16 = input_type.into();
-            if ty_const == Nlmsg::Error.into() {
-                trace!(
-                    "Deserializing field type {}",
-                    std::any::type_name::<libc::c_int>()
-                );
-                let code = libc::c_int::from_bytes(buffer)?;
-                trace!("Field deserialized: {:?}", code);
-                if code == 0 {
-                    Ok(NlPayload::Ack(Nlmsgerr {
-                        error: code,
-                        nlmsg: {
-                            trace!(
-                                "Deserializing field type {}",
-                                std::any::type_name::<NlmsghdrErr<T, ()>>()
-                            );
-                            trace!("Input: {:?}", input_size);
-                            let ok = NlmsghdrErr::<T, ()>::from_bytes_with_input(
-                                buffer,
-                                input_size - libc::c_int::type_size(),
-                            )?;
-                            trace!("Field deserialized: {:?}", ok);
-                            ok
-                        },
-                    }))
-                } else {
-                    Ok(NlPayload::Err(Nlmsgerr {
-                        error: code,
-                        nlmsg: {
-                            trace!(
-                                "Deserializing field type {}",
-                                std::any::type_name::<NlmsghdrErr<T, ()>>()
-                            );
-                            trace!("Input: {:?}", input_size);
-                            let ok = NlmsghdrErr::<T, P>::from_bytes_with_input(
-                                buffer,
-                                input_size - libc::c_int::type_size(),
-                            )?;
-                            trace!("Field deserialized: {:?}", ok);
-                            ok
-                        },
-                    }))
-                }
+        } else if ty_const == Nlmsg::Error.into() {
+            trace!(
+                "Deserializing field type {}",
+                std::any::type_name::<libc::c_int>()
+            );
+            let code = libc::c_int::from_bytes(buffer)?;
+            trace!("Field deserialized: {:?}", code);
+            if code == 0 {
+                Ok(NlPayload::Ack(Nlmsgerr {
+                    error: code,
+                    nlmsg: {
+                        trace!(
+                            "Deserializing field type {}",
+                            std::any::type_name::<NlmsghdrErr<T, ()>>()
+                        );
+                        trace!("Input: {:?}", input_size);
+                        let ok = NlmsghdrErr::<T, ()>::from_bytes_with_input(
+                            buffer,
+                            input_size - libc::c_int::type_size(),
+                        )?;
+                        trace!("Field deserialized: {:?}", ok);
+                        ok
+                    },
+                }))
             } else {
-                Ok(NlPayload::Payload(P::from_bytes_with_input(
-                    buffer, input_size,
-                )?))
+                Ok(NlPayload::Err(Nlmsgerr {
+                    error: code,
+                    nlmsg: {
+                        trace!(
+                            "Deserializing field type {}",
+                            std::any::type_name::<NlmsghdrErr<T, ()>>()
+                        );
+                        trace!("Input: {:?}", input_size);
+                        let ok = NlmsghdrErr::<T, P>::from_bytes_with_input(
+                            buffer,
+                            input_size - libc::c_int::type_size(),
+                        )?;
+                        trace!("Field deserialized: {:?}", ok);
+                        ok
+                    },
+                }))
             }
+        } else {
+            Ok(NlPayload::Payload(P::from_bytes_with_input(
+                buffer, input_size,
+            )?))
         }
     }
 }
@@ -137,12 +142,8 @@ pub struct Nlmsghdr<T, P> {
     /// responses.
     pub nl_pid: u32,
     /// Payload of netlink message
-    #[neli(
-        input = "if nl_type.into() == Nlmsg::Done.into() { (0, nl_type) } else { (nl_len as usize - Self::header_size() as usize, nl_type) }"
-    )]
-    #[neli(
-        size = "if nl_type.into() == Nlmsg::Done.into() { 0 } else { nl_len as usize - Self::header_size() as usize }"
-    )]
+    #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type)")]
+    #[neli(size = "nl_len as usize - Self::header_size() as usize")]
     pub nl_payload: NlPayload<T, P>,
 }
 
