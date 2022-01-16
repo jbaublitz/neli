@@ -747,7 +747,7 @@ pub mod tokio {
         {
             let mut buffer = Cursor::new(vec![0; msg.padded_size()]);
             msg.to_bytes(&mut buffer)?;
-            self.write(buffer.get_ref()).await?;
+            self.write_all(buffer.get_ref()).await?;
             Ok(())
         }
 

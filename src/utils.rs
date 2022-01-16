@@ -19,7 +19,7 @@ pub struct NetlinkBitArray(Vec<BitArrayType>);
 /// needs to be implemented this way.
 #[allow(clippy::len_without_is_empty)]
 impl NetlinkBitArray {
-    const BIT_SIZE: usize = size_of::<BitArrayType>() * 8;
+    const BIT_SIZE: usize = BitArrayType::BITS as usize;
 
     /// Create a new bit array.
     ///
