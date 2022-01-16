@@ -6,7 +6,7 @@
 //! cases to allow the internal representation to change without
 //! resulting in a breaking change.
 
-use crate::{self as neli, consts::alignto};
+use crate as neli;
 
 use std::{
     fmt::{self, Debug},
@@ -16,15 +16,13 @@ use std::{
     slice::{Iter, IterMut},
 };
 
-use neli_proc_macros::Size;
-
 use crate::{
     attr::{AttrHandle, AttrHandleMut},
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     genl::Nlattr,
     nl::Nlmsghdr,
     rtnl::Rtattr,
-    FromBytes, FromBytesWithInput, ToBytes, TypeSize,
+    FromBytes, FromBytesWithInput, Size, ToBytes, TypeSize,
 };
 
 /// A buffer of bytes.
@@ -170,9 +168,14 @@ impl<T, P> Default for NlBuffer<T, P> {
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct GenlBuffer<T, P>(#[neli(input)] Vec<Nlattr<T, P>>);
-impl<T,P> neli::Size for GenlBuffer<T, P> {
+
+impl<T, P> neli::Size for GenlBuffer<T, P>
+where
+    T: Size,
+    P: Size,
+{
     fn unpadded_size(&self) -> usize {
-        self.0.iter().map(|attr|{alignto(attr.nla_len as usize)}).sum()
+        self.0.iter().map(|attr| attr.padded_size()).sum()
     }
 }
 
@@ -271,9 +274,13 @@ impl<T, P> Default for GenlBuffer<T, P> {
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct RtBuffer<T, P>(#[neli(input)] Vec<Rtattr<T, P>>);
 
-impl<T,P> neli::Size for RtBuffer<T, P> {
+impl<T, P> neli::Size for RtBuffer<T, P>
+where
+    T: Size,
+    P: Size,
+{
     fn unpadded_size(&self) -> usize {
-        self.0.iter().map(|attr|{alignto(attr.rta_len as usize)}).sum()
+        self.0.iter().map(|attr| attr.padded_size()).sum()
     }
 }
 
