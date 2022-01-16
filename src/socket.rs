@@ -427,23 +427,19 @@ impl NlSocketHandle {
             if let NlPayload::Payload(p) = nlhdr.nl_payload {
                 let mut handle = p.get_attr_handle();
                 let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
-                if let Some(id) = mcast_groups
-                    .iter()
-                    .filter_map(|item| {
-                        let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
-                        let string = nested_attrs
-                            .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)
-                            .ok()?;
-                        if string.as_str() == mcast_name {
-                            nested_attrs
-                                .get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
-                                .ok()
-                        } else {
-                            None
-                        }
-                    })
-                    .next()
-                {
+                if let Some(id) = mcast_groups.iter().find_map(|item| {
+                    let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
+                    let string = nested_attrs
+                        .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)
+                        .ok()?;
+                    if string.as_str() == mcast_name {
+                        nested_attrs
+                            .get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
+                            .ok()
+                    } else {
+                        None
+                    }
+                }) {
                     res = Ok(id);
                 }
             }
