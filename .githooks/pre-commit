@@ -4,7 +4,6 @@ cargo fmt -- --check \
     && cargo clippy --all-targets --all-features -- -D warnings \
     && cargo build \
     && cargo build --all-targets --all-features \
-    && cargo test \
     && cargo test --all-targets --all-features \
     || exit 1
 
@@ -16,7 +15,8 @@ cargo fmt -- --check \
     && ./target/debug/route-list \
     && ./target/debug/ctrl-list \
     && ./target/debug/error_packet \
-    && cargo build --all-targets --all-features) \
+    && cargo build --all-targets --all-features \
+    && ./target/debug/async_nl80211) \
     || exit 1
 
 (cd neli-proc-macros \
