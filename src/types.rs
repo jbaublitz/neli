@@ -16,15 +16,13 @@ use std::{
     slice::{Iter, IterMut},
 };
 
-use neli_proc_macros::Size;
-
 use crate::{
     attr::{AttrHandle, AttrHandleMut},
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     genl::Nlattr,
     nl::Nlmsghdr,
     rtnl::Rtattr,
-    FromBytes, FromBytesWithInput, ToBytes, TypeSize,
+    FromBytes, FromBytesWithInput, Size, ToBytes, TypeSize,
 };
 
 /// A buffer of bytes.
@@ -165,11 +163,21 @@ impl<T, P> Default for NlBuffer<T, P> {
 }
 
 /// A buffer of generic netlink attributes.
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput)]
+#[derive(Debug, PartialEq, ToBytes, FromBytesWithInput)]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct GenlBuffer<T, P>(#[neli(input)] Vec<Nlattr<T, P>>);
+
+impl<T, P> neli::Size for GenlBuffer<T, P>
+where
+    T: Size,
+    P: Size,
+{
+    fn unpadded_size(&self) -> usize {
+        self.0.iter().map(|attr| attr.padded_size()).sum()
+    }
+}
 
 impl<T> GenlBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
@@ -261,10 +269,20 @@ impl<T, P> Default for GenlBuffer<T, P> {
 }
 
 /// A buffer of rtnetlink attributes.
-#[derive(Debug, Size, FromBytesWithInput, ToBytes)]
+#[derive(Debug, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct RtBuffer<T, P>(#[neli(input)] Vec<Rtattr<T, P>>);
+
+impl<T, P> neli::Size for RtBuffer<T, P>
+where
+    T: Size,
+    P: Size,
+{
+    fn unpadded_size(&self) -> usize {
+        self.0.iter().map(|attr| attr.padded_size()).sum()
+    }
+}
 
 impl<T> RtBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
