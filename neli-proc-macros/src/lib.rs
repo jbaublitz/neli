@@ -129,6 +129,9 @@ pub fn proc_macro_header(ts: TokenStream) -> TokenStream {
 /// provided in the `FromBytesWithInput` method through to the
 /// `FromBytesWithInput` method for this field unchanged according
 /// to the rules described above.
+/// * `#[neli(size = "size_var_name")] which allows specifying a size of the data type
+/// that is different from the input specified by `#[neli(input)]`. Not specifying
+/// this attribute defaults to using `input` as the size as well.
 ///
 /// Implicit type parameter bound: `FromBytes`.
 #[proc_macro_derive(FromBytes, attributes(neli))]
@@ -158,6 +161,9 @@ pub fn proc_macro_frombytes(ts: TokenStream) -> TokenStream {
 /// provided in the `FromBytesWithInput` method through to the
 /// `FromBytesWithInput` method for this field unchanged according
 /// to the rules described above.
+/// * `#[neli(size = "size_var_name")] which allows specifying a size of the data type
+/// that is different from the input specified by `#[neli(input)]`. Not specifying
+/// this attribute defaults to using `input` as the size as well.
 ///
 /// Implicit type parameter bound: `FromBytes`.
 #[proc_macro_derive(FromBytesWithInput, attributes(neli))]
