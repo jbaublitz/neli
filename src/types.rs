@@ -436,3 +436,40 @@ where
         self.0 &= !B::from(flag)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::consts::{genl::Index, rtnl::Ifa};
+
+    #[test]
+    fn test_genlbuffer_align() {
+        assert_eq!(
+            vec![
+                Nlattr::new(false, false, Index::from(0), 0u8,).unwrap(),
+                Nlattr::new(false, false, Index::from(1), 1u8,).unwrap(),
+                Nlattr::new(false, false, Index::from(2), 2u8,).unwrap(),
+            ]
+            .into_iter()
+            .collect::<GenlBuffer<Index, Buffer>>()
+            .unpadded_size(),
+            24
+        )
+    }
+
+    #[test]
+    fn test_rtbuffer_align() {
+        assert_eq!(
+            vec![
+                Rtattr::new(None, Ifa::Unspec, 0u8,).unwrap(),
+                Rtattr::new(None, Ifa::Address, 1u8,).unwrap(),
+                Rtattr::new(None, Ifa::Local, 2u8,).unwrap(),
+            ]
+            .into_iter()
+            .collect::<RtBuffer<Ifa, Buffer>>()
+            .unpadded_size(),
+            24
+        )
+    }
+}
