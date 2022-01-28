@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.1
+### Bug fixes
+* Bug fix for `RtBuffer` and `GenlBuffer` size calculation
+* Bug fix for `Rtattr` size calculation
+* Bug fixes in tokio usage
+* Bug fix where padding at the end of an empty netlink packet caused errors
+
+### Improvements
+* Better debug logging
+
+See all pull requests and issues that went into this release [here!](https://github.com/jbaublitz/neli/milestone/12?closed=1)
+
 ## 0.6.0
 ### Bug fixes
 * Fixed problem where `Tcmsg` could not be created due to padding.
