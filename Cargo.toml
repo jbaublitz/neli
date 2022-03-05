@@ -34,10 +34,6 @@ version = "1"
 features = ["io-util", "rt-multi-thread", "sync", "net"]
 optional = true
 
-[dependencies.futures]
-version = "0.3"
-optional = true
-
 [dev-dependencies]
 simple_logger = "1.13.0"
 lazy_static = "1.4.0"
@@ -48,5 +44,5 @@ features = ["macros", "rt-multi-thread"]
 
 [features]
 default = []
-async = ["tokio", "futures"]
+async = ["tokio"]
 netfilter = []

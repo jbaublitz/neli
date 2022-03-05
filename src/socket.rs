@@ -685,9 +685,17 @@ pub mod tokio {
     };
 
     use ::tokio::io::{unix::AsyncFd, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-    use futures::ready;
 
     use crate::{err::DeError, Size};
+
+    macro_rules! ready {
+        ($e:expr $(,)?) => {
+            match $e {
+                ::std::task::Poll::Ready(t) => t,
+                ::std::task::Poll::Pending => return ::std::task::Poll::Pending,
+            }
+        };
+    }
 
     fn poll_read_priv(
         async_fd: &AsyncFd<super::NlSocket>,
