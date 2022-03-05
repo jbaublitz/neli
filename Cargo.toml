@@ -31,7 +31,7 @@ path = "neli-proc-macros"
 
 [dependencies.tokio]
 version = "1"
-features = ["io-util", "rt-multi-thread", "sync", "net"]
+features = ["io-util", "net"]
 optional = true
 
 [dev-dependencies]
