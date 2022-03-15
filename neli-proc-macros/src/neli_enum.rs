@@ -5,6 +5,8 @@ use syn::{
     parse, parse_str, Arm, Attribute, Expr, Ident, ItemEnum, Lit, Meta, Path, Token, Type, Variant,
 };
 
+use crate::shared::remove_bad_attrs;
+
 fn parse_type_attr(attr: Meta) -> Type {
     if let Meta::NameValue(nv) = attr {
         if nv.path == parse_str::<Path>("serialized_type").unwrap() {
@@ -48,8 +50,12 @@ fn parse_from_info(
 ) -> (Vec<Arm>, Vec<Arm>) {
     let mut from_const_info = Vec::new();
     let mut from_type_info = Vec::new();
-    for (attributes, ident, expr) in var_info {
+    for (mut attributes, ident, expr) in var_info {
+        attributes = remove_bad_attrs(attributes);
         let mut from_const_arm = parse::<Arm>(TokenStream::from(quote! {
+            #(
+                #attributes
+            )*
             i if i == #expr => #enum_name::#ident,
         }))
         .expect("Failed to parse tokens as a match arm");
@@ -57,6 +63,9 @@ fn parse_from_info(
         from_const_info.push(from_const_arm);
 
         let mut from_type_arm = parse::<Arm>(TokenStream::from(quote! {
+            #(
+                #attributes
+            )*
             #enum_name::#ident => #expr,
         }))
         .expect("Failed to parse tokens as a match arm");

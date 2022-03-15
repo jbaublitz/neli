@@ -222,7 +222,7 @@ pub fn process_impl_generics(
 /// Remove attributes that should not be carried over to an `impl`
 /// definition and only belong in the data structure like documentation
 /// attributes.
-fn remove_bad_attrs(attrs: Vec<Attribute>) -> Vec<Attribute> {
+pub fn remove_bad_attrs(attrs: Vec<Attribute>) -> Vec<Attribute> {
     attrs
         .into_iter()
         .filter(|attr| {
