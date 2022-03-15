@@ -11,10 +11,20 @@ fn generate_size(i: StructInfo) -> TokenStream2 {
     let (struct_name, generics, generics_without_bounds, field_names, field_types, _, _) =
         i.into_tuple();
 
-    quote! {
-        impl#generics neli::Size for #struct_name#generics_without_bounds {
-            fn unpadded_size(&self) -> usize {
-                #( <#field_types as neli::Size>::unpadded_size(&self.#field_names) )+*
+    if field_types.is_empty() {
+        quote! {
+            impl#generics neli::Size for #struct_name#generics_without_bounds {
+                fn unpadded_size(&self) -> usize {
+                    0
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl#generics neli::Size for #struct_name#generics_without_bounds {
+                fn unpadded_size(&self) -> usize {
+                    #( <#field_types as neli::Size>::unpadded_size(&self.#field_names) )+*
+                }
             }
         }
     }
