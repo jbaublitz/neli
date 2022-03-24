@@ -41,6 +41,7 @@ pub enum GenlId {
 /// Values for `nl_flags` in [`Nlmsghdr`][crate::nl::Nlmsghdr]
 #[neli_enum(serialized_type = "u16")]
 pub enum NlmF {
+    /// This flag is required for all kernel requests
     Request = libc::NLM_F_REQUEST as u16,
     Multi = libc::NLM_F_MULTI as u16,
     Ack = libc::NLM_F_ACK as u16,
