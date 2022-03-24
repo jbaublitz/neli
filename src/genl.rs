@@ -25,6 +25,16 @@ use crate::{
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
+/// Struct indicating that no user header is in the generic netlink packet.
+#[derive(Debug, PartialEq, Size, ToBytes, FromBytes)]
+pub struct NoUserHeader;
+
+impl TypeSize for NoUserHeader {
+    fn type_size() -> usize {
+        0
+    }
+}
+
 /// Struct representing generic netlink header and payload
 #[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput, Header)]
 #[neli(to_bytes_bound = "C: Cmd")]
@@ -32,12 +42,17 @@ use crate::{
 #[neli(from_bytes_bound = "C: Cmd + TypeSize")]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(header_bound = "C: TypeSize")]
-pub struct Genlmsghdr<C, T> {
+#[neli(from_bytes_bound = "H: TypeSize + FromBytes")]
+#[neli(header_bound = "H: TypeSize")]
+pub struct Genlmsghdr<C, T, H = NoUserHeader> {
     /// Generic netlink message command
     pub cmd: C,
     /// Version of generic netlink family protocol
     pub version: u8,
     reserved: u16,
+    /// User specific header to send with netlink packet; defaults to an empty type
+    /// to maintain backwards compatibility
+    pub header: H,
     /// Attributes included in generic netlink message
     #[neli(input = "input - Self::header_size()")]
     attrs: GenlBuffer<T, Buffer>,
@@ -54,6 +69,7 @@ where
             cmd,
             version,
             reserved: 0,
+            header: NoUserHeader,
             attrs,
         }
     }
@@ -68,6 +84,24 @@ where
         &mut self,
     ) -> AttrHandleMut<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
         self.attrs.get_attr_handle_mut()
+    }
+}
+
+impl<C, T, H> Genlmsghdr<C, T, H> {
+    /// Create a new netlink struct with a user header
+    pub fn new_with_user_header(
+        cmd: C,
+        version: u8,
+        header: H,
+        attrs: GenlBuffer<T, Buffer>,
+    ) -> Self {
+        Genlmsghdr {
+            cmd,
+            version,
+            reserved: 0,
+            header,
+            attrs,
+        }
     }
 }
 
