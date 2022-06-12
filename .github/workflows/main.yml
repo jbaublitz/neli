@@ -38,6 +38,8 @@ jobs:
           - cargo build
           - cargo build --features=async
           - cargo build --all-features
+          - cargo build --examples
+          - cargo build --examples --all-features
           - RUST_TEST_THREADS=1 cargo test --all-features
           - (cd neli-proc-macros && cargo fmt -- --check)
           - (cd neli-proc-macros && cargo build)
@@ -86,6 +88,8 @@ jobs:
           - cargo build
           - cargo build --features=async
           - cargo build --all-features
+          - cargo build --examples
+          - cargo build --examples --all-features
           - RUST_TEST_THREADS=1 cargo test --all-features
         toolchain:
           - nightly
