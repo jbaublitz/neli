@@ -31,11 +31,7 @@ path = "neli-proc-macros"
 
 [dependencies.tokio]
 version = "1"
-features = ["io-util", "rt-multi-thread", "sync", "net"]
-optional = true
-
-[dependencies.futures]
-version = "0.3"
+features = ["io-util", "net"]
 optional = true
 
 [dev-dependencies]
@@ -48,5 +44,5 @@ features = ["macros", "rt-multi-thread"]
 
 [features]
 default = []
-async = ["tokio", "futures"]
+async = ["tokio"]
 netfilter = []
