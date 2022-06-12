@@ -487,8 +487,8 @@ where
     }
 }
 
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Size)]
 /// A `u64` data type that will always be serialized as big endian
-#[derive(Copy, Debug, Clone, PartialEq, Size)]
 pub struct BeU64(u64);
 
 impl BeU64 {

@@ -147,7 +147,7 @@ pub struct Nlmsghdr<T, P> {
     pub nl_payload: NlPayload<T, P>,
 }
 
-impl<'a, T, P> Nlmsghdr<T, P>
+impl<T, P> Nlmsghdr<T, P>
 where
     T: NlType,
     P: Size,

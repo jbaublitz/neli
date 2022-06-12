@@ -12,7 +12,7 @@ use crate::{
 
 /// Define iteration behavior when traversing a stream of netlink
 /// messages.
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum IterationBehavior {
     /// End iteration of multi-part messages when a DONE message is
     /// reached.
