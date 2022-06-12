@@ -96,7 +96,7 @@ macro_rules! impl_trait {
             impl $trait_name for $const_enum {}
         )+
 
-        #[derive(Debug, PartialEq, Clone, Copy)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
         $(
             #[$wrapper_outer]
         )*

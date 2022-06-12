@@ -5,7 +5,7 @@ use syn::ItemStruct;
 use crate::shared::StructInfo;
 
 fn generate_header(mut i: StructInfo) -> TokenStream2 {
-    let _ = i.pop_field();
+    i.pop_field();
 
     let (struct_name, generics, generics_without_bounds, _, field_types, _, _) = i.into_tuple();
 

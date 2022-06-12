@@ -75,7 +75,7 @@ pub enum CtrlAttrMcastGrp {
 }
 
 /// Type representing attribute list types as indices
-#[derive(Debug, PartialEq, Clone, Copy, Size)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Size)]
 pub struct Index(u16);
 
 impl Index {

@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// A buffer of bytes.
-#[derive(PartialEq, Size, FromBytesWithInput, ToBytes)]
+#[derive(PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 pub struct Buffer(#[neli(input)] Vec<u8>);
 
 impl Debug for Buffer {
@@ -53,7 +53,7 @@ impl<'a> From<&'a [u8]> for Buffer {
     }
 }
 
-impl<'a> From<Vec<u8>> for Buffer {
+impl From<Vec<u8>> for Buffer {
     fn from(vec: Vec<u8>) -> Self {
         Buffer(vec)
     }

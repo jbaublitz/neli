@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// Struct indicating that no user header is in the generic netlink packet.
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytes)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
 pub struct NoUserHeader;
 
 impl TypeSize for NoUserHeader {
