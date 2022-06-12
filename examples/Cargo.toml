@@ -37,9 +37,8 @@ name = "error_packet"
 path = "error_packet.rs"
 
 [[bin]]
-name = "async_nl80211"
-path = "async_nl80211.rs"
-required-features = ["async"]
+name = "nl80211"
+path = "nl80211.rs"
 
 [dependencies.tokio]
 version = "1"

@@ -5,6 +5,8 @@ use log::Level;
 #[cfg(feature = "logging")]
 use simple_logger::init_with_level;
 
+#[cfg(feature = "async")]
+use neli::socket::tokio::NlSocket;
 use neli::{
     consts::{
         nl::{GenlId, NlmF, NlmFFlags},
@@ -12,7 +14,6 @@ use neli::{
     },
     genl::Genlmsghdr,
     nl::{NlPayload, Nlmsghdr},
-    socket::tokio::NlSocket,
     socket::NlSocketHandle,
     types::GenlBuffer,
 };
@@ -38,6 +39,7 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
     println!("msg={:?}", msg.nl_type);
 }
 
+#[cfg(feature = "async")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "logging")]
@@ -73,6 +75,51 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let msgs = ss.recv(&mut buffer).await?;
     println!("msgs: {:?}", msgs);
     for msg in msgs {
+        if let NlPayload::Err(e) = msg.nl_payload {
+            if e.error == -2 {
+                println!(
+                    "This test is not supported on this machine as it requires nl80211; skipping"
+                );
+            } else {
+                return Err(Box::new(e) as Box<dyn Error>);
+            }
+        } else {
+            handle(msg);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "async"))]
+fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(feature = "logging")]
+    init_with_level(Level::Trace)?;
+
+    let mut sock = NlSocketHandle::connect(
+        NlFamily::Generic, /* family */
+        Some(0),           /* pid */
+        &[],               /* groups */
+    )?;
+    let family_id = sock.resolve_genl_family("nl80211")?;
+
+    let req = Nlmsghdr::new(
+        /* len */ None,
+        /* type */ family_id,
+        /* flags */ NlmFFlags::new(&[NlmF::Request, NlmF::Dump, NlmF::Ack]),
+        /* seq */ Some(1),
+        /* pid */ Some(0),
+        /* payload */
+        NlPayload::Payload(Genlmsghdr::<Nl80211Command, Nl80211Attribute>::new(
+            /* cmd */ Nl80211Command::GetWiPhy,
+            /* version */ 1,
+            /* attrs */ GenlBuffer::new(),
+        )),
+    );
+
+    sock.send(req)?;
+
+    for msg in sock.iter(false) {
+        let msg = msg?;
         if let NlPayload::Err(e) = msg.nl_payload {
             if e.error == -2 {
                 println!(
