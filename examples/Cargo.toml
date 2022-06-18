@@ -43,7 +43,7 @@ path = "nl80211.rs"
 [dependencies.tokio]
 version = "1"
 optional = true
-features = ["macros"]
+features = ["macros", "rt-multi-thread"]
 
 [dependencies.futures]
 version = "0.3"

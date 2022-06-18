@@ -7,8 +7,8 @@
 //! generated in this module allow netlink structures to implement
 //! trait bounds assuring that only compatible constant-based enums
 //! are allowed to be passed in as parameters.  The macros are
-//! exported - you can use them too! See [impl_trait] and [impl_flags]
-//! for more details.
+//! exported - you can use them too! See [`impl_trait`][crate::impl_trait]
+//! and [`impl_flags`][crate::impl_flags] for more details.
 //!
 //! Note that most of these constants come from the Linux kernel
 //! headers, which can be found in `/usr/include/linux` on many
