@@ -22,6 +22,7 @@ use neli::{
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
+    utils::Groups,
 };
 use std::process;
 
@@ -60,7 +61,7 @@ fn main() {
         NlFamily::Generic,
         // 0 is pid of kernel -> socket is connected to kernel
         Some(0),
-        &[],
+        Groups::empty(),
     )
     .unwrap();
 

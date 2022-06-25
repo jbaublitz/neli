@@ -61,6 +61,7 @@
 //!     nl::{Nlmsghdr, NlPayload},
 //!     socket::NlSocketHandle,
 //!     types::{Buffer, GenlBuffer},
+//!     utils::Groups,
 //! };
 //!
 //! const GENL_VERSION: u8 = 1;
@@ -69,7 +70,7 @@
 //!     let mut socket = NlSocketHandle::connect(
 //!         NlFamily::Generic,
 //!         None,
-//!         &[],
+//!         Groups::empty(),
 //!     )?;
 //!
 //!     let attrs: GenlBuffer<Index, Buffer> = GenlBuffer::new();
@@ -112,19 +113,20 @@
 //!     err::NlError,
 //!     genl::Genlmsghdr,
 //!     socket,
+//!     utils::Groups,
 //! };
 //!
 //! fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
 //!     let mut s = socket::NlSocketHandle::connect(
 //!         NlFamily::Generic,
 //!         None,
-//!         &[],
+//!         Groups::empty(),
 //!     )?;
 //!     let id = s.resolve_nl_mcast_group(
 //!         "my_family_name",
 //!         "my_multicast_group_name",
 //!     )?;
-//!     s.add_mcast_membership(&[id])?;
+//!     s.add_mcast_membership(Groups::new_groups(&[id]))?;
 //!     for next in s.iter::<NlTypeWrapper, Genlmsghdr<u8, u16>>(true) {
 //!         // Do stuff here with parsed packets...
 //!     
