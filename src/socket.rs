@@ -46,7 +46,7 @@ use crate::{
     nl::{NlPayload, Nlmsghdr},
     parse::packet_length_u32,
     types::{GenlBuffer, NlBuffer},
-    utils::NetlinkBitArray,
+    utils::{Groups, NetlinkBitArray},
     FromBytes, FromBytesWithInput, ToBytes,
 };
 
@@ -69,7 +69,7 @@ impl NlSocket {
     }
 
     /// Equivalent of `socket` and `bind` calls.
-    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: &[u32]) -> Result<Self, io::Error> {
+    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Groups) -> Result<Self, io::Error> {
         let s = NlSocket::new(proto)?;
         s.bind(pid, groups)?;
         Ok(s)
@@ -115,11 +115,11 @@ impl NlSocket {
     /// Use this function to bind to a netlink ID and subscribe to
     /// groups. See netlink(7) man pages for more information on
     /// netlink IDs and groups.
-    pub fn bind(&self, pid: Option<u32>, groups: &[u32]) -> Result<(), io::Error> {
+    pub fn bind(&self, pid: Option<u32>, groups: Groups) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
-        nladdr.nl_groups = 0;
+        nladdr.nl_groups = groups.as_bitmask();
         match unsafe {
             libc::bind(
                 self.fd,
@@ -130,21 +130,18 @@ impl NlSocket {
             i if i >= 0 => (),
             _ => return Err(io::Error::last_os_error()),
         };
-        if !groups.is_empty() {
-            self.add_mcast_membership(groups)?;
-        }
         Ok(())
     }
 
     /// Join multicast groups for a socket.
-    pub fn add_mcast_membership(&self, groups: &[u32]) -> Result<(), io::Error> {
-        for group in groups {
+    pub fn add_mcast_membership(&self, groups: Groups) -> Result<(), io::Error> {
+        for group in groups.as_groups() {
             match unsafe {
                 libc::setsockopt(
                     self.fd,
                     libc::SOL_NETLINK,
                     libc::NETLINK_ADD_MEMBERSHIP,
-                    group as *const _ as *const libc::c_void,
+                    &group as *const _ as *const libc::c_void,
                     size_of::<u32>() as libc::socklen_t,
                 )
             } {
@@ -156,15 +153,15 @@ impl NlSocket {
     }
 
     /// Leave multicast groups for a socket.
-    pub fn drop_mcast_membership(&self, groups: &[u32]) -> Result<(), io::Error> {
-        for group in groups {
+    pub fn drop_mcast_membership(&self, groups: Groups) -> Result<(), io::Error> {
+        for group in groups.as_groups() {
             match unsafe {
                 libc::setsockopt(
                     self.fd,
                     libc::SOL_NETLINK,
                     libc::NETLINK_DROP_MEMBERSHIP,
-                    group as *const _ as *const libc::c_void,
-                    (groups.len() * size_of::<u32>()) as libc::socklen_t,
+                    &group as *const _ as *const libc::c_void,
+                    size_of::<u32>() as libc::socklen_t,
                 )
             } {
                 i if i == 0 => (),
@@ -327,7 +324,7 @@ impl NlSocketHandle {
     }
 
     /// Equivalent of `socket` and `bind` calls.
-    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: &[u32]) -> Result<Self, io::Error> {
+    pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Groups) -> Result<Self, io::Error> {
         Ok(NlSocketHandle {
             socket: NlSocket::connect(proto, pid, groups)?,
             buffer: vec![0; MAX_NL_LENGTH],
@@ -355,17 +352,17 @@ impl NlSocketHandle {
     /// Use this function to bind to a netlink ID and subscribe to
     /// groups. See netlink(7) man pages for more information on
     /// netlink IDs and groups.
-    pub fn bind(&self, pid: Option<u32>, groups: &[u32]) -> Result<(), io::Error> {
+    pub fn bind(&self, pid: Option<u32>, groups: Groups) -> Result<(), io::Error> {
         self.socket.bind(pid, groups)
     }
 
     /// Join multicast groups for a socket.
-    pub fn add_mcast_membership(&self, groups: &[u32]) -> Result<(), io::Error> {
+    pub fn add_mcast_membership(&self, groups: Groups) -> Result<(), io::Error> {
         self.socket.add_mcast_membership(groups)
     }
 
     /// Leave multicast groups for a socket.
-    pub fn drop_mcast_membership(&self, groups: &[u32]) -> Result<(), io::Error> {
+    pub fn drop_mcast_membership(&self, groups: Groups) -> Result<(), io::Error> {
         self.socket.drop_mcast_membership(groups)
     }
 
@@ -908,15 +905,18 @@ mod test {
 
         let ids = match (notify_id_result, config_id_result) {
             (Ok(ni), Ok(ci)) => {
-                sock.add_mcast_membership(&[ni, ci]).unwrap();
+                sock.add_mcast_membership(Groups::new_groups(&[ni, ci]))
+                    .unwrap();
                 vec![ni, ci]
             }
             (Ok(ni), Err(NlError::Nlmsgerr(_))) => {
-                sock.add_mcast_membership(&[ni]).unwrap();
+                sock.add_mcast_membership(Groups::new_groups(&[ni]))
+                    .unwrap();
                 vec![ni]
             }
             (Err(NlError::Nlmsgerr(_)), Ok(ci)) => {
-                sock.add_mcast_membership(&[ci]).unwrap();
+                sock.add_mcast_membership(Groups::new_groups(&[ci]))
+                    .unwrap();
                 vec![ci]
             }
             (Err(NlError::Nlmsgerr(_)), Err(NlError::Nlmsgerr(_))) => {
@@ -931,7 +931,8 @@ mod test {
             assert!(groups.is_set(*id as usize));
         }
 
-        sock.drop_mcast_membership(ids.as_slice()).unwrap();
+        sock.drop_mcast_membership(Groups::new_groups(ids.as_slice()))
+            .unwrap();
         let groups = sock.list_mcast_membership().unwrap();
 
         for id in ids.iter() {
@@ -943,7 +944,7 @@ mod test {
     fn real_test_pid() {
         setup();
 
-        let s = NlSocket::connect(NlFamily::Generic, Some(5555), &[]).unwrap();
+        let s = NlSocket::connect(NlFamily::Generic, Some(5555), Groups::empty()).unwrap();
         assert_eq!(s.pid().unwrap(), 5555);
     }
 }

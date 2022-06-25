@@ -14,6 +14,8 @@ use neli::{
 
 #[cfg(feature = "async")]
 fn debug_stream() -> Result<(), Box<dyn Error>> {
+    use neli::utils::Groups;
+
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -25,9 +27,9 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
+    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.add_mcast_membership(&[id])?;
+    s.add_mcast_membership(Groups::new_groups(&[id]))?;
     let runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
         let mut ss = NlSocket::new(s)?;
@@ -46,6 +48,8 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
 
 #[cfg(not(feature = "async"))]
 fn debug_stream() -> Result<(), Box<dyn Error>> {
+    use neli::utils::Groups;
+
     let mut args = env::args();
     let _ = args.next();
     let first_arg = args.next();
@@ -57,9 +61,9 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
+    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.add_mcast_membership(&[id])?;
+    s.add_mcast_membership(Groups::new_groups(&[id]))?;
     for next in s.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(true) {
         println!("{:?}", next?);
     }
