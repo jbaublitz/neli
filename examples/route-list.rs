@@ -12,6 +12,7 @@ use neli::{
     rtnl::*,
     socket::*,
     types::RtBuffer,
+    utils::Groups,
 };
 
 fn parse_route_table(
@@ -78,7 +79,7 @@ fn parse_route_table(
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, &[]).unwrap();
+    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty()).unwrap();
 
     let ifmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Unspecified,

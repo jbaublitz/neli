@@ -2,12 +2,12 @@ extern crate neli;
 
 use std::{env, error::Error};
 
-use neli::{consts::socket::NlFamily, err::NlError, socket::NlSocketHandle};
+use neli::{consts::socket::NlFamily, err::NlError, socket::NlSocketHandle, utils::Groups};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
+    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = env::args()
         .nth(1)
         .ok_or_else(|| NlError::msg("Integer argument required"))

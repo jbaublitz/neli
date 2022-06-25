@@ -12,12 +12,13 @@ use neli::{
     rtnl::Ifaddrmsg,
     socket::NlSocketHandle,
     types::RtBuffer,
+    utils::Groups,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, &[])?;
+    let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty())?;
     let ifaddrmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Inet,
         ifa_prefixlen: 0,
