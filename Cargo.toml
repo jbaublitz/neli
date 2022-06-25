@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.6.3"
+version = "0.7.0"
 edition = "2018"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"

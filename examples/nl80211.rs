@@ -11,6 +11,7 @@ use neli::{
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::GenlBuffer,
+    utils::Groups,
 };
 
 #[neli::neli_enum(serialized_type = "u8")]
@@ -42,7 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut sock = NlSocketHandle::connect(
         NlFamily::Generic, /* family */
         Some(0),           /* pid */
-        &[],               /* groups */
+        Groups::empty(),   /* groups */
     )?;
     let family_id = sock.resolve_genl_family("nl80211")?;
 
@@ -91,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut sock = NlSocketHandle::connect(
         NlFamily::Generic, /* family */
         Some(0),           /* pid */
-        &[],               /* groups */
+        Groups::empty(),   /* groups */
     )?;
     let family_id = sock.resolve_genl_family("nl80211")?;
 

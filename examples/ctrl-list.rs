@@ -7,6 +7,7 @@ use neli::{
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
+    utils::Groups,
 };
 
 const GENL_VERSION: u8 = 2;
@@ -17,7 +18,7 @@ const GENL_VERSION: u8 = 2;
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
+    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
 
     let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
     let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs);

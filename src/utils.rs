@@ -111,6 +111,76 @@ impl NetlinkBitArray {
     }
 }
 
+fn slice_to_mask(groups: &[u32]) -> u32 {
+    groups
+        .iter()
+        .fold(0, |mask, next| mask | (1 << (*next - 1)))
+}
+
+fn mask_to_vec(mask: u32) -> Vec<u32> {
+    (1..size_of::<u32>() as u32 * u8::BITS)
+        .filter(|i| (1 << (i - 1)) & mask == (1 << (i - 1)))
+        .collect::<Vec<_>>()
+}
+
+/// Struct implementing handling of groups both as numerical values and as
+/// bitmasks.
+pub struct Groups(u32);
+
+impl Groups {
+    /// Create an empty set of netlink multicast groups
+    pub fn empty() -> Self {
+        Groups(0)
+    }
+
+    /// Create a new set of groups with a bitmask. Each bit represents a group.
+    pub fn new_bitmask(mask: u32) -> Self {
+        Groups(mask)
+    }
+
+    /// Add a new bitmask to the existing group set. Each bit represents a group.
+    pub fn add_bitmask(&mut self, mask: u32) {
+        self.0 |= mask
+    }
+
+    /// Remove a bitmask from the existing group set. Each bit represents a group
+    /// and each bit set to 1 will be removed.
+    pub fn remove_bitmask(&mut self, mask: u32) {
+        self.0 &= !mask
+    }
+
+    /// Create a new set of groups from a list of numerical groups values. This differs
+    /// from the bitmask representation where the value 3 represents group 3 in this
+    /// format as opposed to 0x4 in the bitmask format.
+    pub fn new_groups(groups: &[u32]) -> Self {
+        Groups(slice_to_mask(groups))
+    }
+
+    /// Add a list of numerical groups values to the set of groups. This differs
+    /// from the bitmask representation where the value 3 represents group 3 in this
+    /// format as opposed to 0x4 in the bitmask format.
+    pub fn add_groups(&mut self, groups: &[u32]) {
+        self.add_bitmask(slice_to_mask(groups));
+    }
+
+    /// Remove a list of numerical groups values from the set of groups. This differs
+    /// from the bitmask representation where the value 3 represents group 3 in this
+    /// format as opposed to 0x4 in the bitmask format.
+    pub fn remove_groups(&mut self, groups: &[u32]) {
+        self.remove_bitmask(slice_to_mask(groups));
+    }
+
+    /// Return the set of groups as a bitmask. The representation of a bitmask is u32.
+    pub fn as_bitmask(&self) -> u32 {
+        self.0
+    }
+
+    /// Return the set of groups as a vector of group values.
+    pub fn as_groups(&self) -> Vec<u32> {
+        mask_to_vec(self.0)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
