@@ -1,10 +1,5 @@
 use std::error::Error;
 
-#[cfg(feature = "logging")]
-use log::Level;
-#[cfg(feature = "logging")]
-use simple_logger::init_with_level;
-
 use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
@@ -20,8 +15,7 @@ const GENL_VERSION: u8 = 2;
 // the name and identifier of each generic netlink family.
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(feature = "logging")]
-    init_with_level(Level::Trace)?;
+    env_logger::init();
 
     let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, &[])?;
 

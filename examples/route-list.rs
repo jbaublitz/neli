@@ -5,11 +5,6 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
 };
 
-#[cfg(feature = "logging")]
-use log::Level;
-#[cfg(feature = "logging")]
-use simple_logger::init_with_level;
-
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
     err::NlError,
@@ -81,8 +76,7 @@ fn parse_route_table(
 /// This sample is a simple imitation of the `ip route` command, to demonstrate interaction
 /// with the rtnetlink subsystem.  
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(feature = "logging")]
-    init_with_level(Level::Trace)?;
+    env_logger::init();
 
     let mut socket = NlSocketHandle::connect(NlFamily::Route, None, &[]).unwrap();
 
