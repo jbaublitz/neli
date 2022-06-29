@@ -30,7 +30,7 @@ use crate::{
 /// An enum representing either the desired payload as requested
 /// by the payload type parameter, an ACK received at the end
 /// of a message or stream of messages, or an error.
-#[derive(Debug, PartialEq, Size, ToBytes)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes)]
 pub enum NlPayload<T, P> {
     /// Represents an ACK returned by netlink.
     Ack(Nlmsgerr<T, ()>),
@@ -124,7 +124,7 @@ where
 }
 
 /// Top level netlink header and payload
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytes, Header)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]

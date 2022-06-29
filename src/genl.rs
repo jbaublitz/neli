@@ -36,7 +36,7 @@ impl TypeSize for NoUserHeader {
 }
 
 /// Struct representing generic netlink header and payload
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
 #[neli(to_bytes_bound = "C: Cmd")]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "C: Cmd + TypeSize")]
@@ -107,7 +107,7 @@ impl<C, T, H> Genlmsghdr<C, T, H> {
 
 /// The infomation packed into `nla_type` field of `nlattr`
 /// for the C data structure.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AttrType<T> {
     /// If true, the payload contains nested attributes.
     pub nla_nested: bool,
@@ -193,7 +193,7 @@ where
 }
 
 /// Struct representing netlink attributes and payloads
-#[derive(Debug, PartialEq, Size, FromBytes, ToBytes, Header)]
+#[derive(Debug, PartialEq, Eq, Size, FromBytes, ToBytes, Header)]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(to_bytes_bound = "T: NlAttrType")]

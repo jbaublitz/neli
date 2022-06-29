@@ -88,7 +88,7 @@ impl Default for Buffer {
 }
 
 /// A buffer of netlink messages.
-#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes)]
+#[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct NlBuffer<T, P>(#[neli(input)] Vec<Nlmsghdr<T, P>>);
@@ -163,7 +163,7 @@ impl<T, P> Default for NlBuffer<T, P> {
 }
 
 /// A buffer of generic netlink attributes.
-#[derive(Debug, PartialEq, ToBytes, FromBytesWithInput)]
+#[derive(Debug, PartialEq, Eq, ToBytes, FromBytesWithInput)]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -376,7 +376,7 @@ impl<T, P> Default for RtBuffer<T, P> {
 /// A buffer of flag constants.
 // FIXME: Fix the debug implementation for flags to actually display which flags
 // have been set.
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytes)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
 #[neli(from_bytes_bound = "B: FromBytes + TypeSize + Debug")]
 pub struct FlagBuffer<B, T>(B, PhantomData<T>);
 
