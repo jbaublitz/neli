@@ -210,7 +210,7 @@ macro_rules! impl_trait {
 #[macro_export]
 macro_rules! impl_flags {
     ($(#[$outer:meta])* $vis:vis $name:ident, $type:ty, $bin_type:ty $(,)?) => {
-        #[derive(Debug, PartialEq, neli_proc_macros::Size, neli_proc_macros::FromBytes, neli_proc_macros::ToBytes)]
+        #[derive(Debug, PartialEq, Eq, neli_proc_macros::Size, neli_proc_macros::FromBytes, neli_proc_macros::ToBytes)]
         $(#[$outer])*
         $vis struct $name($crate::types::FlagBuffer::<$bin_type, $type>);
 

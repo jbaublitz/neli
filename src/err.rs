@@ -41,7 +41,7 @@ use crate::{
 /// length of the packet (as in the case of ACKs where no payload
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
-#[derive(Debug, PartialEq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -63,7 +63,7 @@ pub struct NlmsghdrErr<T, P> {
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Debug, PartialEq, Size, FromBytesWithInput, ToBytes, Header)]
+#[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes, Header)]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct Nlmsgerr<T, P> {
