@@ -35,7 +35,7 @@ features = ["io-util", "net"]
 optional = true
 
 [dev-dependencies]
-simple_logger = "1.13.0"
+env_logger = "0.9.0"
 lazy_static = "1.4.0"
 
 [dev-dependencies.tokio]

@@ -1,10 +1,5 @@
 use std::error::Error;
 
-#[cfg(feature = "logging")]
-use log::Level;
-#[cfg(feature = "logging")]
-use simple_logger::init_with_level;
-
 #[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{
@@ -42,8 +37,7 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
 #[cfg(feature = "async")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(feature = "logging")]
-    init_with_level(Level::Trace)?;
+    env_logger::init();
 
     let mut sock = NlSocketHandle::connect(
         NlFamily::Generic, /* family */
@@ -92,8 +86,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(not(feature = "async"))]
 fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(feature = "logging")]
-    init_with_level(Level::Trace)?;
+    env_logger::init();
 
     let mut sock = NlSocketHandle::connect(
         NlFamily::Generic, /* family */

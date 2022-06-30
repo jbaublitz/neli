@@ -40,10 +40,10 @@ jobs:
           - cargo build --all-features
           - cargo build --examples
           - cargo build --examples --all-features
-          - RUST_TEST_THREADS=1 cargo test --all-features
+          - cargo test --all-features
           - (cd neli-proc-macros && cargo fmt -- --check)
           - (cd neli-proc-macros && cargo build)
-          - (cd neli-proc-macros && RUST_TEST_THREADS=1 cargo test)
+          - (cd neli-proc-macros && cargo test)
         toolchain:
           - nightly
           - stable
@@ -72,15 +72,16 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Build examples
-        run: cd examples && cargo build
+        run: cargo build --examples
       - name: Run getips
-        run: ./examples/target/debug/getips
+        run: ./target/debug/examples/getips
       - name: Run ctrl-list
-        run: ./examples/target/debug/ctrl-list
+        run: ./target/debug/examples/ctrl-list
       - name: Run route-list
-        run: ./examples/target/debug/route-list
+        run: ./target/debug/examples/route-list
       - name: Run error_packet 
-        run: ./examples/target/debug/error_packet
+        run: ./target/debug/examples/error_packet
+        # nl80211 not included due to no wireless interfaces on test machines
   musl-checks:
     strategy:
       matrix:
@@ -90,7 +91,7 @@ jobs:
           - cargo build --all-features
           - cargo build --examples
           - cargo build --examples --all-features
-          - RUST_TEST_THREADS=1 cargo test --all-features
+          - cargo test --all-features
         toolchain:
           - nightly
           - stable
@@ -125,12 +126,13 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           override: true
       - name: Build examples
-        run: cd examples && cargo build
+        run: cargo build --examples
       - name: Run getips
-        run: ./examples/target/debug/getips
+        run: ./target/debug/examples/getips
       - name: Run ctrl-list
-        run: ./examples/target/debug/ctrl-list
+        run: ./target/debug/examples/ctrl-list
       - name: Run route-list
-        run: ./examples/target/debug/route-list
+        run: ./target/debug/examples/route-list
       - name: Run error_packet 
-        run: ./examples/target/debug/error_packet
+        run: ./target/debug/examples/error_packet
+        # nl80211 not included due to no wireless interfaces on test machines

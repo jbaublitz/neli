@@ -530,12 +530,11 @@ where
 mod test {
     use super::*;
 
+    use env_logger::init;
     use lazy_static::lazy_static;
-    use log::Level;
-    use simple_logger::init_with_level;
 
     lazy_static! {
-        static ref LOGGER: () = init_with_level(Level::Trace).unwrap();
+        static ref LOGGER: () = init();
     }
 
     #[allow(clippy::no_effect)]
