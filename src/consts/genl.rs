@@ -7,7 +7,10 @@ use neli_proc_macros::neli_enum;
 use crate::{Size, TypeSize};
 
 use crate::{
-    consts::netfilter::{NfLogAttr, NfLogCfg},
+    consts::{
+        netfilter::{NfLogAttr, NfLogCfg},
+        nl::NlmsgerrAttr,
+    },
     err::{DeError, SerError},
     FromBytes, ToBytes,
 };
@@ -50,7 +53,8 @@ impl_trait!(
     CtrlAttrMcastGrp,
     NfLogAttr,
     NfLogCfg,
-    Index
+    Index,
+    NlmsgerrAttr,
 );
 
 /// Values for `nla_type` in [`Nlattr`][crate::genl::Nlattr]

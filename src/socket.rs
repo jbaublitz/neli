@@ -258,6 +258,23 @@ impl NlSocket {
             _ => Err(io::Error::last_os_error()),
         }
     }
+
+    /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]
+    /// is passed in, disable extended ACKs for this socket.
+    pub fn enable_ext_ack(&self, enable: bool) -> Result<(), io::Error> {
+        match unsafe {
+            libc::setsockopt(
+                self.fd,
+                libc::SOL_NETLINK,
+                libc::NETLINK_EXT_ACK,
+                &if enable { 1 } else { 0 } as *const _ as *const libc::c_void,
+                size_of::<u32>() as libc::socklen_t,
+            )
+        } {
+            i if i == 0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
 }
 
 impl From<NlSocketHandle> for NlSocket {
@@ -659,6 +676,12 @@ impl NlSocketHandle {
             IterationBehavior::EndMultiOnDone
         };
         NlMessageIter::new(self, behavior)
+    }
+
+    /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]
+    /// is passed in, disable extended ACKs for this socket.
+    pub fn enable_ext_ack(&self, enable: bool) -> Result<(), io::Error> {
+        self.socket.enable_ext_ack(enable)
     }
 }
 
