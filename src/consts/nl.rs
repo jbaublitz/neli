@@ -58,3 +58,20 @@ impl_flags!(
         APPEND = libc::NLM_F_APPEND as u16,
     }
 );
+
+#[neli_enum(serialized_type = "u16")]
+pub enum NlmsgerrAttr {
+    Unused = 0,
+    /// Error message string (string)
+    Msg = 1,
+    /// Offset of the invalid attribute in the original
+    /// message, counting from the beginning of the
+    /// header (u32)
+    Offset = 2,
+    /// Arbitrary subsystem specific cookie to
+    /// be used - in the success case - to identify a created
+    /// object or operation or similar (binary)
+    Cookie = 3,
+    /// Policy for a rejected attribute
+    Policy = 4,
+}

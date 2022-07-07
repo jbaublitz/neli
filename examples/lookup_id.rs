@@ -1,5 +1,3 @@
-extern crate neli;
-
 use std::{env, error::Error};
 
 use neli::{consts::socket::NlFamily, err::NlError, socket::NlSocketHandle, utils::Groups};
