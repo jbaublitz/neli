@@ -377,12 +377,7 @@ where
 
     /// Get nested attributes from a parsed handle.
     pub fn get_attribute(&self, t: T) -> Option<&Rtattr<T, Buffer>> {
-        for item in self.get_attrs().iter() {
-            if item.rta_type == t {
-                return Some(item);
-            }
-        }
-        None
+        self.get_attrs().iter().find(|item| item.rta_type == t)
     }
 
     /// Parse binary payload as a type that implements [`FromBytes`].
