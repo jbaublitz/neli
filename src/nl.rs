@@ -12,18 +12,23 @@
 //! The payload is wrapped in an enum to facilitate better
 //! application-level error handling.
 
-use crate as neli;
-
 use std::{
     any::type_name,
     io::{Cursor, Read},
+    mem::size_of,
 };
 
+use byteorder::{ByteOrder, NativeEndian};
 use log::trace;
 
 use crate::{
-    consts::nl::{NlType, NlmF, Nlmsg},
+    self as neli,
+    consts::{
+        alignto,
+        nl::{NlType, NlmF, Nlmsg},
+    },
     err::{DeError, NlError, Nlmsgerr, NlmsghdrErr},
+    types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
@@ -96,23 +101,37 @@ where
                         trace!("Field deserialized: {:?}", ok);
                         ok
                     },
+                    ext_ack: GenlBuffer::new(),
                 }))
             } else {
+                let pos = buffer.position() as usize;
+                let new_input_size = <NativeEndian as ByteOrder>::read_u32(
+                    &buffer.get_ref()[pos..pos + size_of::<u32>()],
+                ) as usize;
+
+                trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<NlmsghdrErr<T, ()>>()
+                );
+                trace!("Input: {:?}", new_input_size);
+                let nlmsg = NlmsghdrErr::<T, P>::from_bytes_with_input(buffer, new_input_size)?;
+                trace!("Field deserialized: {:?}", nlmsg);
+
+                trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<GenlBuffer<u16, Buffer>>()
+                );
+                trace!("Input: {:?}", input_size - new_input_size);
+                let ext_ack = GenlBuffer::from_bytes_with_input(
+                    buffer,
+                    input_size - size_of::<libc::c_int>() - alignto(new_input_size),
+                )?;
+                trace!("Field deserialized: {:?}", ext_ack);
+
                 Ok(NlPayload::Err(Nlmsgerr {
                     error: code,
-                    nlmsg: {
-                        trace!(
-                            "Deserializing field type {}",
-                            std::any::type_name::<NlmsghdrErr<T, ()>>()
-                        );
-                        trace!("Input: {:?}", input_size);
-                        let ok = NlmsghdrErr::<T, P>::from_bytes_with_input(
-                            buffer,
-                            input_size - libc::c_int::type_size(),
-                        )?;
-                        trace!("Field deserialized: {:?}", ok);
-                        ok
-                    },
+                    nlmsg,
+                    ext_ack,
                 }))
             }
         } else {
