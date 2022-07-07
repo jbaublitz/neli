@@ -30,8 +30,8 @@ use std::{
 };
 
 use crate::{
-    consts::nl::{NlType, NlmF},
-    types::Buffer,
+    consts::nl::{NlType, NlmF, NlmsgerrAttr},
+    types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
@@ -63,15 +63,18 @@ pub struct NlmsghdrErr<T, P> {
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes, Header)]
+#[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: NlType")]
-#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
 pub struct Nlmsgerr<T, P> {
     /// Error code
     pub error: libc::c_int,
     /// Packet header for request that failed
-    #[neli(input = "input - Self::header_size()")]
+    #[neli(input = "input - std::mem::size_of::<libc::c_int>()")]
     pub nlmsg: NlmsghdrErr<T, P>,
+    #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.unpadded_size()")]
+    /// Contains attributes representing the extended ACK
+    pub ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
 }
 
 impl<T, P> Display for Nlmsgerr<T, P> {
