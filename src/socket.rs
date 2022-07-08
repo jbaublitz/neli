@@ -33,7 +33,7 @@
 use std::{
     fmt::Debug,
     io::{self, Cursor},
-    mem::{size_of, zeroed},
+    mem::{size_of, zeroed, MaybeUninit},
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
 
@@ -247,6 +247,22 @@ impl NlSocket {
             _ => Err(io::Error::last_os_error()),
         }
     }
+
+    /// Get the PID for this socket.
+    pub fn pid(&self) -> Result<u32, io::Error> {
+        let mut sock_len = size_of::<libc::sockaddr_nl>() as u32;
+        let mut sock_addr: MaybeUninit<libc::sockaddr_nl> = MaybeUninit::uninit();
+        match unsafe {
+            libc::getsockname(
+                self.fd,
+                sock_addr.as_mut_ptr() as *mut _,
+                &mut sock_len as *mut _,
+            )
+        } {
+            i if i >= 0 => Ok(unsafe { sock_addr.assume_init() }.nl_pid),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
 }
 
 impl From<NlSocketHandle> for NlSocket {
@@ -358,6 +374,11 @@ impl NlSocketHandle {
     /// List joined groups for a socket.
     pub fn list_mcast_membership(&self) -> Result<NetlinkBitArray, io::Error> {
         self.socket.list_mcast_membership()
+    }
+
+    /// Get the PID for the current socket.
+    pub fn pid(&self) -> Result<u32, io::Error> {
+        self.socket.pid()
     }
 
     fn get_genl_family(&mut self, family_name: &str) -> GenlFamily {
@@ -918,5 +939,13 @@ mod test {
         for id in ids.iter() {
             assert!(!groups.is_set(*id as usize));
         }
+    }
+
+    #[test]
+    fn real_test_pid() {
+        setup();
+
+        let s = NlSocket::connect(NlFamily::Generic, Some(5555), &[]).unwrap();
+        assert_eq!(s.pid().unwrap(), 5555);
     }
 }
