@@ -72,7 +72,7 @@ pub struct Nlmsgerr<T, P> {
     /// Packet header for request that failed
     #[neli(input = "input - std::mem::size_of::<libc::c_int>()")]
     pub nlmsg: NlmsghdrErr<T, P>,
-    #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.unpadded_size()")]
+    #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.padded_size()")]
     /// Contains attributes representing the extended ACK
     pub ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
 }
