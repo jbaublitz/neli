@@ -416,9 +416,14 @@ where
         + Copy,
     T: 'a,
 {
-    /// Check whether the set of flags is empty.
+    /// Create an empty set of flags.
     pub fn empty() -> Self {
         FlagBuffer(B::default(), PhantomData)
+    }
+
+    /// Create a [`FlagBuffer`] from a bitmask.
+    pub fn from_bitmask(bitmask: B) -> Self {
+        FlagBuffer(bitmask, PhantomData)
     }
 
     /// Check whether the set of flags contains the given flag.
