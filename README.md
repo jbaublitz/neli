@@ -22,10 +22,9 @@ idiomatic Rust features.
 ## Examples using `neli`
 
 Examples of working code exist in the `examples/` subdirectory on
-Github. They have a separate `Cargo.toml` file to provide easy
-testing and use.  
+Github. Run `cargo build --examples` to build the examples. 
 
-Workflows seem to usually follow a pattern of socket creation,and
+Workflows usually follow a pattern of socket creation, and
 then either sending and receiving messages in request/response
 formats:
 
@@ -124,8 +123,8 @@ the license file prior to contributing to make sure that you feel
 comfortable with your contributions being released under the BSD
 3-Clause License.
 
-CI is awesome - please add tests for new features wherever possible.
-I may request this prior to merge if I see it is possible and missing.
+Please add tests for new features wherever possible.  I may request this
+prior to merge if I see it is possible and missing.
 
 Please document new features not just at a lower level but also with
 `//!` comments at the module for high level documentation and
