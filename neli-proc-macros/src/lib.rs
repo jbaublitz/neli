@@ -24,7 +24,7 @@ use derive_size::*;
 use derive_tobytes::*;
 use neli_enum::*;
 
-/// This method converts a method from the form:
+/// Converts an enum from the form:
 ///
 /// ```no_compile
 /// use neli_proc_macros::neli_enum;
@@ -48,7 +48,7 @@ use neli_enum::*;
 /// ```
 ///
 /// with [`From`] implemented reflexively for `MyConstants` and
-/// `u16`.
+/// [`u16`].
 #[proc_macro_attribute]
 pub fn neli_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr_string = attr.to_string();
@@ -129,7 +129,7 @@ pub fn proc_macro_header(ts: TokenStream) -> TokenStream {
 /// provided in the `FromBytesWithInput` method through to the
 /// `FromBytesWithInput` method for this field unchanged according
 /// to the rules described above.
-/// * `#[neli(size = "size_var_name")] which allows specifying a size of the data type
+/// * `#[neli(size = "size_var_name")]` which allows specifying a size of the data type
 /// that is different from the input specified by `#[neli(input)]`. Not specifying
 /// this attribute defaults to using `input` as the size as well.
 ///
@@ -161,7 +161,7 @@ pub fn proc_macro_frombytes(ts: TokenStream) -> TokenStream {
 /// provided in the `FromBytesWithInput` method through to the
 /// `FromBytesWithInput` method for this field unchanged according
 /// to the rules described above.
-/// * `#[neli(size = "size_var_name")] which allows specifying a size of the data type
+/// * `#[neli(size = "size_var_name")]` which allows specifying a size of the data type
 /// that is different from the input specified by `#[neli(input)]`. Not specifying
 /// this attribute defaults to using `input` as the size as well.
 ///

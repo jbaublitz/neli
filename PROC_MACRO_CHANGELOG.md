@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+### Documentation
+* Clean up documentation issues.
+
 ## 0.1.2
 ### Bug fixes
 * Fixed bug where the procedural macros did not properly handle empty struct types
