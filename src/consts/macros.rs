@@ -220,6 +220,11 @@ macro_rules! impl_flags {
                 $name($crate::types::FlagBuffer::<$bin_type, $type>::empty())
             }
 
+            /// Create a flag container from a bitmask.
+            pub fn from_bitmask(bitmask: $bin_type) -> Self {
+                $name($crate::types::FlagBuffer::<$bin_type, $type>::from_bitmask(bitmask))
+            }
+
             /// Initialize a flag container with the given flags
             pub fn new(flags: &[$type]) -> Self {
                 $name(<$crate::types::FlagBuffer::<$bin_type, $type> as From<&[$type]>>::from(flags))
