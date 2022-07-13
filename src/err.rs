@@ -3,15 +3,15 @@
 //! There are four main types:
 //! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
 //! returned from netlink as a packet.
-//! * [`NlError`][crate::err::NlError] - a general netlink erro
+//! * [`NlError`][crate::err::NlError] - a general netlink error
 //! wrapping application errors, serialization and deserialization
 //! errors, and other errors that occur in `neli`.
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
 //!
 //! # Design decisions
-//! All errors implement `std::error::Error` in an attempt to allow
-//! them to be used in conjunction with `Result` for easier error
+//! All errors implement [`std::error::Error`] in an attempt to allow
+//! them to be used in conjunction with [`Result`] for easier error
 //! management even at the protocol error level.
 //!
 //! As of v0.6.0, deserializing the [`NlmsghdrErr`] struct has two
@@ -37,7 +37,7 @@ use crate::{
 
 /// A special struct that represents the contents of an error
 /// returned at the application level. Because the returned
-/// `[nl_len][NlmsghdrErr::nl_len]` cannot always determine the
+/// [`nl_len`][NlmsghdrErr::nl_len] cannot always determine the
 /// length of the packet (as in the case of ACKs where no payload
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
