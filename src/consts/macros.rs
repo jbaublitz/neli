@@ -203,6 +203,7 @@ macro_rules! impl_trait {
 /// * `fn set(&mut self, flag: MyFlags)`
 /// * `fn unset(&mut self, flag: &MyFlags)`
 /// * `fn contains(&self, flag: &MyFlags) -> bool`
+/// * `fn from_bitmask(bitmask: &IntType) -> Self`
 ///
 /// When the following example is serialized, all flags contained in
 /// the set at the time of serialization will be converted into

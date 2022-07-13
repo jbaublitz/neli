@@ -1,4 +1,4 @@
-//! # Type safety for the weary netlink user
+//! # neli: Type safety for netlink
 //!
 //! ## Rationale
 //!
@@ -23,6 +23,11 @@
 //! * `socket` - This provides a socket structure for use in sending
 //! and receiving messages and a number of convenience functions for
 //! commonly encountered use cases.
+//! * `types` - Data types used in serialization and deserialization of
+//! packets.
+//! * `utils` - Data types that primarily serve the purpose of handling
+//! kernel data format conversions to easily usable Rust constructs
+//! for the user.
 //!
 //! ## Design decisions
 //!
@@ -40,10 +45,9 @@
 //! ## Examples
 //!
 //! Examples of working code exist in the `examples/` subdirectory on
-//! Github. They have a separate `Cargo.toml` file to provide easy
-//! testing and use.  
+//! Github. Run `cargo build --examples` to build the examples.
 //!
-//! Workflows seem to usually follow a pattern of socket creation,and
+//! Workflows usually follow a pattern of socket creation, and
 //! then either sending and receiving messages in request/response
 //! formats:
 //!

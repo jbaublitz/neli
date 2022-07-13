@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.2
+### Enhancements
+* Added support for option user header in netlink protocol for generic netlink 
+* Added method to get socket PID
+* Added support for converting to a `FlagBuffer` from a bitmask
+
+### Bug fixes
+* Fixed up `examples` directory to compile successfully with `cargo build --examples`
+
+### Clean up
+* Removed unnecessary features and dependencies
+(PR from [MaxVerevkin](https://github.com/MaxVerevkin))
+* CI and clippy maintenance
+
 ## 0.6.1
 ### Bug fixes
 * Bug fix for `RtBuffer` and `GenlBuffer` size calculation

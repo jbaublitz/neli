@@ -26,9 +26,7 @@
 //!
 //! The buffer allocated in the [`NlSocketHandle`] structure should
 //! be allocated on the heap. This is intentional as a buffer
-//! that large could be a problem on the stack. Big thanks to
-//! [@vorner](https://github.com/vorner) for the suggestion on how
-//! to minimize allocations.
+//! that large could be a problem on the stack.
 
 use std::{
     fmt::Debug,
