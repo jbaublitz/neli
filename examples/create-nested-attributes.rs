@@ -15,8 +15,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // As of v0.7.0, this can cause breakage due to the flag indicating whether an
     // attribute is nested is handled automatically.
     //
-    // let attrs = vec![Nlattr::new(false, 1, vec![Nlattr::new(false, 1, "this_family")?]),
-    //                  Nlattr::new(false, 2, vec![Nlattr::new(false, 1, "that_family")?])];
+    // let attrs = vec![Nlattr::new(1, vec![Nlattr::new(false, 1, "this_family")?]),
+    //                  Nlattr::new(2, vec![Nlattr::new(false, 1, "that_family")?])];
 
     // let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs)?;
     // let nlmsg = Nlmsghdr::new(None, Nlmsg::Noop, vec![consts::NlmF::Request], None, None,
@@ -28,25 +28,25 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // This is also discouraged because the following method does not work -
     // the payload type of one nested attribute is a &str while another is an integer value:
     //
-    // let attrs = vec![Nlattr::new(false, 1, vec![
-    //                Nlattr::new(false, 1, "this_family"),
-    //                Nlattr::new(false, 2, 0),
-    //           ]), Nlattr::new(false, 2, vec![
-    //                Nlattr::new(false, 1, "that_family"),
-    //                Nlattr::new(false, 2, 5),
+    // let attrs = vec![Nlattr::new(1, vec![
+    //                Nlattr::new(1, "this_family"),
+    //                Nlattr::new(2, 0),
+    //           ]), Nlattr::new(2, vec![
+    //                Nlattr::new(1, "that_family"),
+    //                Nlattr::new(2, 5),
     //            ])];
 
     // Instead, do the following:
-    let mut attr1 = Nlattr::new(false, 0, Vec::<u8>::new())?;
-    attr1.add_nested_attribute(&Nlattr::new(false, 1, "this is a string")?)?;
+    let mut attr1 = Nlattr::new(0, Vec::<u8>::new())?;
+    attr1.add_nested_attribute(&Nlattr::new(1, "this is a string")?)?;
     // This is not a string
-    attr1.add_nested_attribute(&Nlattr::new(false, 2, 0)?)?;
+    attr1.add_nested_attribute(&Nlattr::new(2, 0)?)?;
 
     // And again for another set of nested attributes
-    let mut attr2 = Nlattr::new(false, 2, Vec::<u8>::new())?;
-    attr2.add_nested_attribute(&Nlattr::new(false, 1, "this is also a string")?)?;
+    let mut attr2 = Nlattr::new(2, Vec::<u8>::new())?;
+    attr2.add_nested_attribute(&Nlattr::new(1, "this is also a string")?)?;
     // Not a string
-    attr2.add_nested_attribute(&Nlattr::new(false, 2, 5)?)?;
+    attr2.add_nested_attribute(&Nlattr::new(2, 5)?)?;
 
     let mut attrs = GenlBuffer::new();
     attrs.push(attr1);

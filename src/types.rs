@@ -381,9 +381,9 @@ mod test {
     fn test_genlbuffer_align() {
         assert_eq!(
             vec![
-                Nlattr::new(false, Index::from(0), 0u8,).unwrap(),
-                Nlattr::new(false, Index::from(1), 1u8,).unwrap(),
-                Nlattr::new(false, Index::from(2), 2u8,).unwrap(),
+                Nlattr::new(Index::from(0), 0u8,).unwrap(),
+                Nlattr::new(Index::from(1), 1u8,).unwrap(),
+                Nlattr::new(Index::from(2), 2u8,).unwrap(),
             ]
             .into_iter()
             .collect::<GenlBuffer<Index, Buffer>>()
