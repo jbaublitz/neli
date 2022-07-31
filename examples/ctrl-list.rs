@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let nlhdr = {
         let len = None;
         let nl_type = GenlId::Ctrl;
-        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
+        let flags = NlmF::REQUEST | NlmF::DUMP;
         let seq = None;
         let pid = None;
         Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(genlhdr))

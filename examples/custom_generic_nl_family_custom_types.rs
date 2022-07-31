@@ -13,10 +13,7 @@
 //! ```
 
 use neli::{
-    consts::{
-        nl::{NlmF, NlmFFlags},
-        socket::NlFamily,
-    },
+    consts::{nl::NlmF, socket::NlFamily},
     genl::{Genlmsghdr, Nlattr},
     neli_enum,
     nl::{NlPayload, Nlmsghdr},
@@ -116,7 +113,7 @@ fn main() {
         // in your Kernel module. This might result in a deadlock on the socket if an expected
         // reply you are waiting for in a blocking way is never received.
         // Kernel reference: https://elixir.bootlin.com/linux/v5.10.16/source/net/netlink/af_netlink.c#L2487
-        NlmFFlags::new(&[NlmF::Request]),
+        NlmF::REQUEST,
         // It is up to you if you want to split a data transfer into multiple sequences. (application specific)
         None,
         // Port ID. Not necessarily the process id of the current process. This field

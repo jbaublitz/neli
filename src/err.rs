@@ -30,7 +30,7 @@ use std::{
 };
 
 use crate::{
-    consts::nl::{NlType, NlmFFlags},
+    consts::nl::{NlType, NlmF},
     types::Buffer,
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -51,7 +51,7 @@ pub struct NlmsghdrErr<T, P> {
     /// Type of the netlink message
     pub nl_type: T,
     /// Flags indicating properties of the request or response
-    pub nl_flags: NlmFFlags,
+    pub nl_flags: NlmF,
     /// Sequence number for netlink protocol
     pub nl_seq: u32,
     /// ID of the netlink destination for requests and source for

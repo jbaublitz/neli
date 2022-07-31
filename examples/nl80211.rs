@@ -4,7 +4,7 @@ use std::error::Error;
 use neli::socket::tokio::NlSocket;
 use neli::{
     consts::{
-        nl::{GenlId, NlmF, NlmFFlags},
+        nl::{GenlId, NlmF},
         socket::NlFamily,
     },
     genl::Genlmsghdr,
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let req = &Nlmsghdr::new(
         /* len */ None,
         /* type */ family_id,
-        /* flags */ NlmFFlags::new(&[NlmF::Request, NlmF::Dump, NlmF::Ack]),
+        /* flags */ NlmF::REQUEST | NlmF::DUMP | NlmF::ACK,
         /* seq */ Some(1),
         /* pid */ Some(0),
         /* payload */
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let req = Nlmsghdr::new(
         /* len */ None,
         /* type */ family_id,
-        /* flags */ NlmFFlags::new(&[NlmF::Request, NlmF::Dump, NlmF::Ack]),
+        /* flags */ NlmF::REQUEST | NlmF::DUMP | NlmF::ACK,
         /* seq */ Some(1),
         /* pid */ Some(0),
         /* payload */
