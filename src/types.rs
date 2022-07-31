@@ -396,9 +396,9 @@ mod test {
     fn test_rtbuffer_align() {
         assert_eq!(
             vec![
-                Rtattr::new(None, Ifa::Unspec, 0u8,).unwrap(),
-                Rtattr::new(None, Ifa::Address, 1u8,).unwrap(),
-                Rtattr::new(None, Ifa::Local, 2u8,).unwrap(),
+                Rtattr::new(Ifa::Unspec, 0u8,).unwrap(),
+                Rtattr::new(Ifa::Address, 1u8,).unwrap(),
+                Rtattr::new(Ifa::Local, 2u8,).unwrap(),
             ]
             .into_iter()
             .collect::<RtBuffer<Ifa, Buffer>>()
