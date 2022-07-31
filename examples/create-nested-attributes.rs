@@ -37,20 +37,17 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     //            ])];
 
     // Instead, do the following:
-    let mut attr1 = Nlattr::new(0, Vec::<u8>::new())?;
-    attr1.add_nested_attribute(&Nlattr::new(1, "this is a string")?)?;
-    // This is not a string
-    attr1.add_nested_attribute(&Nlattr::new(2, 0)?)?;
-
-    // And again for another set of nested attributes
-    let mut attr2 = Nlattr::new(2, Vec::<u8>::new())?;
-    attr2.add_nested_attribute(&Nlattr::new(1, "this is also a string")?)?;
-    // Not a string
-    attr2.add_nested_attribute(&Nlattr::new(2, 5)?)?;
-
     let mut attrs = GenlBuffer::new();
-    attrs.push(attr1);
-    attrs.push(attr2);
+    attrs.push(
+        Nlattr::new(0, Vec::<u8>::new())?
+            .nest(&Nlattr::new(1, "this is a string")?)?
+            .nest(&Nlattr::new(2, 0)?)?,
+    );
+    attrs.push(
+        Nlattr::new(2, Vec::<u8>::new())?
+            .nest(&Nlattr::new(1, "this is also a string")?)?
+            .nest(&Nlattr::new(2, 5)?)?,
+    );
 
     let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
     let nlmsg = Nlmsghdr::new(
