@@ -215,7 +215,37 @@ where
 {
     /// Create a new `Nlattr` with parameters for setting bitflags
     /// in the header.
-    pub fn new<P>(nla_network_order: bool, nla_type: T, nla_payload: P) -> Result<Self, SerError>
+    ///
+    /// This uses native byte order. If you need to use network byte order, see
+    /// [`new_be`][Nlattr::new_be].
+    pub fn new<P>(nla_type: T, nla_payload: P) -> Result<Self, SerError>
+    where
+        P: Size + ToBytes,
+    {
+        Nlattr::new_internal(false, nla_type, nla_payload)
+    }
+
+    /// Create a new `Nlattr` with parameters for setting bitflags
+    /// in the header.
+    ///
+    /// This uses network byte order. To use native byte order, see [`new`][Nlattr::new].
+    ///
+    /// The payload type's serialization must handle any necessary byteswapping. neli's built-in
+    /// conversions handle that.
+    pub fn new_be<P>(nla_type: T, nla_payload: P) -> Result<Self, SerError>
+    where
+        P: Size + ToBytes,
+    {
+        Nlattr::new_internal(true, nla_type, nla_payload)
+    }
+
+    /// Create a new `Nlattr` with parameters for setting bitflags
+    /// in the header.
+    fn new_internal<P>(
+        nla_network_order: bool,
+        nla_type: T,
+        nla_payload: P,
+    ) -> Result<Self, SerError>
     where
         P: Size + ToBytes,
     {

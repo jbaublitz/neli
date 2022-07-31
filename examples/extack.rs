@@ -49,7 +49,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     attrs.push(
         Nlattr::new(
-            /* Network Byte Order */ false,
             /* Attribute */ Nl80211Attribute::Mac,
             /* Value */ vec![0_u8], /* NOTE: Deliberately wrong length */
         )
