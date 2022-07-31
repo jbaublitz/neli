@@ -31,9 +31,9 @@ pub struct Ifinfomsg {
     /// Interface index
     pub ifi_index: libc::c_int,
     /// Interface flags
-    pub ifi_flags: IffFlags,
+    pub ifi_flags: Iff,
     /// Interface change mask
-    pub ifi_change: IffFlags,
+    pub ifi_change: Iff,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
     pub rtattrs: RtBuffer<Ifla, Buffer>,
@@ -45,8 +45,8 @@ impl Ifinfomsg {
         ifi_family: RtAddrFamily,
         ifi_type: Arphrd,
         ifi_index: libc::c_int,
-        ifi_flags: IffFlags,
-        ifi_change: IffFlags,
+        ifi_flags: Iff,
+        ifi_change: Iff,
         rtattrs: RtBuffer<Ifla, Buffer>,
     ) -> Self {
         Ifinfomsg {
@@ -73,8 +73,8 @@ impl Ifinfomsg {
             padding: 0,
             ifi_type,
             ifi_index,
-            ifi_flags: IffFlags::new(&[Iff::Up]),
-            ifi_change: IffFlags::new(&[Iff::Up]),
+            ifi_flags: Iff::UP,
+            ifi_change: Iff::UP,
             rtattrs,
         }
     }
@@ -92,8 +92,8 @@ impl Ifinfomsg {
             padding: 0,
             ifi_type,
             ifi_index,
-            ifi_flags: IffFlags::empty(),
-            ifi_change: IffFlags::new(&[Iff::Up]),
+            ifi_flags: Iff::empty(),
+            ifi_change: Iff::UP,
             rtattrs,
         }
     }
@@ -107,7 +107,7 @@ pub struct Ifaddrmsg {
     /// Interface address prefix length
     pub ifa_prefixlen: libc::c_uchar,
     /// Interface address flags
-    pub ifa_flags: IfaFFlags,
+    pub ifa_flags: IfaF,
     /// Interface address scope
     pub ifa_scope: libc::c_uchar,
     /// Interface address index
@@ -145,7 +145,7 @@ pub struct Rtmsg {
     /// Routing type
     pub rtm_type: Rtn,
     /// Routing flags
-    pub rtm_flags: RtmFFlags,
+    pub rtm_flags: RtmF,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
     pub rtattrs: RtBuffer<Rta, Buffer>,
@@ -161,9 +161,9 @@ pub struct Ndmsg {
     /// Index of entry
     pub ndm_index: libc::c_int,
     /// State of entry
-    pub ndm_state: NudFlags,
+    pub ndm_state: Nud,
     /// Flags for entry
-    pub ndm_flags: NtfFlags,
+    pub ndm_flags: Ntf,
     /// Type of entry
     pub ndm_type: Rtn,
     /// Payload of [`Rtattr`]s
@@ -176,8 +176,8 @@ impl Ndmsg {
     pub fn new(
         ndm_family: RtAddrFamily,
         ndm_index: libc::c_int,
-        ndm_state: NudFlags,
-        ndm_flags: NtfFlags,
+        ndm_state: Nud,
+        ndm_flags: Ntf,
         ndm_type: Rtn,
         rtattrs: RtBuffer<Nda, Buffer>,
     ) -> Self {
@@ -408,10 +408,7 @@ mod test {
     use super::*;
 
     use crate::{
-        consts::{
-            nl::{NlmF, NlmFFlags},
-            socket::NlFamily,
-        },
+        consts::{nl::NlmF, socket::NlFamily},
         nl::{NlPayload, Nlmsghdr},
         socket::NlSocketHandle,
         test::setup,
@@ -459,15 +456,15 @@ mod test {
         sock.send(Nlmsghdr::new(
             None,
             Rtm::Getlink,
-            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
+            NlmF::DUMP | NlmF::REQUEST | NlmF::ACK,
             None,
             None,
             NlPayload::Payload(Ifinfomsg::new(
                 RtAddrFamily::Unspecified,
                 Arphrd::None,
                 0,
-                IffFlags::empty(),
-                IffFlags::empty(),
+                Iff::empty(),
+                Iff::empty(),
                 RtBuffer::new(),
             )),
         ))
@@ -497,7 +494,7 @@ mod test {
         sock.send(Nlmsghdr::new(
             None,
             Rtm::Getqdisc,
-            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
+            NlmF::DUMP | NlmF::REQUEST | NlmF::ACK,
             None,
             None,
             NlPayload::Payload(Tcmsg::new(0, 0, 0, 0, 0, RtBuffer::new())),
