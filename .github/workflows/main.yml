@@ -36,12 +36,14 @@ jobs:
         task:
           - cargo fmt -- --check
           - cargo build
+          - RUSTDOCFLAGS="-D warnings" cargo doc 
           - cargo build --features=async
           - cargo build --all-features
           - cargo build --examples
           - cargo build --examples --all-features
           - cargo test --all-features
           - (cd neli-proc-macros && cargo fmt -- --check)
+          - (cd neli-proc-macros && RUSTDOCFLAGS="-D warnings" cargo doc)
           - (cd neli-proc-macros && cargo build)
           - (cd neli-proc-macros && cargo test)
         toolchain:
