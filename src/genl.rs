@@ -261,6 +261,19 @@ where
         Ok(attr)
     }
 
+    /// Builder method to add a nested attribute to the end of the payload.
+    ///
+    /// Use this to construct an attribute and nest attributes within it in one method chain.
+    #[inline]
+    pub fn nest<TT, P>(mut self, attr: &Nlattr<TT, P>) -> Result<Self, SerError>
+    where
+        TT: NlAttrType,
+        P: ToBytes,
+    {
+        self.add_nested_attribute(attr)?;
+        Ok(self)
+    }
+
     /// Add a nested attribute to the end of the payload.
     pub fn add_nested_attribute<TT, P>(&mut self, attr: &Nlattr<TT, P>) -> Result<(), SerError>
     where
