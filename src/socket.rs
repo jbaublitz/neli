@@ -388,7 +388,7 @@ impl NlSocketHandle {
         let nlhdr = Nlmsghdr::new(
             None,
             GenlId::Ctrl,
-            NlmFFlags::new(&[NlmF::Request, NlmF::Ack]),
+            NlmF::REQUEST | NlmF::ACK,
             None,
             None,
             NlPayload::Payload(genlhdr),
@@ -476,7 +476,7 @@ impl NlSocketHandle {
         let nlhdr = Nlmsghdr::new(
             None,
             GenlId::Ctrl,
-            NlmFFlags::new(&[NlmF::Request, NlmF::Dump]),
+            NlmF::REQUEST | NlmF::DUMP,
             None,
             None,
             NlPayload::Payload(genlhdr),
@@ -519,7 +519,7 @@ impl NlSocketHandle {
     {
         debug!("Message sent:\n{:?}", msg);
 
-        if msg.nl_flags.contains(&NlmF::Ack) && !msg.nl_flags.contains(&NlmF::Dump) {
+        if msg.nl_flags.contains(NlmF::ACK) && !msg.nl_flags.contains(NlmF::DUMP) {
             self.needs_ack = true;
         }
 
@@ -843,7 +843,7 @@ mod test {
         let nl1 = Nlmsghdr::new(
             None,
             NlTypeWrapper::Nlmsg(Nlmsg::Noop),
-            NlmFFlags::new(&[NlmF::Multi]),
+            NlmF::MULTI,
             None,
             None,
             NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, attrs)),
@@ -856,7 +856,7 @@ mod test {
         let nl2 = Nlmsghdr::new(
             None,
             NlTypeWrapper::Nlmsg(Nlmsg::Noop),
-            NlmFFlags::new(&[NlmF::Multi]),
+            NlmF::MULTI,
             None,
             None,
             NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, attrs)),

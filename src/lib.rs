@@ -82,7 +82,7 @@
 //!     let nlhdr = {
 //!         let len = None;
 //!         let nl_type = GenlId::Ctrl;
-//!         let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
+//!         let flags = NlmF::REQUEST | NlmF::DUMP;
 //!         let seq = None;
 //!         let pid = None;
 //!         let payload = NlPayload::Payload(genlhdr);

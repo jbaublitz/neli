@@ -3,8 +3,8 @@ use std::net::Ipv4Addr;
 use neli::{
     attr::Attribute,
     consts::{
-        nl::{NlmF, NlmFFlags},
-        rtnl::{Ifa, IfaFFlags, RtAddrFamily, RtScope, Rtm},
+        nl::NlmF,
+        rtnl::{Ifa, IfaF, RtAddrFamily, RtScope, Rtm},
         socket::NlFamily,
     },
     err::NlError,
@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ifaddrmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Inet,
         ifa_prefixlen: 0,
-        ifa_flags: IfaFFlags::empty(),
+        ifa_flags: IfaF::empty(),
         ifa_scope: 0,
         ifa_index: 0,
         rtattrs: RtBuffer::new(),
@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nl_header = Nlmsghdr::new(
         None,
         Rtm::Getaddr,
-        NlmFFlags::new(&[NlmF::Request, NlmF::Root]),
+        NlmF::REQUEST | NlmF::ROOT,
         None,
         None,
         NlPayload::Payload(ifaddrmsg),

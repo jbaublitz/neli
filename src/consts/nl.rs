@@ -38,27 +38,23 @@ pub enum GenlId {
     Pmcraid = libc::GENL_ID_PMCRAID as u16,
 }
 
-/// Values for `nl_flags` in [`Nlmsghdr`][crate::nl::Nlmsghdr]
-#[neli_enum(serialized_type = "u16")]
-pub enum NlmF {
-    /// This flag is required for all kernel requests
-    Request = libc::NLM_F_REQUEST as u16,
-    Multi = libc::NLM_F_MULTI as u16,
-    Ack = libc::NLM_F_ACK as u16,
-    Echo = libc::NLM_F_ECHO as u16,
-    DumpIntr = libc::NLM_F_DUMP_INTR as u16,
-    DumpFiltered = libc::NLM_F_DUMP_FILTERED as u16,
-    Root = libc::NLM_F_ROOT as u16,
-    Match = libc::NLM_F_MATCH as u16,
-    Atomic = libc::NLM_F_ATOMIC as u16,
-    Dump = libc::NLM_F_DUMP as u16,
-    Replace = libc::NLM_F_REPLACE as u16,
-    Excl = libc::NLM_F_EXCL as u16,
-    Create = libc::NLM_F_CREATE as u16,
-    Append = libc::NLM_F_APPEND as u16,
-}
-
 impl_flags!(
     #[allow(missing_docs)]
-    pub NlmFFlags, NlmF, u16
+    pub NlmF: u16 {
+        /// This flag is required for all kernel requests
+        REQUEST = libc::NLM_F_REQUEST as u16,
+        MULTI = libc::NLM_F_MULTI as u16,
+        ACK = libc::NLM_F_ACK as u16,
+        ECHO = libc::NLM_F_ECHO as u16,
+        DUMP_INTR = libc::NLM_F_DUMP_INTR as u16,
+        DUMP_FILTERED = libc::NLM_F_DUMP_FILTERED as u16,
+        ROOT = libc::NLM_F_ROOT as u16,
+        MATCH = libc::NLM_F_MATCH as u16,
+        ATOMIC = libc::NLM_F_ATOMIC as u16,
+        DUMP = libc::NLM_F_DUMP as u16,
+        REPLACE = libc::NLM_F_REPLACE as u16,
+        EXCL = libc::NLM_F_EXCL as u16,
+        CREATE = libc::NLM_F_CREATE as u16,
+        APPEND = libc::NLM_F_APPEND as u16,
+    }
 );

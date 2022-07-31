@@ -54,7 +54,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let nlmsg = Nlmsghdr::new(
         None,
         Nlmsg::Noop,
-        NlmFFlags::new(&[NlmF::Request]),
+        NlmF::REQUEST,
         None,
         None,
         NlPayload::Payload(genlmsg),
