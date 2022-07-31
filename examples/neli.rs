@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let nlmsg = Nlmsghdr::new(
         None,
         GenlId::Ctrl,
-        NlmFFlags::empty(),
+        NlmF::empty(),
         None,
         None,
         NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, GenlBuffer::new())),

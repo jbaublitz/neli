@@ -33,7 +33,7 @@ pub enum IterationBehavior {
 /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is set.
 /// This is most useful in the case of request-response workflows
 /// where the iterator will parse and iterate through all of the
-/// messages with [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set
+/// messages with [`NlmF::MULTI`][crate::consts::nl::NlmF::MULTI] set
 /// until a message with
 /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is
 /// received at which point [`None`] will be returned indicating the
@@ -57,15 +57,15 @@ where
     /// messages as a never-ending stream.
     /// [`IterationBehavior::EndMultiOnDone`] will cause
     /// [`NlMessageIter`] to respect the netlink identifiers
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] and
+    /// [`NlmF::MULTI`][crate::consts::nl::NlmF::MULTI] and
     /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done].
     ///
     /// If `behavior` is [`IterationBehavior::EndMultiOnDone`],
     /// this means that [`NlMessageIter`] will iterate through
     /// either exactly one message if
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] is not
+    /// [`NlmF::MULTI`][crate::consts::nl::NlmF::MULTI] is not
     /// set, or through all consecutive messages with
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set until
+    /// [`NlmF::MULTI`][crate::consts::nl::NlmF::MULTI] set until
     /// a terminating message with
     /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is reached
     /// at which point [`None`] will be returned by the iterator.
@@ -100,7 +100,7 @@ where
 
         if let NlPayload::Ack(_) = next.nl_payload {
             self.next_is_none = self.next_is_none.map(|_| true);
-        } else if (!next.nl_flags.contains(&NlmF::Multi)
+        } else if (!next.nl_flags.contains(NlmF::MULTI)
             || next.nl_type.into() == Nlmsg::Done.into())
             && !self.sock_ref.needs_ack
         {
