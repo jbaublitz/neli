@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ifmsg = Ifaddrmsg {
         ifa_family: RtAddrFamily::Unspecified,
         ifa_prefixlen: 0,
-        ifa_flags: IfaFFlags::empty(),
+        ifa_flags: IfaF::empty(),
         ifa_scope: 0,
         ifa_index: 0,
         rtattrs: RtBuffer::new(),
@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let nlhdr = Nlmsghdr::new(
         None,
         Rtm::Getaddr,
-        NlmFFlags::new(&[NlmF::Request, NlmF::Dump]),
+        NlmF::REQUEST | NlmF::DUMP,
         None,
         None,
         NlPayload::Payload(ifmsg),
@@ -153,13 +153,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         rtm_protocol: Rtprot::Unspec,
         rtm_scope: RtScope::Universe,
         rtm_type: Rtn::Unspec,
-        rtm_flags: RtmFFlags::empty(),
+        rtm_flags: RtmF::empty(),
         rtattrs: RtBuffer::new(),
     };
     let nlhdr = {
         let len = None;
         let nl_type = Rtm::Getroute;
-        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
+        let flags = NlmF::REQUEST | NlmF::DUMP;
         let seq = None;
         let pid = None;
         let payload = rtmsg;

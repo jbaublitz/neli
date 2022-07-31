@@ -22,7 +22,7 @@ use std::{
 use log::trace;
 
 use crate::{
-    consts::nl::{NlType, NlmFFlags, Nlmsg},
+    consts::nl::{NlType, NlmF, Nlmsg},
     err::{DeError, NlError, Nlmsgerr, NlmsghdrErr},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -135,7 +135,7 @@ pub struct Nlmsghdr<T, P> {
     /// Type of the netlink message
     pub nl_type: T,
     /// Flags indicating properties of the request or response
-    pub nl_flags: NlmFFlags,
+    pub nl_flags: NlmF,
     /// Sequence number for netlink protocol
     pub nl_seq: u32,
     /// ID of the netlink destination for requests and source for
@@ -156,7 +156,7 @@ where
     pub fn new(
         nl_len: Option<u32>,
         nl_type: T,
-        nl_flags: NlmFFlags,
+        nl_flags: NlmF,
         nl_seq: Option<u32>,
         nl_pid: Option<u32>,
         nl_payload: NlPayload<T, P>,

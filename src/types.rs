@@ -11,8 +11,6 @@ use crate as neli;
 use std::{
     fmt::{self, Debug},
     iter::FromIterator,
-    marker::PhantomData,
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not},
     slice::{Iter, IterMut},
 };
 
@@ -22,7 +20,7 @@ use crate::{
     genl::Nlattr,
     nl::Nlmsghdr,
     rtnl::Rtattr,
-    FromBytes, FromBytesWithInput, Size, ToBytes, TypeSize,
+    FromBytesWithInput, Size, ToBytes,
 };
 
 /// A buffer of bytes.
@@ -370,75 +368,6 @@ impl<T, P> RtBuffer<T, P> {
 impl<T, P> Default for RtBuffer<T, P> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// A buffer of flag constants.
-// FIXME: Fix the debug implementation for flags to actually display which flags
-// have been set.
-#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
-#[neli(from_bytes_bound = "B: FromBytes + TypeSize + Debug")]
-pub struct FlagBuffer<B, T>(B, PhantomData<T>);
-
-impl<'a, B, T> From<&'a [T]> for FlagBuffer<B, T>
-where
-    B: Default + BitOr<B, Output = B> + From<&'a T>,
-{
-    fn from(slice: &'a [T]) -> Self {
-        FlagBuffer(
-            slice
-                .iter()
-                .fold(B::default(), |inner, flag| inner | B::from(flag)),
-            PhantomData,
-        )
-    }
-}
-
-impl<B, T> TypeSize for FlagBuffer<B, T>
-where
-    B: TypeSize,
-{
-    fn type_size() -> usize {
-        B::type_size()
-    }
-}
-
-impl<'a, B, T> FlagBuffer<B, T>
-where
-    B: Default
-        + BitAnd<B, Output = B>
-        + BitAndAssign<B>
-        + BitOr<B, Output = B>
-        + BitOrAssign<B>
-        + Not<Output = B>
-        + From<&'a T>
-        + PartialEq
-        + Copy,
-    T: 'a,
-{
-    /// Create an empty set of flags.
-    pub fn empty() -> Self {
-        FlagBuffer(B::default(), PhantomData)
-    }
-
-    /// Create a [`FlagBuffer`] from a bitmask.
-    pub fn from_bitmask(bitmask: B) -> Self {
-        FlagBuffer(bitmask, PhantomData)
-    }
-
-    /// Check whether the set of flags contains the given flag.
-    pub fn contains(&self, elem: &'a T) -> bool {
-        (self.0 & elem.into()) == elem.into()
-    }
-
-    /// Add a flag to the set of flags.
-    pub fn set(&mut self, flag: &'a T) {
-        self.0 |= B::from(flag)
-    }
-
-    /// Remove a flag from the set of flags.
-    pub fn unset(&mut self, flag: &'a T) {
-        self.0 &= !B::from(flag)
     }
 }
 
