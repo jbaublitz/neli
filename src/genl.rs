@@ -215,19 +215,14 @@ where
 {
     /// Create a new `Nlattr` with parameters for setting bitflags
     /// in the header.
-    pub fn new<P>(
-        nla_nested: bool,
-        nla_network_order: bool,
-        nla_type: T,
-        nla_payload: P,
-    ) -> Result<Self, SerError>
+    pub fn new<P>(nla_network_order: bool, nla_type: T, nla_payload: P) -> Result<Self, SerError>
     where
         P: Size + ToBytes,
     {
         let mut attr = Nlattr {
             nla_len: Self::header_size() as u16,
             nla_type: AttrType {
-                nla_nested,
+                nla_nested: false,
                 nla_network_order,
                 nla_type,
             },
@@ -244,6 +239,7 @@ where
         P: ToBytes,
     {
         let mut buffer = Cursor::new(Vec::new());
+        self.nla_type.nla_nested = true;
         attr.to_bytes(&mut buffer)?;
 
         self.nla_payload.extend_from_slice(buffer.get_ref());
