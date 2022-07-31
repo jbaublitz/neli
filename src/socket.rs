@@ -395,12 +395,7 @@ impl NlSocketHandle {
 
     fn get_genl_family(&mut self, family_name: &str) -> GenlFamily {
         let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(
-            false,
-            false,
-            CtrlAttr::FamilyName,
-            family_name,
-        )?);
+        attrs.push(Nlattr::new(false, CtrlAttr::FamilyName, family_name)?);
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
         let nlhdr = Nlmsghdr::new(
             None,
@@ -861,8 +856,8 @@ mod test {
         setup();
 
         let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(false, false, CtrlAttr::FamilyId, 5u32).unwrap());
-        attrs.push(Nlattr::new(false, false, CtrlAttr::FamilyName, "my_family_name").unwrap());
+        attrs.push(Nlattr::new(false, CtrlAttr::FamilyId, 5u32).unwrap());
+        attrs.push(Nlattr::new(false, CtrlAttr::FamilyName, "my_family_name").unwrap());
         let nl1 = Nlmsghdr::new(
             None,
             NlTypeWrapper::Nlmsg(Nlmsg::Noop),
@@ -873,9 +868,8 @@ mod test {
         );
 
         let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(false, false, CtrlAttr::FamilyId, 6u32).unwrap());
-        attrs
-            .push(Nlattr::new(false, false, CtrlAttr::FamilyName, "my_other_family_name").unwrap());
+        attrs.push(Nlattr::new(false, CtrlAttr::FamilyId, 6u32).unwrap());
+        attrs.push(Nlattr::new(false, CtrlAttr::FamilyName, "my_other_family_name").unwrap());
         let nl2 = Nlmsghdr::new(
             None,
             NlTypeWrapper::Nlmsg(Nlmsg::Noop),
