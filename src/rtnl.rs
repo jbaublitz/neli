@@ -431,7 +431,7 @@ mod test {
 
         // 3 bytes is below minimum length
         let buf = &[3u8, 0, 0, 0] as &[u8];
-        assert!(Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).is_err());
+        Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap_err();
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod test {
         let mut buffer = Cursor::new(Vec::new());
         let buf_res = attr.to_bytes(&mut buffer);
 
-        assert!(buf_res.is_ok());
+        buf_res.unwrap();
         // padding check
         assert_eq!(buffer.into_inner().len(), 8);
     }
