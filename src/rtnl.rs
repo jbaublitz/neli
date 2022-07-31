@@ -274,7 +274,7 @@ where
     T: RtaType,
 {
     /// Create a new [`Rtattr`].
-    pub fn new<P>(_: Option<u16>, rta_type: T, rta_payload: P) -> Result<Self, SerError>
+    pub fn new<P>(rta_type: T, rta_payload: P) -> Result<Self, SerError>
     where
         P: Size + ToBytes,
     {
