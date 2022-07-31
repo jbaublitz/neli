@@ -83,7 +83,6 @@ fn main() {
     let mut attrs: GenlBuffer<NlFoobarXmplAttribute, Buffer> = GenlBuffer::new();
     attrs.push(
         Nlattr::new(
-            false,
             // the type of the attribute. This is an u16 and corresponds
             // to an enum on the receiving side
             NlFoobarXmplAttribute::Msg,
