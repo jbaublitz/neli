@@ -58,7 +58,7 @@
 //!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
 //!     genl::{Genlmsghdr, Nlattr},
-//!     nl::{Nlmsghdr, NlPayload},
+//!     nl::{NlmsghdrBuilder, NlPayload},
 //!     socket::NlSocketHandle,
 //!     types::{Buffer, GenlBuffer},
 //!     utils::Groups,
@@ -79,15 +79,11 @@
 //!         GENL_VERSION,
 //!         attrs,
 //!     );
-//!     let nlhdr = {
-//!         let len = None;
-//!         let nl_type = GenlId::Ctrl;
-//!         let flags = NlmF::REQUEST | NlmF::DUMP;
-//!         let seq = None;
-//!         let pid = None;
-//!         let payload = NlPayload::Payload(genlhdr);
-//!         Nlmsghdr::new(len, nl_type, flags, seq, pid, payload)
-//!     };
+//!     let nlhdr = NlmsghdrBuilder::default()
+//!         .nl_type(GenlId::Ctrl)
+//!         .nl_flags(NlmF::REQUEST | NlmF::DUMP)
+//!         .nl_payload(NlPayload::Payload(genlhdr))
+//!         .build()?;
 //!     socket.send(nlhdr)?;
 //!     
 //!     // Do things with multi-message response to request...

@@ -19,6 +19,7 @@ use std::{
 };
 
 use byteorder::{ByteOrder, NativeEndian};
+use derive_builder::{Builder, UninitializedFieldError};
 use log::trace;
 
 use crate::{
@@ -35,7 +36,7 @@ use crate::{
 /// An enum representing either the desired payload as requested
 /// by the payload type parameter, an ACK received at the end
 /// of a message or stream of messages, or an error.
-#[derive(Debug, PartialEq, Eq, Size, ToBytes)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes)]
 pub enum NlPayload<T, P> {
     /// Represents an ACK returned by netlink.
     Ack(Nlmsgerr<T, ()>),
@@ -143,13 +144,15 @@ where
 }
 
 /// Top level netlink header and payload
-#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(padding)]
+#[builder(build_fn(skip))]
 pub struct Nlmsghdr<T, P> {
     /// Length of the netlink message
+    #[builder(setter(skip))]
     pub nl_len: u32,
     /// Type of the netlink message
     pub nl_type: T,
@@ -166,32 +169,43 @@ pub struct Nlmsghdr<T, P> {
     pub nl_payload: NlPayload<T, P>,
 }
 
+impl<'a, T, P> NlmsghdrBuilder<T, P>
+where
+    T: Clone + NlType,
+    P: Clone + Size + FromBytesWithInput<'a, Input = usize>,
+{
+    /// Build [`Nlmsghdr`].
+    pub fn build(&self) -> Result<Nlmsghdr<T, P>, NlmsghdrBuilderError> {
+        let nl_type = self
+            .nl_type
+            .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_type")))?;
+        let nl_flags = self
+            .nl_flags
+            .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_flags")))?;
+        let nl_seq = self.nl_seq.unwrap_or(0);
+        let nl_pid = self.nl_pid.unwrap_or(0);
+        let nl_payload = self.nl_payload.clone().ok_or_else(|| {
+            NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_payload"))
+        })?;
+
+        let mut nl = Nlmsghdr {
+            nl_len: 0,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload,
+        };
+        nl.nl_len = nl.padded_size() as u32;
+        Ok(nl)
+    }
+}
+
 impl<T, P> Nlmsghdr<T, P>
 where
     T: NlType,
     P: Size,
 {
-    /// Create a new top level netlink packet with a payload.
-    pub fn new(
-        nl_len: Option<u32>,
-        nl_type: T,
-        nl_flags: NlmF,
-        nl_seq: Option<u32>,
-        nl_pid: Option<u32>,
-        nl_payload: NlPayload<T, P>,
-    ) -> Self {
-        let mut nl = Nlmsghdr {
-            nl_len: 0,
-            nl_type,
-            nl_flags,
-            nl_seq: nl_seq.unwrap_or(0),
-            nl_pid: nl_pid.unwrap_or(0),
-            nl_payload,
-        };
-        nl.nl_len = nl_len.unwrap_or(nl.padded_size() as u32);
-        nl
-    }
-
     /// Get the payload if there is one or return an error.
     pub fn get_payload(&self) -> Result<&P, NlError> {
         match self.nl_payload {

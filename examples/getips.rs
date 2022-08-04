@@ -8,7 +8,7 @@ use neli::{
         socket::NlFamily,
     },
     err::NlError,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     rtnl::Ifaddrmsg,
     socket::NlSocketHandle,
     types::RtBuffer,
@@ -27,14 +27,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ifa_index: 0,
         rtattrs: RtBuffer::new(),
     };
-    let nl_header = Nlmsghdr::new(
-        None,
-        Rtm::Getaddr,
-        NlmF::REQUEST | NlmF::ROOT,
-        None,
-        None,
-        NlPayload::Payload(ifaddrmsg),
-    );
+    let nl_header = NlmsghdrBuilder::default()
+        .nl_type(Rtm::Getaddr)
+        .nl_flags(NlmF::REQUEST | NlmF::ROOT)
+        .nl_payload(NlPayload::Payload(ifaddrmsg))
+        .build()?;
     rtnl.send(nl_header)?;
     let mut addrs = Vec::<Ipv4Addr>::with_capacity(1);
     for response in rtnl.iter(false) {

@@ -8,7 +8,7 @@ use std::{
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
     err::NlError,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     rtnl::*,
     socket::*,
     types::RtBuffer,
@@ -89,14 +89,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         ifa_index: 0,
         rtattrs: RtBuffer::new(),
     };
-    let nlhdr = Nlmsghdr::new(
-        None,
-        Rtm::Getaddr,
-        NlmF::REQUEST | NlmF::DUMP,
-        None,
-        None,
-        NlPayload::Payload(ifmsg),
-    );
+    let nlhdr = NlmsghdrBuilder::default()
+        .nl_type(Rtm::Getaddr)
+        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
+        .nl_payload(NlPayload::Payload(ifmsg))
+        .build()?;
     socket.send(nlhdr)?;
 
     let mut ifs_v = Vec::new();
@@ -156,16 +153,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         rtm_flags: RtmF::empty(),
         rtattrs: RtBuffer::new(),
     };
-    let nlhdr = {
-        let len = None;
-        let nl_type = Rtm::Getroute;
-        let flags = NlmF::REQUEST | NlmF::DUMP;
-        let seq = None;
-        let pid = None;
-        let payload = rtmsg;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(payload))
-    };
-    socket.send(nlhdr).unwrap();
+    let nlhdr = NlmsghdrBuilder::default()
+        .nl_type(Rtm::Getroute)
+        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
+        .nl_payload(NlPayload::Payload(rtmsg))
+        .build()?;
+    socket.send(nlhdr)?;
 
     for rtm_result in socket.iter(false) {
         let rtm = rtm_result?;

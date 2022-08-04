@@ -43,7 +43,7 @@ use crate::{
     err::{NlError, SerError},
     genl::{Genlmsghdr, Nlattr},
     iter::{IterationBehavior, NlMessageIter},
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     parse::packet_length_u32,
     types::{GenlBuffer, NlBuffer},
     utils::{Groups, NetlinkBitArray},
@@ -397,14 +397,11 @@ impl NlSocketHandle {
         let mut attrs = GenlBuffer::new();
         attrs.push(Nlattr::new(CtrlAttr::FamilyName, family_name)?);
         let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
-        let nlhdr = Nlmsghdr::new(
-            None,
-            GenlId::Ctrl,
-            NlmF::REQUEST | NlmF::ACK,
-            None,
-            None,
-            NlPayload::Payload(genlhdr),
-        );
+        let nlhdr = NlmsghdrBuilder::default()
+            .nl_type(GenlId::Ctrl)
+            .nl_flags(NlmF::REQUEST | NlmF::ACK)
+            .nl_payload(NlPayload::Payload(genlhdr))
+            .build()?;
         self.send(nlhdr)?;
 
         let mut buffer = NlBuffer::new();
@@ -485,14 +482,11 @@ impl NlSocketHandle {
 
         let attrs = GenlBuffer::new();
         let genlhdr = Genlmsghdr::<CtrlCmd, CtrlAttr>::new(CtrlCmd::Getfamily, 2, attrs);
-        let nlhdr = Nlmsghdr::new(
-            None,
-            GenlId::Ctrl,
-            NlmF::REQUEST | NlmF::DUMP,
-            None,
-            None,
-            NlPayload::Payload(genlhdr),
-        );
+        let nlhdr = NlmsghdrBuilder::default()
+            .nl_type(GenlId::Ctrl)
+            .nl_flags(NlmF::REQUEST | NlmF::DUMP)
+            .nl_payload(NlPayload::Payload(genlhdr))
+            .build()?;
 
         self.send(nlhdr)?;
         for res_msg in self.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(false) {
@@ -858,26 +852,30 @@ mod test {
         let mut attrs = GenlBuffer::new();
         attrs.push(Nlattr::new(CtrlAttr::FamilyId, 5u32).unwrap());
         attrs.push(Nlattr::new(CtrlAttr::FamilyName, "my_family_name").unwrap());
-        let nl1 = Nlmsghdr::new(
-            None,
-            NlTypeWrapper::Nlmsg(Nlmsg::Noop),
-            NlmF::MULTI,
-            None,
-            None,
-            NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, attrs)),
-        );
+        let nl1 = NlmsghdrBuilder::default()
+            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
+            .nl_flags(NlmF::MULTI)
+            .nl_payload(NlPayload::Payload(Genlmsghdr::new(
+                CtrlCmd::Unspec,
+                2,
+                attrs,
+            )))
+            .build()
+            .unwrap();
 
         let mut attrs = GenlBuffer::new();
         attrs.push(Nlattr::new(CtrlAttr::FamilyId, 6u32).unwrap());
         attrs.push(Nlattr::new(CtrlAttr::FamilyName, "my_other_family_name").unwrap());
-        let nl2 = Nlmsghdr::new(
-            None,
-            NlTypeWrapper::Nlmsg(Nlmsg::Noop),
-            NlmF::MULTI,
-            None,
-            None,
-            NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, attrs)),
-        );
+        let nl2 = NlmsghdrBuilder::default()
+            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
+            .nl_flags(NlmF::MULTI)
+            .nl_payload(NlPayload::Payload(Genlmsghdr::new(
+                CtrlCmd::Unspec,
+                2,
+                attrs,
+            )))
+            .build()
+            .unwrap();
         let mut v = NlBuffer::new();
         v.push(nl1);
         v.push(nl2);

@@ -8,7 +8,7 @@ use neli::{
         socket::NlFamily,
     },
     genl::Genlmsghdr,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::GenlBuffer,
     utils::Groups,
@@ -49,21 +49,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut ss = NlSocket::new(sock)?;
 
-    let req = &Nlmsghdr::new(
-        /* len */ None,
-        /* type */ family_id,
-        /* flags */ NlmF::REQUEST | NlmF::DUMP | NlmF::ACK,
-        /* seq */ Some(1),
-        /* pid */ Some(0),
-        /* payload */
-        NlPayload::Payload(Genlmsghdr::<Nl80211Command, Nl80211Attribute>::new(
+    let req = NlmsghdrBuilder::default()
+        .nl_type(family_id)
+        .nl_flags(NlmF::REQUEST | NlmF::DUMP | NlmF::ACK)
+        .nl_seq(1)
+        .nl_payload(NlPayload::Payload(Genlmsghdr::<
+            Nl80211Command,
+            Nl80211Attribute,
+        >::new(
             /* cmd */ Nl80211Command::GetWiPhy,
             /* version */ 1,
             /* attrs */ GenlBuffer::new(),
-        )),
-    );
+        )))
+        .build()?;
 
-    ss.send(req).await?;
+    ss.send(&req).await?;
 
     let mut buffer = Vec::new();
 
@@ -96,19 +96,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let family_id = sock.resolve_genl_family("nl80211")?;
 
-    let req = Nlmsghdr::new(
-        /* len */ None,
-        /* type */ family_id,
-        /* flags */ NlmF::REQUEST | NlmF::DUMP | NlmF::ACK,
-        /* seq */ Some(1),
-        /* pid */ Some(0),
-        /* payload */
-        NlPayload::Payload(Genlmsghdr::<Nl80211Command, Nl80211Attribute>::new(
+    let req = NlmsghdrBuilder::default()
+        .nl_type(family_id)
+        .nl_flags(NlmF::REQUEST | NlmF::DUMP | NlmF::ACK)
+        .nl_seq(1)
+        .nl_payload(NlPayload::Payload(Genlmsghdr::<
+            Nl80211Command,
+            Nl80211Attribute,
+        >::new(
             /* cmd */ Nl80211Command::GetWiPhy,
             /* version */ 1,
             /* attrs */ GenlBuffer::new(),
-        )),
-    );
+        )))
+        .build()?;
 
     sock.send(req)?;
 

@@ -5,7 +5,7 @@ use std::{error::Error, io::Cursor};
 use neli::{
     consts::{genl::*, nl::*},
     genl::{Genlmsghdr, Nlattr},
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, NlmsghdrBuilder},
     types::GenlBuffer,
     ToBytes,
 };
@@ -50,14 +50,11 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
-    let nlmsg = Nlmsghdr::new(
-        None,
-        Nlmsg::Noop,
-        NlmF::REQUEST,
-        None,
-        None,
-        NlPayload::Payload(genlmsg),
-    );
+    let nlmsg = NlmsghdrBuilder::default()
+        .nl_type(Nlmsg::Noop)
+        .nl_flags(NlmF::REQUEST)
+        .nl_payload(NlPayload::Payload(genlmsg))
+        .build()?;
     let mut buffer = Cursor::new(Vec::new());
     nlmsg.to_bytes(&mut buffer)?;
     println!(

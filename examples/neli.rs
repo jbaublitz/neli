@@ -3,7 +3,7 @@ use std::error::Error;
 use neli::{
     consts::{genl::*, nl::*, socket::NlFamily},
     genl::*,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, NlmsghdrBuilder},
     socket::*,
     types::GenlBuffer,
     utils::Groups,
@@ -26,14 +26,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     // The following outlines how to parse netlink attributes
 
     // This was received from the socket
-    let nlmsg = Nlmsghdr::new(
-        None,
-        GenlId::Ctrl,
-        NlmF::empty(),
-        None,
-        None,
-        NlPayload::Payload(Genlmsghdr::new(CtrlCmd::Unspec, 2, GenlBuffer::new())),
-    );
+    let nlmsg = NlmsghdrBuilder::default()
+        .nl_type(GenlId::Ctrl)
+        .nl_flags(NlmF::empty())
+        .nl_payload(NlPayload::Payload(Genlmsghdr::new(
+            CtrlCmd::Unspec,
+            2,
+            GenlBuffer::new(),
+        )))
+        .build()
+        .unwrap();
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type
     // to be provided
