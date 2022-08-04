@@ -16,7 +16,7 @@ use neli::{
     consts::{nl::NlmF, socket::NlFamily},
     genl::{Genlmsghdr, Nlattr},
     neli_enum,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
     utils::Groups,
@@ -102,25 +102,23 @@ fn main() {
     );
     // 3) Prepare Netlink header. The Netlink header contains the Generic Netlink header
     //    as payload.
-    let nlmsghdr = Nlmsghdr::new(
-        None,
-        family_id,
+    let nlmsghdr = NlmsghdrBuilder::default()
+        .nl_type(family_id)
         // You can use flags in an application specific way (e.g. ACK flag). It is up to you
         // if you check against flags in your Kernel module. It is required to add NLM_F_REQUEST,
         // otherwise the Kernel doesn't route the packet to the right Netlink callback handler
         // in your Kernel module. This might result in a deadlock on the socket if an expected
         // reply you are waiting for in a blocking way is never received.
         // Kernel reference: https://elixir.bootlin.com/linux/v5.10.16/source/net/netlink/af_netlink.c#L2487
-        NlmF::REQUEST,
-        // It is up to you if you want to split a data transfer into multiple sequences. (application specific)
-        None,
+        .nl_flags(NlmF::REQUEST)
         // Port ID. Not necessarily the process id of the current process. This field
         // could be used to identify different points or threads inside your application
         // that send data to the kernel. This has nothing to do with "routing" the packet to
         // the kernel, because this is done by the socket itself
-        Some(process::id()),
-        NlPayload::Payload(gnmsghdr),
-    );
+        .nl_pid(process::id())
+        .nl_payload(NlPayload::Payload(gnmsghdr))
+        .build()
+        .unwrap();
 
     println!("Send to kernel: '{}'", ECHO_MSG);
 

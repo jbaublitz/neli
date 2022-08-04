@@ -4,7 +4,7 @@ use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
     genl::Genlmsghdr,
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
     utils::Groups,
@@ -21,15 +21,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
 
     let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
-    let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, GENL_VERSION, attrs);
-    let nlhdr = {
-        let len = None;
-        let nl_type = GenlId::Ctrl;
-        let flags = NlmF::REQUEST | NlmF::DUMP;
-        let seq = None;
-        let pid = None;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(genlhdr))
-    };
+    let nlhdr = NlmsghdrBuilder::default()
+        .nl_type(GenlId::Ctrl)
+        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
+        .nl_payload(NlPayload::Payload(Genlmsghdr::new(
+            CtrlCmd::Getfamily,
+            GENL_VERSION,
+            attrs,
+        )))
+        .build()?;
     socket.send(nlhdr)?;
 
     let iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);

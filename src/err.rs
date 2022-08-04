@@ -26,11 +26,14 @@ use crate as neli;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
-    io, str, string,
+    io,
+    str::Utf8Error,
+    string::FromUtf8Error,
 };
 
 use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
+    nl::NlmsghdrBuilderError,
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -41,7 +44,7 @@ use crate::{
 /// length of the packet (as in the case of ACKs where no payload
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
-#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -63,7 +66,7 @@ pub struct NlmsghdrErr<T, P> {
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
 pub struct Nlmsgerr<T, P> {
@@ -90,16 +93,19 @@ where
 {
 }
 
-macro_rules! err_from {
-    ($err:ident, $($from_err:path { $from_impl:expr }),+) => {
-        $(
-            impl From<$from_err> for $err {
-                fn from(e: $from_err) -> Self {
-                    $from_impl(e)
-                }
-            }
-        )*
-    };
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum BuilderError {
+    #[allow(missing_docs)]
+    Nlmsghdr(NlmsghdrBuilderError),
+}
+
+impl Display for BuilderError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BuilderError::Nlmsghdr(err) => write!(f, "{}", err),
+        }
+    }
 }
 
 /// General netlink error
@@ -113,8 +119,10 @@ pub enum NlError<T = u16, P = Buffer> {
     Ser(SerError),
     /// A deserialization error.
     De(DeError),
-    /// A wrapped error from lower in the call stack.
-    Wrapped(WrappedError),
+    /// IO error.
+    IO(io::Error),
+    /// Error resulting from a builder invocation.
+    Builder(BuilderError),
     /// No ack was received when
     /// [`NlmF::Ack`][crate::consts::nl::NlmF] was specified in the
     /// request.
@@ -146,17 +154,15 @@ impl<T, P> From<DeError> for NlError<T, P> {
 
 impl<T, P> From<io::Error> for NlError<T, P> {
     fn from(err: io::Error) -> Self {
-        NlError::Wrapped(WrappedError::IOError(err))
+        NlError::IO(err)
     }
 }
 
-err_from!(
-    NlError,
-    WrappedError { NlError::Wrapped },
-    std::str::Utf8Error { |e| NlError::Wrapped(WrappedError::from(e)) },
-    std::string::FromUtf8Error { |e| NlError::Wrapped(WrappedError::from(e)) },
-    std::ffi::FromBytesWithNulError { |e| NlError::Wrapped(WrappedError::from(e)) }
-);
+impl<T, P> From<NlmsghdrBuilderError> for NlError<T, P> {
+    fn from(err: NlmsghdrBuilderError) -> Self {
+        NlError::Builder(BuilderError::Nlmsghdr(err))
+    }
+}
 
 impl NlError {
     /// Create new error from a data type implementing
@@ -197,10 +203,15 @@ where
             NlError::De(ref err) => {
                 write!(f, "Deserialization error: {}", err)
             }
+            NlError::IO(ref err) => {
+                write!(f, "IO error: {}", err)
+            }
+            NlError::Builder(ref err) => {
+                write!(f, "Builder error: {}", err)
+            }
             NlError::NoAck => write!(f, "No ack received"),
             NlError::BadSeq => write!(f, "Sequence number does not match the request"),
             NlError::BadPid => write!(f, "PID does not match the socket"),
-            NlError::Wrapped(ref e) => write!(f, "Netlink failure due to error: {}", e),
         }
     }
 }
@@ -212,27 +223,38 @@ where
 {
 }
 
+/// [`String`] or [`str`] UTF error.
+#[derive(Debug)]
+pub enum Utf8 {
+    #[allow(missing_docs)]
+    Str(Utf8Error),
+    #[allow(missing_docs)]
+    String(FromUtf8Error),
+}
+
+impl Display for Utf8 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Utf8::Str(e) => write!(f, "{}", e),
+            Utf8::String(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 /// Serialization error
 #[derive(Debug)]
 pub enum SerError {
     /// Abitrary error message.
     Msg(String),
-    /// A wrapped error from lower in the call stack.
-    Wrapped(WrappedError),
+    /// IO error.
+    IO(io::Error),
+    /// String UTF conversion error.
+    Utf8(Utf8),
     /// The end of the buffer was reached before serialization finished.
     UnexpectedEOB,
     /// Serialization did not fill the buffer.
     BufferNotFilled,
 }
-
-err_from!(
-    SerError,
-    WrappedError { SerError::Wrapped },
-    std::io::Error { |e| SerError::Wrapped(WrappedError::from(e)) },
-    std::str::Utf8Error { |e| SerError::Wrapped(WrappedError::from(e)) },
-    std::string::FromUtf8Error { |e| SerError::Wrapped(WrappedError::from(e)) },
-    std::ffi::FromBytesWithNulError { |e| SerError::Wrapped(WrappedError::from(e)) }
-);
 
 impl SerError {
     /// Create a new error with the given message as description.
@@ -248,7 +270,8 @@ impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SerError::Msg(ref s) => write!(f, "{}", s),
-            SerError::Wrapped(ref e) => write!(f, "Error while serializing: {}", e),
+            SerError::IO(ref err) => write!(f, "IO error: {}", err),
+            SerError::Utf8(ref err) => write!(f, "UTF error: {}", err),
             SerError::UnexpectedEOB => write!(
                 f,
                 "The buffer was too small for the requested serialization operation",
@@ -264,22 +287,33 @@ impl Display for SerError {
 
 impl Error for SerError {}
 
-err_from!(
-    DeError,
-    WrappedError { DeError::Wrapped },
-    std::io::Error { |e| DeError::Wrapped(WrappedError::from(e)) },
-    std::str::Utf8Error { |e| DeError::Wrapped(WrappedError::from(e)) },
-    std::string::FromUtf8Error { |e| DeError::Wrapped(WrappedError::from(e)) },
-    std::ffi::FromBytesWithNulError { |e| DeError::Wrapped(WrappedError::from(e)) }
-);
+impl From<io::Error> for SerError {
+    fn from(err: io::Error) -> Self {
+        SerError::IO(err)
+    }
+}
+
+impl From<Utf8Error> for SerError {
+    fn from(err: Utf8Error) -> Self {
+        SerError::Utf8(Utf8::Str(err))
+    }
+}
+
+impl From<FromUtf8Error> for SerError {
+    fn from(err: FromUtf8Error) -> Self {
+        SerError::Utf8(Utf8::String(err))
+    }
+}
 
 /// Deserialization error
 #[derive(Debug)]
 pub enum DeError {
     /// Abitrary error message.
     Msg(String),
-    /// A wrapped error from lower in the call stack.
-    Wrapped(WrappedError),
+    /// IO error.
+    IO(io::Error),
+    /// String UTF conversion error.
+    Utf8(Utf8),
     /// The end of the buffer was reached before deserialization
     /// finished.
     UnexpectedEOB,
@@ -308,6 +342,8 @@ impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DeError::Msg(ref s) => write!(f, "{}", s),
+            DeError::IO(ref err) => write!(f, "IO error: {}", err),
+            DeError::Utf8(ref err) => write!(f, "UTF8 error: {}", err),
             DeError::UnexpectedEOB => write!(
                 f,
                 "The buffer was not large enough to complete the deserialize \
@@ -316,55 +352,26 @@ impl Display for DeError {
             DeError::BufferNotParsed => write!(f, "Unparsed data left in buffer"),
             DeError::NullError => write!(f, "A null was found before the end of the buffer"),
             DeError::NoNullError => write!(f, "No terminating null byte was found in the buffer"),
-            DeError::Wrapped(ref e) => write!(f, "Error while deserializing: {}", e),
         }
     }
 }
 
 impl Error for DeError {}
 
-/// An error to wrap all system level errors in a single, higher level
-/// error.
-#[derive(Debug)]
-pub enum WrappedError {
-    /// Wrapper for [`std::io::Error`]
-    IOError(io::Error),
-    /// Wrapper for [`std::str::Utf8Error`]
-    StrUtf8Error(str::Utf8Error),
-    /// Wrapper for [`std::string::FromUtf8Error`]
-    StringUtf8Error(string::FromUtf8Error),
-    /// Wrapper for [`std::ffi::FromBytesWithNulError`]
-    FFINullError(std::ffi::FromBytesWithNulError),
-}
-
-impl Display for WrappedError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            WrappedError::IOError(ref e) => write!(f, "Wrapped IO error: {}", e),
-            WrappedError::StrUtf8Error(ref e) => write!(f, "Wrapped &str error: {}", e),
-            WrappedError::StringUtf8Error(ref e) => write!(f, "Wrapped String error: {}", e),
-            WrappedError::FFINullError(ref e) => write!(f, "Wrapped null error: {}", e),
-        }
+impl From<io::Error> for DeError {
+    fn from(err: io::Error) -> Self {
+        DeError::IO(err)
     }
 }
 
-impl Error for WrappedError {}
-
-macro_rules! wrapped_err_from {
-    ($($var:ident => $from_err_name:path),*) => {
-        $(
-            impl From<$from_err_name> for WrappedError {
-                fn from(v: $from_err_name) -> Self {
-                    WrappedError::$var(v)
-                }
-            }
-        )*
+impl From<Utf8Error> for DeError {
+    fn from(err: Utf8Error) -> Self {
+        DeError::Utf8(Utf8::Str(err))
     }
 }
 
-wrapped_err_from!(
-    IOError => std::io::Error,
-    StrUtf8Error => std::str::Utf8Error,
-    StringUtf8Error => std::string::FromUtf8Error,
-    FFINullError => std::ffi::FromBytesWithNulError
-);
+impl From<FromUtf8Error> for DeError {
+    fn from(err: FromUtf8Error) -> Self {
+        DeError::Utf8(Utf8::String(err))
+    }
+}

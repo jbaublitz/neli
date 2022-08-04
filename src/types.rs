@@ -24,7 +24,7 @@ use crate::{
 };
 
 /// A buffer of bytes.
-#[derive(PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
+#[derive(Clone, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 pub struct Buffer(#[neli(input)] Vec<u8>);
 
 impl Debug for Buffer {
@@ -161,7 +161,7 @@ impl<T, P> Default for NlBuffer<T, P> {
 }
 
 /// A buffer of generic netlink attributes.
-#[derive(Debug, PartialEq, Eq, ToBytes, FromBytesWithInput)]
+#[derive(Clone, Debug, PartialEq, Eq, ToBytes, FromBytesWithInput)]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -267,7 +267,7 @@ impl<T, P> Default for GenlBuffer<T, P> {
 }
 
 /// A buffer of rtnetlink attributes.
-#[derive(Debug, FromBytesWithInput, ToBytes)]
+#[derive(Clone, Debug, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 pub struct RtBuffer<T, P>(#[neli(input)] Vec<Rtattr<T, P>>);
