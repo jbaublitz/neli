@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// Struct indicating that no user header is in the generic netlink packet.
-#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
 pub struct NoUserHeader;
 
 impl TypeSize for NoUserHeader {
@@ -36,7 +36,7 @@ impl TypeSize for NoUserHeader {
 }
 
 /// Struct representing generic netlink header and payload
-#[derive(Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
 #[neli(to_bytes_bound = "C: Cmd")]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "C: Cmd + TypeSize")]
@@ -193,7 +193,7 @@ where
 }
 
 /// Struct representing netlink attributes and payloads
-#[derive(Debug, PartialEq, Eq, Size, FromBytes, ToBytes, Header)]
+#[derive(Clone, Debug, PartialEq, Eq, Size, FromBytes, ToBytes, Header)]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(to_bytes_bound = "T: NlAttrType")]

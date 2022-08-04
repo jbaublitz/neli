@@ -5,7 +5,7 @@ use neli::{
     },
     err::NlError,
     genl::{Genlmsghdr, Nlattr},
-    nl::{NlPayload, Nlmsghdr},
+    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::GenlBuffer,
     utils::Groups,
@@ -55,19 +55,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap(),
     );
 
-    let req = Nlmsghdr::new(
-        /* len */ None,
-        /* type */ family_id,
-        /* flags */ NlmF::REQUEST | NlmF::ACK,
-        /* seq */ Some(1),
-        /* pid */ Some(0),
-        /* payload */
-        NlPayload::Payload(Genlmsghdr::<Nl80211Command, Nl80211Attribute>::new(
+    let req = NlmsghdrBuilder::default()
+        .nl_type(family_id)
+        .nl_flags(NlmF::REQUEST | NlmF::ACK)
+        .nl_seq(1)
+        .nl_payload(NlPayload::Payload(Genlmsghdr::<
+            Nl80211Command,
+            Nl80211Attribute,
+        >::new(
             /* cmd */ Nl80211Command::GetInterface,
             /* version */ 1,
             /* attrs */ attrs,
-        )),
-    );
+        )))
+        .build()?;
 
     sock.send(req)?;
     let data: Result<Option<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>>, _> =

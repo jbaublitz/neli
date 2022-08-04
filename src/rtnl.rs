@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// Struct representing interface information messages
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
 pub struct Ifinfomsg {
     /// Interface address family
     pub ifi_family: RtAddrFamily,
@@ -100,7 +100,7 @@ impl Ifinfomsg {
 }
 
 /// Struct representing interface address messages
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
 pub struct Ifaddrmsg {
     /// Interface address family
     pub ifa_family: RtAddrFamily,
@@ -126,7 +126,7 @@ pub struct Rtgenmsg {
 }
 
 /// Route message
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
 pub struct Rtmsg {
     /// Address family of route
     pub rtm_family: RtAddrFamily,
@@ -208,7 +208,7 @@ pub struct NdaCacheinfo {
 }
 
 /// Message in response to queuing discipline operations
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
 pub struct Tcmsg {
     /// Family
     pub tcm_family: libc::c_uchar,
@@ -252,7 +252,7 @@ impl Tcmsg {
 }
 
 /// Struct representing route netlink attributes
-#[derive(Debug, Size, ToBytes, FromBytes, Header)]
+#[derive(Clone, Debug, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -421,7 +421,7 @@ mod test {
 
     use crate::{
         consts::{nl::NlmF, socket::NlFamily},
-        nl::{NlPayload, Nlmsghdr},
+        nl::{NlPayload, NlmsghdrBuilder},
         socket::NlSocketHandle,
         test::setup,
     };
@@ -465,21 +465,21 @@ mod test {
         setup();
 
         let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(Nlmsghdr::new(
-            None,
-            Rtm::Getlink,
-            NlmF::DUMP | NlmF::REQUEST | NlmF::ACK,
-            None,
-            None,
-            NlPayload::Payload(Ifinfomsg::new(
-                RtAddrFamily::Unspecified,
-                Arphrd::None,
-                0,
-                Iff::empty(),
-                Iff::empty(),
-                RtBuffer::new(),
-            )),
-        ))
+        sock.send(
+            NlmsghdrBuilder::default()
+                .nl_type(Rtm::Getlink)
+                .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
+                .nl_payload(NlPayload::Payload(Ifinfomsg::new(
+                    RtAddrFamily::Unspecified,
+                    Arphrd::None,
+                    0,
+                    Iff::empty(),
+                    Iff::empty(),
+                    RtBuffer::new(),
+                )))
+                .build()
+                .unwrap(),
+        )
         .unwrap();
         let msgs = sock.recv_all::<Rtm, Ifinfomsg>().unwrap();
         for msg in msgs {
@@ -503,14 +503,21 @@ mod test {
         setup();
 
         let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(Nlmsghdr::new(
-            None,
-            Rtm::Getqdisc,
-            NlmF::DUMP | NlmF::REQUEST | NlmF::ACK,
-            None,
-            None,
-            NlPayload::Payload(Tcmsg::new(0, 0, 0, 0, 0, RtBuffer::new())),
-        ))
+        sock.send(
+            NlmsghdrBuilder::default()
+                .nl_type(Rtm::Getqdisc)
+                .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
+                .nl_payload(NlPayload::Payload(Tcmsg::new(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    RtBuffer::new(),
+                )))
+                .build()
+                .unwrap(),
+        )
         .unwrap();
         let msgs = sock.recv_all::<Rtm, Tcmsg>().unwrap();
         for msg in msgs {
