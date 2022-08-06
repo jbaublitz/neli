@@ -522,7 +522,7 @@ mod test {
         let msgs = sock.recv_all::<Rtm, Tcmsg>().unwrap();
         for msg in msgs {
             assert!(matches!(msg.get_payload().unwrap(), Tcmsg { .. }));
-            assert_eq!(msg.nl_type, Rtm::Newqdisc);
+            assert_eq!(msg.nl_type(), &Rtm::Newqdisc);
         }
     }
 }

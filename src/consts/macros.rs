@@ -161,6 +161,17 @@ macro_rules! impl_trait {
             }
         }
 
+        impl From<&$wrapper_type> for $to_from_ty {
+            fn from(w: &$wrapper_type) -> Self {
+                match w {
+                    $(
+                        $wrapper_type::$const_enum(inner) => inner.into(),
+                    )+
+                    $wrapper_type::UnrecognizedConst(v) => *v,
+                }
+            }
+        }
+
         impl From<$to_from_ty> for $wrapper_type {
             fn from(v: $to_from_ty) -> Self {
                 $(

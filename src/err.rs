@@ -31,6 +31,9 @@ use std::{
     string::FromUtf8Error,
 };
 
+use derive_builder::{Builder, UninitializedFieldError};
+use getset::{Getters, Setters};
+
 use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     nl::NlmsghdrBuilderError,
@@ -44,29 +47,119 @@ use crate::{
 /// length of the packet (as in the case of ACKs where no payload
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
-#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(
+    Builder,
+    Getters,
+    Setters,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Size,
+    ToBytes,
+    FromBytesWithInput,
+    Header,
+)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+#[builder(build_fn(skip))]
 pub struct NlmsghdrErr<T, P> {
     /// Length of the netlink message
-    pub nl_len: u32,
+    #[getset(get = "pub", set = "pub")]
+    nl_len: u32,
     /// Type of the netlink message
-    pub nl_type: T,
+    #[getset(get = "pub", set = "pub")]
+    nl_type: T,
     /// Flags indicating properties of the request or response
-    pub nl_flags: NlmF,
+    #[getset(get = "pub", set = "pub")]
+    nl_flags: NlmF,
     /// Sequence number for netlink protocol
-    pub nl_seq: u32,
+    #[getset(get = "pub", set = "pub")]
+    nl_seq: u32,
     /// ID of the netlink destination for requests and source for
     /// responses.
-    pub nl_pid: u32,
+    #[getset(get = "pub", set = "pub")]
+    nl_pid: u32,
     /// Payload of netlink message
     #[neli(input = "input - Self::header_size()")]
-    pub nl_payload: P,
+    #[getset(get = "pub", set = "pub")]
+    nl_payload: P,
+}
+
+impl<T> NlmsghdrErrBuilder<T, ()>
+where
+    T: Clone + NlType,
+{
+    /// Build [`NlmsghdrErr`].
+    pub fn build_ack(&self) -> Result<NlmsghdrErr<T, ()>, NlmsghdrErrBuilderError> {
+        let nl_len = self
+            .nl_len
+            .ok_or_else(|| NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_len")))?;
+        let nl_type = self.nl_type.ok_or_else(|| {
+            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_type"))
+        })?;
+        let nl_flags = self.nl_flags.ok_or_else(|| {
+            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_flags"))
+        })?;
+        let nl_seq = self.nl_seq.unwrap_or(0);
+        let nl_pid = self.nl_pid.unwrap_or(0);
+        self.nl_payload.map_or_else(
+            || Ok(()),
+            |_| {
+                Err(NlmsghdrErrBuilderError::ValidationError(
+                    "Building ACKs disables payload option".to_string(),
+                ))
+            },
+        )?;
+
+        Ok(NlmsghdrErr {
+            nl_len,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload: (),
+        })
+    }
+}
+
+impl<'a, T, P> NlmsghdrErrBuilder<T, P>
+where
+    T: Clone + NlType,
+    P: Clone + Size + FromBytesWithInput<'a, Input = usize>,
+{
+    /// Build [`NlmsghdrErr`].
+    pub fn build_err(&self) -> Result<NlmsghdrErr<T, P>, NlmsghdrErrBuilderError> {
+        let nl_type = self.nl_type.ok_or_else(|| {
+            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_type"))
+        })?;
+        let nl_flags = self.nl_flags.ok_or_else(|| {
+            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_flags"))
+        })?;
+        let nl_seq = self.nl_seq.unwrap_or(0);
+        let nl_pid = self.nl_pid.unwrap_or(0);
+        let nl_payload = self.nl_payload.clone().ok_or_else(|| {
+            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_payload"))
+        })?;
+
+        let mut nl = NlmsghdrErr {
+            nl_len: 0,
+            nl_type,
+            nl_flags,
+            nl_seq,
+            nl_pid,
+            nl_payload,
+        };
+        nl.nl_len = nl.padded_size() as u32;
+        Ok(nl)
+    }
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
+#[derive(
+    Builder, Getters, Setters, Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes,
+)]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
 pub struct Nlmsgerr<T, P> {
@@ -77,6 +170,7 @@ pub struct Nlmsgerr<T, P> {
     pub nlmsg: NlmsghdrErr<T, P>,
     #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.padded_size()")]
     /// Contains attributes representing the extended ACK
+    #[builder(default = "GenlBuffer::new()")]
     pub ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
 }
 

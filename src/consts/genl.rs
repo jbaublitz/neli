@@ -112,6 +112,12 @@ impl From<Index> for u16 {
     }
 }
 
+impl From<&Index> for u16 {
+    fn from(i: &Index) -> Self {
+        i.0
+    }
+}
+
 impl From<u16> for Index {
     fn from(v: u16) -> Self {
         Index(v)
