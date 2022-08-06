@@ -85,7 +85,8 @@ where
     fn next<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError<TT, PP>>>
     where
         TT: NlType + Debug,
-        PP: for<'c> FromBytesWithInput<'c, Input = usize> + Debug,
+        PP: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
+        for<'b> u16: From<&'b TT>,
     {
         if let Some(true) = self.next_is_none {
             return None;
@@ -98,10 +99,10 @@ where
             Err(e) => return Some(Err(e)),
         };
 
-        if let NlPayload::Ack(_) = next.nl_payload {
+        let nl_type: u16 = next.nl_type().into();
+        if let NlPayload::Ack(_) = next.nl_payload() {
             self.next_is_none = self.next_is_none.map(|_| true);
-        } else if (!next.nl_flags.contains(NlmF::MULTI)
-            || next.nl_type.into() == Nlmsg::Done.into())
+        } else if (!next.nl_flags().contains(NlmF::MULTI) || nl_type == Nlmsg::Done.into())
             && !self.sock_ref.needs_ack
         {
             self.next_is_none = self.next_is_none.map(|_| true);
@@ -115,6 +116,7 @@ impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
 where
     T: NlType + Debug,
     P: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
+    for<'b> u16: From<&'b T>,
 {
     type Item = Result<Nlmsghdr<T, P>, NlError<T, P>>;
 

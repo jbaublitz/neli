@@ -36,8 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut addrs = Vec::<Ipv4Addr>::with_capacity(1);
     for response in rtnl.iter(false) {
         let header: Nlmsghdr<Rtm, Ifaddrmsg> = response?;
-        if let NlPayload::Payload(p) = header.nl_payload {
-            if header.nl_type != Rtm::Newaddr {
+        if let NlPayload::Payload(p) = header.nl_payload() {
+            if header.nl_type() != &Rtm::Newaddr {
                 return Err(Box::new(NlError::msg(
                     "Netlink error retrieving IP address",
                 )));

@@ -32,7 +32,7 @@ pub enum Nl80211Attribute {
 impl neli::consts::genl::NlAttrType for Nl80211Attribute {}
 
 fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
-    println!("msg={:?}", msg.nl_type);
+    println!("msg={:?}", msg.nl_type());
 }
 
 #[cfg(feature = "async")]
@@ -70,17 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let msgs = ss.recv(&mut buffer).await?;
     println!("msgs: {:?}", msgs);
     for msg in msgs {
-        if let NlPayload::Err(e) = msg.nl_payload {
-            if e.error == -2 {
-                println!(
-                    "This test is not supported on this machine as it requires nl80211; skipping"
-                );
-            } else {
-                return Err(Box::new(e) as Box<dyn Error>);
-            }
-        } else {
-            handle(msg);
-        }
+        handle(msg);
     }
     Ok(())
 }
@@ -114,17 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for msg in sock.iter(false) {
         let msg = msg?;
-        if let NlPayload::Err(e) = msg.nl_payload {
-            if e.error == -2 {
-                println!(
-                    "This test is not supported on this machine as it requires nl80211; skipping"
-                );
-            } else {
-                return Err(Box::new(e) as Box<dyn Error>);
-            }
-        } else {
-            handle(msg);
-        }
+        handle(msg);
     }
     Ok(())
 }
