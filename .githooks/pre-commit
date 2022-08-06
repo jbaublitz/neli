@@ -1,7 +1,7 @@
 #!/bin/sh
 
 cargo fmt -- --check \
-    && cargo clippy --all-targets --all-features \
+    && cargo clippy --all-targets --all-features -- -D warnings \
     && RUSTDOCFLAGS="-D warnings" cargo doc \
     && cargo build \
     && cargo build --all-targets --all-features \
@@ -23,7 +23,7 @@ cargo fmt -- --check \
 
 (cd neli-proc-macros \
     && cargo fmt -- --check \
-    && cargo clippy \
+    && cargo clippy -- -D warnings \
     && RUSTDOCFLAGS="-D warnings" cargo doc \
     && cargo build \
     && cargo test) \
