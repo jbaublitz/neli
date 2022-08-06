@@ -15,11 +15,12 @@
 use std::{
     any::type_name,
     io::{Cursor, Read},
-    mem::size_of,
+    mem::{size_of, swap},
 };
 
 use byteorder::{ByteOrder, NativeEndian};
 use derive_builder::{Builder, UninitializedFieldError};
+use getset::{Getters, Setters};
 use log::trace;
 
 use crate::{
@@ -28,7 +29,7 @@ use crate::{
         alignto,
         nl::{NlType, NlmF, Nlmsg},
     },
-    err::{DeError, NlError, Nlmsgerr, NlmsghdrErr},
+    err::{DeError, Nlmsgerr, NlmsghdrErr},
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -46,18 +47,6 @@ pub enum NlPayload<T, P> {
     Payload(P),
     /// Indicates an empty payload.
     Empty,
-}
-
-impl<T, P> NlPayload<T, P> {
-    /// Get the payload of the netlink packet and return [`None`]
-    /// if the contained data in the payload is actually an ACK
-    /// or an error.
-    pub fn get_payload(&self) -> Option<&P> {
-        match self {
-            NlPayload::Payload(ref p) => Some(p),
-            _ => None,
-        }
-    }
 }
 
 impl<'a, T, P> FromBytesWithInput<'a> for NlPayload<T, P>
@@ -144,7 +133,7 @@ where
 }
 
 /// Top level netlink header and payload
-#[derive(Builder, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Getters, Setters, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
@@ -153,20 +142,26 @@ where
 pub struct Nlmsghdr<T, P> {
     /// Length of the netlink message
     #[builder(setter(skip))]
-    pub nl_len: u32,
+    #[getset(get = "pub")]
+    nl_len: u32,
     /// Type of the netlink message
-    pub nl_type: T,
+    #[getset(get = "pub", set = "pub")]
+    nl_type: T,
     /// Flags indicating properties of the request or response
-    pub nl_flags: NlmF,
+    #[getset(get = "pub", get_mut = "pub")]
+    nl_flags: NlmF,
     /// Sequence number for netlink protocol
-    pub nl_seq: u32,
+    #[getset(get = "pub", get_mut = "pub")]
+    nl_seq: u32,
     /// ID of the netlink destination for requests and source for
     /// responses.
-    pub nl_pid: u32,
+    #[getset(get = "pub", get_mut = "pub")]
+    nl_pid: u32,
     /// Payload of netlink message
     #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type)")]
     #[neli(size = "nl_len as usize - Self::header_size() as usize")]
-    pub nl_payload: NlPayload<T, P>,
+    #[getset(get = "pub")]
+    pub(crate) nl_payload: NlPayload<T, P>,
 }
 
 impl<'a, T, P> NlmsghdrBuilder<T, P>
@@ -204,13 +199,43 @@ where
 impl<T, P> Nlmsghdr<T, P>
 where
     T: NlType,
-    P: Size,
 {
     /// Get the payload if there is one or return an error.
-    pub fn get_payload(&self) -> Result<&P, NlError> {
+    pub fn get_payload(&self) -> Option<&P> {
         match self.nl_payload {
-            NlPayload::Payload(ref p) => Ok(p),
-            _ => Err(NlError::new("This packet does not have a payload")),
+            NlPayload::Payload(ref p) => Some(p),
+            _ => None,
         }
+    }
+
+    /// Get an error from the payload if it exists.
+    ///
+    /// Takes a mutable reference because the payload will be swapped for
+    /// [`Empty`][NlPayload::Empty] to gain ownership of the error.
+    pub fn get_err(&mut self) -> Option<Nlmsgerr<T, P>> {
+        match self.nl_payload {
+            NlPayload::Err(_) => {
+                let mut payload = NlPayload::Empty;
+                swap(&mut self.nl_payload, &mut payload);
+                match payload {
+                    NlPayload::Err(e) => Some(e),
+                    _ => unreachable!(),
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl<T, P> Nlmsghdr<T, P>
+where
+    T: NlType,
+    P: Size,
+{
+    /// Set the payload for [`Nlmsghdr`] and handle the change in length internally.
+    pub fn set_payload(&mut self, p: NlPayload<T, P>) {
+        self.nl_len -= self.nl_payload.padded_size() as u32;
+        self.nl_len += p.padded_size() as u32;
+        self.nl_payload = p;
     }
 }

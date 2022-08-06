@@ -424,7 +424,7 @@ impl NlSocketHandle {
 
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs.into_iter() {
-            if let NlPayload::Payload(p) = nlhdr.nl_payload {
+            if let NlPayload::Payload(p) = nlhdr.nl_payload() {
                 let handle = p.get_attr_handle();
                 if let Ok(u) = handle.get_attr_payload_as::<u16>(CtrlAttr::FamilyId) {
                     res = Ok(u);
@@ -449,7 +449,7 @@ impl NlSocketHandle {
 
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs {
-            if let NlPayload::Payload(p) = nlhdr.nl_payload {
+            if let NlPayload::Payload(p) = nlhdr.nl_payload() {
                 let mut handle = p.get_attr_handle();
                 let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
                 if let Some(id) = mcast_groups.iter().find_map(|item| {
@@ -492,7 +492,7 @@ impl NlSocketHandle {
         for res_msg in self.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(false) {
             let msg = res_msg?;
 
-            if let NlPayload::Payload(p) = msg.nl_payload {
+            if let NlPayload::Payload(p) = msg.nl_payload() {
                 let mut attributes = p.get_attr_handle();
                 let name =
                     attributes.get_attr_payload_as_with_len::<String>(CtrlAttr::FamilyName)?;
@@ -525,7 +525,7 @@ impl NlSocketHandle {
     {
         debug!("Message sent:\n{:?}", msg);
 
-        if msg.nl_flags.contains(NlmF::ACK) && !msg.nl_flags.contains(NlmF::DUMP) {
+        if msg.nl_flags().contains(NlmF::ACK) && !msg.nl_flags().contains(NlmF::DUMP) {
             self.needs_ack = true;
         }
 
@@ -589,7 +589,7 @@ impl NlSocketHandle {
             (deserialized_packet_result, next_packet_len)
         };
 
-        let packet = match packet_res {
+        let mut packet = match packet_res {
             Ok(packet) => {
                 // If successful, forward the position of the buffer
                 // for the next read.
@@ -602,9 +602,7 @@ impl NlSocketHandle {
 
         debug!("Message received: {:?}", packet);
 
-        if let NlPayload::Err(e) = packet.nl_payload {
-            return Err(NlError::<T, P>::from(e));
-        } else if let NlPayload::Ack(_) = packet.nl_payload {
+        if let NlPayload::Ack(_) = packet.nl_payload() {
             if self.needs_ack {
                 self.needs_ack = false;
             } else {
@@ -612,6 +610,8 @@ impl NlSocketHandle {
                     "Socket did not expect an ACK but one was received",
                 ));
             }
+        } else if let Some(e) = packet.get_err() {
+            return Err(NlError::from(e));
         }
 
         Ok(Some(packet))

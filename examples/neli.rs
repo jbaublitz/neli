@@ -2,6 +2,7 @@ use std::error::Error;
 
 use neli::{
     consts::{genl::*, nl::*, socket::NlFamily},
+    err::NlError,
     genl::*,
     nl::{NlPayload, NlmsghdrBuilder},
     socket::*,
@@ -39,7 +40,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type
     // to be provided
-    let mut handle = nlmsg.get_payload()?.get_attr_handle();
+    let mut handle = nlmsg
+        .get_payload()
+        .ok_or_else(|| NlError::msg("No payload found"))?
+        .get_attr_handle();
     // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
     // a handler containing only this nested attribute internally
     let next = handle.get_nested_attributes::<u16>(1).unwrap();
