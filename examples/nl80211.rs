@@ -7,10 +7,9 @@ use neli::{
         nl::{GenlId, NlmF},
         socket::NlFamily,
     },
-    genl::Genlmsghdr,
+    genl::{Genlmsghdr, GenlmsghdrBuilder, NoUserHeader},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
-    types::GenlBuffer,
     utils::Groups,
 };
 
@@ -53,14 +52,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .nl_type(family_id)
         .nl_flags(NlmF::REQUEST | NlmF::DUMP | NlmF::ACK)
         .nl_seq(1)
-        .nl_payload(NlPayload::Payload(Genlmsghdr::<
-            Nl80211Command,
-            Nl80211Attribute,
-        >::new(
-            /* cmd */ Nl80211Command::GetWiPhy,
-            /* version */ 1,
-            /* attrs */ GenlBuffer::new(),
-        )))
+        .nl_payload(NlPayload::Payload(
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+                .cmd(Nl80211Command::GetWiPhy)
+                .version(1)
+                .build()?,
+        ))
         .build()?;
 
     ss.send(&req).await?;
@@ -90,14 +87,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .nl_type(family_id)
         .nl_flags(NlmF::REQUEST | NlmF::DUMP | NlmF::ACK)
         .nl_seq(1)
-        .nl_payload(NlPayload::Payload(Genlmsghdr::<
-            Nl80211Command,
-            Nl80211Attribute,
-        >::new(
-            /* cmd */ Nl80211Command::GetWiPhy,
-            /* version */ 1,
-            /* attrs */ GenlBuffer::new(),
-        )))
+        .nl_payload(NlPayload::Payload(
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+                .cmd(Nl80211Command::GetWiPhy)
+                .version(1)
+                .build()?,
+        ))
         .build()?;
 
     sock.send(req)?;

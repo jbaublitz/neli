@@ -14,7 +14,7 @@
 
 use neli::{
     consts::{nl::NlmF, socket::NlFamily},
-    genl::{Genlmsghdr, Nlattr},
+    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr},
     neli_enum,
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
@@ -92,14 +92,15 @@ fn main() {
     );
     // 2) prepare Generic Netlink Header. The Generic Netlink Header contains the
     //    attributes (actual data) as payload.
-    let gnmsghdr = Genlmsghdr::new(
-        NlFoobarXmplOperation::Echo,
+    let gnmsghdr = GenlmsghdrBuilder::default()
+        .cmd(NlFoobarXmplOperation::Echo)
         // You can evolve your application over time using different versions or ignore it.
         // Application specific; receiver can check this value and to specific logic
-        1,
+        .version(1)
         // actual payload
-        attrs,
-    );
+        .attrs(attrs)
+        .build()
+        .unwrap();
     // 3) Prepare Netlink header. The Netlink header contains the Generic Netlink header
     //    as payload.
     let nlmsghdr = NlmsghdrBuilder::default()

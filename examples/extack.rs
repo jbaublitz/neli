@@ -4,7 +4,7 @@ use neli::{
         socket::NlFamily,
     },
     err::NlError,
-    genl::{Genlmsghdr, Nlattr},
+    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr, NoUserHeader},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::GenlBuffer,
@@ -59,14 +59,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nl_type(family_id)
         .nl_flags(NlmF::REQUEST | NlmF::ACK)
         .nl_seq(1)
-        .nl_payload(NlPayload::Payload(Genlmsghdr::<
-            Nl80211Command,
-            Nl80211Attribute,
-        >::new(
-            /* cmd */ Nl80211Command::GetInterface,
-            /* version */ 1,
-            /* attrs */ attrs,
-        )))
+        .nl_payload(NlPayload::Payload(
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+                .cmd(Nl80211Command::GetInterface)
+                .version(1)
+                .attrs(attrs)
+                .build()?,
+        ))
         .build()?;
 
     sock.send(req)?;
@@ -80,9 +79,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("msg err: {:?}", e);
             println!(
                 "unix error: {:?}",
-                std::io::Error::from_raw_os_error(-e.error)
+                std::io::Error::from_raw_os_error(-e.error())
             );
-            for attr in e.ext_ack.iter() {
+            for attr in e.ext_ack().iter() {
                 match ExtAckAttr::from(u16::from(&attr.nla_type)) {
                     ExtAckAttr::Msg => {
                         println!(

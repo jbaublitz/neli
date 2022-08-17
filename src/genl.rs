@@ -17,6 +17,9 @@ use crate as neli;
 
 use std::io::Cursor;
 
+use derive_builder::{Builder, UninitializedFieldError};
+use getset::Getters;
+
 use crate::{
     attr::{AttrHandle, AttrHandleMut, Attribute},
     consts::genl::{Cmd, NlAttrType},
@@ -36,7 +39,9 @@ impl TypeSize for NoUserHeader {
 }
 
 /// Struct representing generic netlink header and payload
-#[derive(Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(
+    Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header,
+)]
 #[neli(to_bytes_bound = "C: Cmd")]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "C: Cmd + TypeSize")]
@@ -44,18 +49,72 @@ impl TypeSize for NoUserHeader {
 #[neli(header_bound = "C: TypeSize")]
 #[neli(from_bytes_bound = "H: TypeSize + FromBytes")]
 #[neli(header_bound = "H: TypeSize")]
+#[builder(pattern = "owned")]
+#[builder(build_fn(skip))]
 pub struct Genlmsghdr<C, T, H = NoUserHeader> {
     /// Generic netlink message command
-    pub cmd: C,
+    #[getset(get = "pub")]
+    cmd: C,
     /// Version of generic netlink family protocol
-    pub version: u8,
+    #[getset(get = "pub")]
+    version: u8,
+    #[builder(setter(skip))]
     reserved: u16,
     /// User specific header to send with netlink packet; defaults to an empty type
     /// to maintain backwards compatibility
-    pub header: H,
+    #[getset(get = "pub")]
+    header: H,
     /// Attributes included in generic netlink message
     #[neli(input = "input - Self::header_size()")]
     attrs: GenlBuffer<T, Buffer>,
+}
+
+impl<C, T> GenlmsghdrBuilder<C, T, NoUserHeader> {
+    /// Build a [`Genlmsghdr`].
+    pub fn build(self) -> Result<Genlmsghdr<C, T>, GenlmsghdrBuilderError> {
+        let cmd = self
+            .cmd
+            .ok_or_else(|| GenlmsghdrBuilderError::from(UninitializedFieldError::new("cmd")))?;
+        let version = self
+            .version
+            .ok_or_else(|| GenlmsghdrBuilderError::from(UninitializedFieldError::new("version")))?;
+        let reserved = 0;
+        let header = self.header.unwrap_or(NoUserHeader);
+        let attrs = self.attrs.unwrap_or_default();
+
+        Ok(Genlmsghdr {
+            cmd,
+            version,
+            reserved,
+            header,
+            attrs,
+        })
+    }
+}
+
+impl<C, T, H> GenlmsghdrBuilder<C, T, H> {
+    /// Build a [`Genlmsghdr`] with a required user header type.
+    pub fn build_with_header(self) -> Result<Genlmsghdr<C, T, H>, GenlmsghdrBuilderError> {
+        let cmd = self
+            .cmd
+            .ok_or_else(|| GenlmsghdrBuilderError::from(UninitializedFieldError::new("cmd")))?;
+        let version = self
+            .version
+            .ok_or_else(|| GenlmsghdrBuilderError::from(UninitializedFieldError::new("version")))?;
+        let reserved = 0;
+        let header = self
+            .header
+            .ok_or_else(|| GenlmsghdrBuilderError::from(UninitializedFieldError::new("header")))?;
+        let attrs = self.attrs.unwrap_or_default();
+
+        Ok(Genlmsghdr {
+            cmd,
+            version,
+            reserved,
+            header,
+            attrs,
+        })
+    }
 }
 
 impl<C, T> Genlmsghdr<C, T>
@@ -63,17 +122,6 @@ where
     C: Cmd,
     T: NlAttrType,
 {
-    /// Create new generic netlink packet
-    pub fn new(cmd: C, version: u8, attrs: GenlBuffer<T, Buffer>) -> Self {
-        Genlmsghdr {
-            cmd,
-            version,
-            reserved: 0,
-            header: NoUserHeader,
-            attrs,
-        }
-    }
-
     /// Get handle for attribute parsing and traversal
     pub fn get_attr_handle(&self) -> AttrHandle<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
         self.attrs.get_attr_handle()
@@ -84,24 +132,6 @@ where
         &mut self,
     ) -> AttrHandleMut<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
         self.attrs.get_attr_handle_mut()
-    }
-}
-
-impl<C, T, H> Genlmsghdr<C, T, H> {
-    /// Create a new netlink struct with a user header
-    pub fn new_with_user_header(
-        cmd: C,
-        version: u8,
-        header: H,
-        attrs: GenlBuffer<T, Buffer>,
-    ) -> Self {
-        Genlmsghdr {
-            cmd,
-            version,
-            reserved: 0,
-            header,
-            attrs,
-        }
     }
 }
 
