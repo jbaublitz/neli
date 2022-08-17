@@ -41,7 +41,7 @@ use log::debug;
 use crate::{
     consts::{genl::*, nl::*, socket::*, MAX_NL_LENGTH},
     err::{NlError, SerError},
-    genl::{Genlmsghdr, Nlattr},
+    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr, NoUserHeader},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     parse::packet_length_u32,
@@ -396,7 +396,11 @@ impl NlSocketHandle {
     fn get_genl_family(&mut self, family_name: &str) -> GenlFamily {
         let mut attrs = GenlBuffer::new();
         attrs.push(Nlattr::new(CtrlAttr::FamilyName, family_name)?);
-        let genlhdr = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
+        let genlhdr = GenlmsghdrBuilder::default()
+            .cmd(CtrlCmd::Getfamily)
+            .version(2)
+            .attrs(attrs)
+            .build()?;
         let nlhdr = NlmsghdrBuilder::default()
             .nl_type(GenlId::Ctrl)
             .nl_flags(NlmF::REQUEST | NlmF::ACK)
@@ -481,7 +485,11 @@ impl NlSocketHandle {
         let mut res = Err(NlError::new("ID does not correspond to a multicast group"));
 
         let attrs = GenlBuffer::new();
-        let genlhdr = Genlmsghdr::<CtrlCmd, CtrlAttr>::new(CtrlCmd::Getfamily, 2, attrs);
+        let genlhdr = GenlmsghdrBuilder::<CtrlCmd, CtrlAttr, NoUserHeader>::default()
+            .cmd(CtrlCmd::Getfamily)
+            .version(2)
+            .attrs(attrs)
+            .build()?;
         let nlhdr = NlmsghdrBuilder::default()
             .nl_type(GenlId::Ctrl)
             .nl_flags(NlmF::REQUEST | NlmF::DUMP)
@@ -855,11 +863,14 @@ mod test {
         let nl1 = NlmsghdrBuilder::default()
             .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
             .nl_flags(NlmF::MULTI)
-            .nl_payload(NlPayload::Payload(Genlmsghdr::new(
-                CtrlCmd::Unspec,
-                2,
-                attrs,
-            )))
+            .nl_payload(NlPayload::Payload(
+                GenlmsghdrBuilder::default()
+                    .cmd(CtrlCmd::Unspec)
+                    .version(2)
+                    .attrs(attrs)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap();
 
@@ -869,11 +880,14 @@ mod test {
         let nl2 = NlmsghdrBuilder::default()
             .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
             .nl_flags(NlmF::MULTI)
-            .nl_payload(NlPayload::Payload(Genlmsghdr::new(
-                CtrlCmd::Unspec,
-                2,
-                attrs,
-            )))
+            .nl_payload(NlPayload::Payload(
+                GenlmsghdrBuilder::default()
+                    .cmd(CtrlCmd::Unspec)
+                    .version(2)
+                    .attrs(attrs)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap();
         let mut v = NlBuffer::new();

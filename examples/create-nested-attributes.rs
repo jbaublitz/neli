@@ -4,7 +4,7 @@ use std::{error::Error, io::Cursor};
 
 use neli::{
     consts::{genl::*, nl::*},
-    genl::{Genlmsghdr, Nlattr},
+    genl::{GenlmsghdrBuilder, Nlattr},
     nl::{NlPayload, NlmsghdrBuilder},
     types::GenlBuffer,
     ToBytes,
@@ -49,7 +49,11 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             .nest(&Nlattr::new(2, 5)?)?,
     );
 
-    let genlmsg = Genlmsghdr::new(CtrlCmd::Getfamily, 2, attrs);
+    let genlmsg = GenlmsghdrBuilder::default()
+        .cmd(CtrlCmd::Getfamily)
+        .version(2)
+        .attrs(attrs)
+        .build()?;
     let nlmsg = NlmsghdrBuilder::default()
         .nl_type(Nlmsg::Noop)
         .nl_flags(NlmF::REQUEST)

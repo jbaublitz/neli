@@ -6,7 +6,6 @@ use neli::{
     genl::*,
     nl::{NlPayload, NlmsghdrBuilder},
     socket::*,
-    types::GenlBuffer,
     utils::Groups,
 };
 
@@ -30,11 +29,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let nlmsg = NlmsghdrBuilder::default()
         .nl_type(GenlId::Ctrl)
         .nl_flags(NlmF::empty())
-        .nl_payload(NlPayload::Payload(Genlmsghdr::new(
-            CtrlCmd::Unspec,
-            2,
-            GenlBuffer::new(),
-        )))
+        .nl_payload(NlPayload::Payload(
+            GenlmsghdrBuilder::default()
+                .cmd(CtrlCmd::Unspec)
+                .version(2)
+                .build()?,
+        ))
         .build()
         .unwrap();
     // Get parsing handler for the attributes in this message where the next call

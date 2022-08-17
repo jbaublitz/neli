@@ -32,10 +32,11 @@ use std::{
 };
 
 use derive_builder::{Builder, UninitializedFieldError};
-use getset::{Getters, Setters};
+use getset::Getters;
 
 use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
+    genl::GenlmsghdrBuilderError,
     nl::NlmsghdrBuilderError,
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
@@ -48,42 +49,33 @@ use crate::{
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
 #[derive(
-    Builder,
-    Getters,
-    Setters,
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    Size,
-    ToBytes,
-    FromBytesWithInput,
-    Header,
+    Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header,
 )]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[builder(build_fn(skip))]
+#[builder(pattern = "owned")]
 pub struct NlmsghdrErr<T, P> {
     /// Length of the netlink message
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_len: u32,
     /// Type of the netlink message
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_type: T,
     /// Flags indicating properties of the request or response
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_flags: NlmF,
     /// Sequence number for netlink protocol
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_seq: u32,
     /// ID of the netlink destination for requests and source for
     /// responses.
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_pid: u32,
     /// Payload of netlink message
     #[neli(input = "input - Self::header_size()")]
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_payload: P,
 }
 
@@ -92,7 +84,7 @@ where
     T: Clone + NlType,
 {
     /// Build [`NlmsghdrErr`].
-    pub fn build_ack(&self) -> Result<NlmsghdrErr<T, ()>, NlmsghdrErrBuilderError> {
+    pub fn build_ack(self) -> Result<NlmsghdrErr<T, ()>, NlmsghdrErrBuilderError> {
         let nl_len = self
             .nl_len
             .ok_or_else(|| NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_len")))?;
@@ -130,7 +122,7 @@ where
     P: Clone + Size + FromBytesWithInput<'a, Input = usize>,
 {
     /// Build [`NlmsghdrErr`].
-    pub fn build_err(&self) -> Result<NlmsghdrErr<T, P>, NlmsghdrErrBuilderError> {
+    pub fn build_err(self) -> Result<NlmsghdrErr<T, P>, NlmsghdrErrBuilderError> {
         let nl_type = self.nl_type.ok_or_else(|| {
             NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_type"))
         })?;
@@ -139,7 +131,7 @@ where
         })?;
         let nl_seq = self.nl_seq.unwrap_or(0);
         let nl_pid = self.nl_pid.unwrap_or(0);
-        let nl_payload = self.nl_payload.clone().ok_or_else(|| {
+        let nl_payload = self.nl_payload.ok_or_else(|| {
             NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_payload"))
         })?;
 
@@ -157,21 +149,24 @@ where
 }
 
 /// Struct representing netlink packets containing errors
-#[derive(
-    Builder, Getters, Setters, Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes,
-)]
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
+#[builder(pattern = "owned")]
 pub struct Nlmsgerr<T, P> {
     /// Error code
-    pub error: libc::c_int,
+    #[builder(default = "0")]
+    #[getset(get = "pub")]
+    error: libc::c_int,
     /// Packet header for request that failed
     #[neli(input = "input - std::mem::size_of::<libc::c_int>()")]
-    pub nlmsg: NlmsghdrErr<T, P>,
+    #[getset(get = "pub")]
+    nlmsg: NlmsghdrErr<T, P>,
     #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.padded_size()")]
     /// Contains attributes representing the extended ACK
     #[builder(default = "GenlBuffer::new()")]
-    pub ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
+    #[getset(get = "pub")]
+    ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
 }
 
 impl<T, P> Display for Nlmsgerr<T, P> {
@@ -192,13 +187,46 @@ where
 pub enum BuilderError {
     #[allow(missing_docs)]
     Nlmsghdr(NlmsghdrBuilderError),
+    #[allow(missing_docs)]
+    Nlmsgerr(NlmsgerrBuilderError),
+    #[allow(missing_docs)]
+    NlmsghdrErr(NlmsghdrErrBuilderError),
+    #[allow(missing_docs)]
+    Genlmsghdr(GenlmsghdrBuilderError),
 }
 
 impl Display for BuilderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             BuilderError::Nlmsghdr(err) => write!(f, "{}", err),
+            BuilderError::Nlmsgerr(err) => write!(f, "{}", err),
+            BuilderError::NlmsghdrErr(err) => write!(f, "{}", err),
+            BuilderError::Genlmsghdr(err) => write!(f, "{}", err),
         }
+    }
+}
+
+impl From<NlmsghdrBuilderError> for BuilderError {
+    fn from(e: NlmsghdrBuilderError) -> Self {
+        BuilderError::Nlmsghdr(e)
+    }
+}
+
+impl From<NlmsgerrBuilderError> for BuilderError {
+    fn from(e: NlmsgerrBuilderError) -> Self {
+        BuilderError::Nlmsgerr(e)
+    }
+}
+
+impl From<NlmsghdrErrBuilderError> for BuilderError {
+    fn from(e: NlmsghdrErrBuilderError) -> Self {
+        BuilderError::NlmsghdrErr(e)
+    }
+}
+
+impl From<GenlmsghdrBuilderError> for BuilderError {
+    fn from(e: GenlmsghdrBuilderError) -> Self {
+        BuilderError::Genlmsghdr(e)
     }
 }
 
@@ -252,9 +280,12 @@ impl<T, P> From<io::Error> for NlError<T, P> {
     }
 }
 
-impl<T, P> From<NlmsghdrBuilderError> for NlError<T, P> {
-    fn from(err: NlmsghdrBuilderError) -> Self {
-        NlError::Builder(BuilderError::Nlmsghdr(err))
+impl<T, P, E> From<E> for NlError<T, P>
+where
+    BuilderError: From<E>,
+{
+    fn from(err: E) -> Self {
+        NlError::<T, P>::Builder(BuilderError::from(err))
     }
 }
 
@@ -408,6 +439,8 @@ pub enum DeError {
     IO(io::Error),
     /// String UTF conversion error.
     Utf8(Utf8),
+    /// Builder error during deserialization
+    Builder(BuilderError),
     /// The end of the buffer was reached before deserialization
     /// finished.
     UnexpectedEOB,
@@ -438,6 +471,7 @@ impl Display for DeError {
             DeError::Msg(ref s) => write!(f, "{}", s),
             DeError::IO(ref err) => write!(f, "IO error: {}", err),
             DeError::Utf8(ref err) => write!(f, "UTF8 error: {}", err),
+            DeError::Builder(ref err) => write!(f, "Builder error: {}", err),
             DeError::UnexpectedEOB => write!(
                 f,
                 "The buffer was not large enough to complete the deserialize \
@@ -467,5 +501,14 @@ impl From<Utf8Error> for DeError {
 impl From<FromUtf8Error> for DeError {
     fn from(err: FromUtf8Error) -> Self {
         DeError::Utf8(Utf8::String(err))
+    }
+}
+
+impl<E> From<E> for DeError
+where
+    BuilderError: From<E>,
+{
+    fn from(err: E) -> Self {
+        DeError::Builder(BuilderError::from(err))
     }
 }
