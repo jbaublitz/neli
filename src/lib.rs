@@ -57,7 +57,7 @@
 //! use neli::{
 //!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
-//!     genl::{Genlmsghdr, Nlattr},
+//!     genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr},
 //!     nl::{NlmsghdrBuilder, NlPayload},
 //!     socket::NlSocketHandle,
 //!     types::{Buffer, GenlBuffer},
@@ -73,16 +73,15 @@
 //!         Groups::empty(),
 //!     )?;
 //!
-//!     let attrs: GenlBuffer<Index, Buffer> = GenlBuffer::new();
-//!     let genlhdr = Genlmsghdr::new(
-//!         CtrlCmd::Getfamily,
-//!         GENL_VERSION,
-//!         attrs,
-//!     );
 //!     let nlhdr = NlmsghdrBuilder::default()
 //!         .nl_type(GenlId::Ctrl)
 //!         .nl_flags(NlmF::REQUEST | NlmF::DUMP)
-//!         .nl_payload(NlPayload::Payload(genlhdr))
+//!         .nl_payload(NlPayload::Payload(
+//!             GenlmsghdrBuilder::<_, CtrlAttr, _>::default()
+//!                 .cmd(CtrlCmd::Getfamily)
+//!                 .version(GENL_VERSION)
+//!                 .build()?
+//!         ))
 //!         .build()?;
 //!     socket.send(nlhdr)?;
 //!     

@@ -20,7 +20,7 @@ use std::{
 
 use byteorder::{ByteOrder, NativeEndian};
 use derive_builder::{Builder, UninitializedFieldError};
-use getset::{Getters, Setters};
+use getset::Getters;
 use log::trace;
 
 use crate::{
@@ -29,7 +29,7 @@ use crate::{
         alignto,
         nl::{NlType, NlmF, Nlmsg},
     },
-    err::{DeError, Nlmsgerr, NlmsghdrErr},
+    err::{DeError, Nlmsgerr, NlmsgerrBuilder, NlmsghdrErr},
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -76,23 +76,19 @@ where
             let code = libc::c_int::from_bytes(buffer)?;
             trace!("Field deserialized: {:?}", code);
             if code == 0 {
-                Ok(NlPayload::Ack(Nlmsgerr {
-                    error: code,
-                    nlmsg: {
-                        trace!(
-                            "Deserializing field type {}",
-                            std::any::type_name::<NlmsghdrErr<T, ()>>()
-                        );
-                        trace!("Input: {:?}", input_size);
-                        let ok = NlmsghdrErr::<T, ()>::from_bytes_with_input(
-                            buffer,
-                            input_size - libc::c_int::type_size(),
-                        )?;
-                        trace!("Field deserialized: {:?}", ok);
-                        ok
-                    },
-                    ext_ack: GenlBuffer::new(),
-                }))
+                trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<NlmsghdrErr<T, ()>>()
+                );
+                trace!("Input: {:?}", input_size);
+                let nlmsg = NlmsghdrErr::<T, ()>::from_bytes_with_input(
+                    buffer,
+                    input_size - libc::c_int::type_size(),
+                )?;
+                trace!("Field deserialized: {:?}", nlmsg);
+                Ok(NlPayload::Ack(
+                    NlmsgerrBuilder::default().nlmsg(nlmsg).build()?,
+                ))
             } else {
                 let pos = buffer.position() as usize;
                 let new_input_size = <NativeEndian as ByteOrder>::read_u32(
@@ -118,11 +114,13 @@ where
                 )?;
                 trace!("Field deserialized: {:?}", ext_ack);
 
-                Ok(NlPayload::Err(Nlmsgerr {
-                    error: code,
-                    nlmsg,
-                    ext_ack,
-                }))
+                Ok(NlPayload::Err(
+                    NlmsgerrBuilder::default()
+                        .error(code)
+                        .nlmsg(nlmsg)
+                        .ext_ack(ext_ack)
+                        .build()?,
+                ))
             }
         } else {
             Ok(NlPayload::Payload(P::from_bytes_with_input(
@@ -133,29 +131,30 @@ where
 }
 
 /// Top level netlink header and payload
-#[derive(Builder, Getters, Setters, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Getters, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(padding)]
 #[builder(build_fn(skip))]
+#[builder(pattern = "owned")]
 pub struct Nlmsghdr<T, P> {
     /// Length of the netlink message
     #[builder(setter(skip))]
     #[getset(get = "pub")]
     nl_len: u32,
     /// Type of the netlink message
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub")]
     nl_type: T,
     /// Flags indicating properties of the request or response
-    #[getset(get = "pub", get_mut = "pub")]
+    #[getset(get = "pub")]
     nl_flags: NlmF,
     /// Sequence number for netlink protocol
-    #[getset(get = "pub", get_mut = "pub")]
+    #[getset(get = "pub")]
     nl_seq: u32,
     /// ID of the netlink destination for requests and source for
     /// responses.
-    #[getset(get = "pub", get_mut = "pub")]
+    #[getset(get = "pub")]
     nl_pid: u32,
     /// Payload of netlink message
     #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type)")]
@@ -166,11 +165,11 @@ pub struct Nlmsghdr<T, P> {
 
 impl<'a, T, P> NlmsghdrBuilder<T, P>
 where
-    T: Clone + NlType,
-    P: Clone + Size + FromBytesWithInput<'a, Input = usize>,
+    T: NlType,
+    P: Size + FromBytesWithInput<'a, Input = usize>,
 {
     /// Build [`Nlmsghdr`].
-    pub fn build(&self) -> Result<Nlmsghdr<T, P>, NlmsghdrBuilderError> {
+    pub fn build(self) -> Result<Nlmsghdr<T, P>, NlmsghdrBuilderError> {
         let nl_type = self
             .nl_type
             .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_type")))?;
@@ -179,7 +178,7 @@ where
             .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_flags")))?;
         let nl_seq = self.nl_seq.unwrap_or(0);
         let nl_pid = self.nl_pid.unwrap_or(0);
-        let nl_payload = self.nl_payload.clone().ok_or_else(|| {
+        let nl_payload = self.nl_payload.ok_or_else(|| {
             NlmsghdrBuilderError::from(UninitializedFieldError::new("nl_payload"))
         })?;
 

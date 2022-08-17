@@ -3,7 +3,7 @@ use std::error::Error;
 use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
-    genl::Genlmsghdr,
+    genl::{Genlmsghdr, GenlmsghdrBuilder},
     nl::{NlPayload, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
@@ -24,11 +24,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let nlhdr = NlmsghdrBuilder::default()
         .nl_type(GenlId::Ctrl)
         .nl_flags(NlmF::REQUEST | NlmF::DUMP)
-        .nl_payload(NlPayload::Payload(Genlmsghdr::new(
-            CtrlCmd::Getfamily,
-            GENL_VERSION,
-            attrs,
-        )))
+        .nl_payload(NlPayload::Payload(
+            GenlmsghdrBuilder::default()
+                .cmd(CtrlCmd::Getfamily)
+                .version(GENL_VERSION)
+                .attrs(attrs)
+                .build()?,
+        ))
         .build()?;
     socket.send(nlhdr)?;
 
