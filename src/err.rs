@@ -36,7 +36,7 @@ use getset::Getters;
 
 use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
-    genl::GenlmsghdrBuilderError,
+    genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::NlmsghdrBuilderError,
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
@@ -193,6 +193,10 @@ pub enum BuilderError {
     NlmsghdrErr(NlmsghdrErrBuilderError),
     #[allow(missing_docs)]
     Genlmsghdr(GenlmsghdrBuilderError),
+    #[allow(missing_docs)]
+    Nlattr(NlattrBuilderError),
+    #[allow(missing_docs)]
+    AttrType(AttrTypeBuilderError),
 }
 
 impl Display for BuilderError {
@@ -202,6 +206,8 @@ impl Display for BuilderError {
             BuilderError::Nlmsgerr(err) => write!(f, "{}", err),
             BuilderError::NlmsghdrErr(err) => write!(f, "{}", err),
             BuilderError::Genlmsghdr(err) => write!(f, "{}", err),
+            BuilderError::Nlattr(err) => write!(f, "{}", err),
+            BuilderError::AttrType(err) => write!(f, "{}", err),
         }
     }
 }
@@ -227,6 +233,18 @@ impl From<NlmsghdrErrBuilderError> for BuilderError {
 impl From<GenlmsghdrBuilderError> for BuilderError {
     fn from(e: GenlmsghdrBuilderError) -> Self {
         BuilderError::Genlmsghdr(e)
+    }
+}
+
+impl From<NlattrBuilderError> for BuilderError {
+    fn from(e: NlattrBuilderError) -> Self {
+        BuilderError::Nlattr(e)
+    }
+}
+
+impl From<AttrTypeBuilderError> for BuilderError {
+    fn from(e: AttrTypeBuilderError) -> Self {
+        BuilderError::AttrType(e)
     }
 }
 

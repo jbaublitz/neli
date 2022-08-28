@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Some(p) = response.get_payload() {
             let handle = p.get_attr_handle();
             for attr in handle.iter() {
-                match &attr.nla_type.nla_type {
+                match attr.nla_type().nla_type() {
                     CtrlAttr::FamilyName => {
                         println!("{}", attr.get_payload_as_with_len::<String>()?);
                     }
