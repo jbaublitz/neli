@@ -1,10 +1,12 @@
+use std::iter::once;
+
 use neli::{
     consts::{
         nl::{GenlId, NlmF},
         socket::NlFamily,
     },
     err::NlError,
-    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr, NoUserHeader},
+    genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::GenlBuffer,
@@ -45,15 +47,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     sock.enable_ext_ack(true)?;
     let family_id = sock.resolve_genl_family("nl80211")?;
-    let mut attrs = GenlBuffer::new();
-
-    attrs.push(
-        Nlattr::new(
-            /* Attribute */ Nl80211Attribute::Mac,
-            /* Value */ vec![0_u8], /* NOTE: Deliberately wrong length */
-        )
-        .unwrap(),
-    );
+    let attrs = once(
+        NlattrBuilder::default()
+            .nla_type(
+                AttrTypeBuilder::default()
+                    .nla_type(/* Attribute */ Nl80211Attribute::Mac)
+                    .build()
+                    .unwrap(),
+            )
+            .nla_payload(
+                /* Value */ vec![0_u8], /* NOTE: Deliberately wrong length */
+            )
+            .build()
+            .unwrap(),
+    )
+    .collect::<GenlBuffer<_, _>>();
 
     let req = NlmsghdrBuilder::default()
         .nl_type(family_id)
@@ -82,21 +90,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::io::Error::from_raw_os_error(-e.error())
             );
             for attr in e.ext_ack().iter() {
-                match ExtAckAttr::from(u16::from(&attr.nla_type)) {
+                match ExtAckAttr::from(u16::from(attr.nla_type())) {
                     ExtAckAttr::Msg => {
                         println!(
                             "Msg={:?}",
-                            String::from_utf8(attr.nla_payload.as_ref().to_vec())
+                            String::from_utf8(attr.nla_payload().as_ref().to_vec())
                         );
                     }
                     ExtAckAttr::Offs => {
-                        println!("Offs={:?}", attr.nla_payload.as_ref());
+                        println!("Offs={:?}", attr.nla_payload().as_ref());
                     }
                     ExtAckAttr::Cookie => {
-                        println!("Cookie={:?}", attr.nla_payload.as_ref());
+                        println!("Cookie={:?}", attr.nla_payload().as_ref());
                     }
                     ExtAckAttr::Policy => {
-                        println!("Policy={:?}", attr.nla_payload.as_ref());
+                        println!("Policy={:?}", attr.nla_payload().as_ref());
                     }
                     _ => println!("attr: {:?}", attr),
                 }
