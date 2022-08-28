@@ -375,15 +375,45 @@ impl<T, P> Default for RtBuffer<T, P> {
 mod test {
     use super::*;
 
-    use crate::consts::{genl::Index, rtnl::Ifa};
+    use crate::{
+        consts::{genl::Index, rtnl::Ifa},
+        genl::{AttrTypeBuilder, NlattrBuilder},
+    };
 
     #[test]
     fn test_genlbuffer_align() {
         assert_eq!(
             vec![
-                Nlattr::new(Index::from(0), 0u8,).unwrap(),
-                Nlattr::new(Index::from(1), 1u8,).unwrap(),
-                Nlattr::new(Index::from(2), 2u8,).unwrap(),
+                NlattrBuilder::default()
+                    .nla_type(
+                        AttrTypeBuilder::default()
+                            .nla_type(Index::from(0))
+                            .build()
+                            .unwrap(),
+                    )
+                    .nla_payload(0u8)
+                    .build()
+                    .unwrap(),
+                NlattrBuilder::default()
+                    .nla_type(
+                        AttrTypeBuilder::default()
+                            .nla_type(Index::from(1))
+                            .build()
+                            .unwrap(),
+                    )
+                    .nla_payload(1u8)
+                    .build()
+                    .unwrap(),
+                NlattrBuilder::default()
+                    .nla_type(
+                        AttrTypeBuilder::default()
+                            .nla_type(Index::from(2))
+                            .build()
+                            .unwrap(),
+                    )
+                    .nla_payload(2u8)
+                    .build()
+                    .unwrap(),
             ]
             .into_iter()
             .collect::<GenlBuffer<Index, Buffer>>()

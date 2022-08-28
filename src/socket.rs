@@ -31,6 +31,7 @@
 use std::{
     fmt::Debug,
     io::{self, Cursor},
+    iter::once,
     mem::{size_of, zeroed, MaybeUninit},
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
@@ -41,7 +42,7 @@ use log::debug;
 use crate::{
     consts::{genl::*, nl::*, socket::*, MAX_NL_LENGTH},
     err::{NlError, SerError},
-    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr, NoUserHeader},
+    genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     parse::packet_length_u32,
@@ -394,19 +395,31 @@ impl NlSocketHandle {
     }
 
     fn get_genl_family(&mut self, family_name: &str) -> GenlFamily {
-        let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(CtrlAttr::FamilyName, family_name)?);
-        let genlhdr = GenlmsghdrBuilder::default()
-            .cmd(CtrlCmd::Getfamily)
-            .version(2)
-            .attrs(attrs)
-            .build()?;
-        let nlhdr = NlmsghdrBuilder::default()
-            .nl_type(GenlId::Ctrl)
-            .nl_flags(NlmF::REQUEST | NlmF::ACK)
-            .nl_payload(NlPayload::Payload(genlhdr))
-            .build()?;
-        self.send(nlhdr)?;
+        self.send(
+            NlmsghdrBuilder::default()
+                .nl_type(GenlId::Ctrl)
+                .nl_flags(NlmF::REQUEST | NlmF::ACK)
+                .nl_payload(NlPayload::Payload(
+                    GenlmsghdrBuilder::default()
+                        .cmd(CtrlCmd::Getfamily)
+                        .version(2)
+                        .attrs(
+                            once(
+                                NlattrBuilder::default()
+                                    .nla_type(
+                                        AttrTypeBuilder::default()
+                                            .nla_type(CtrlAttr::FamilyName)
+                                            .build()?,
+                                    )
+                                    .nla_payload(family_name)
+                                    .build()?,
+                            )
+                            .collect::<GenlBuffer<_, _>>(),
+                        )
+                        .build()?,
+                ))
+                .build()?,
+        )?;
 
         let mut buffer = NlBuffer::new();
         for msg in self.iter(false) {
@@ -857,9 +870,30 @@ mod test {
     fn multi_msg_iter() {
         setup();
 
-        let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(CtrlAttr::FamilyId, 5u32).unwrap());
-        attrs.push(Nlattr::new(CtrlAttr::FamilyName, "my_family_name").unwrap());
+        let attrs = vec![
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyId)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload(5u32)
+                .build()
+                .unwrap(),
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyName)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload("my_family_name")
+                .build()
+                .unwrap(),
+        ]
+        .into_iter()
+        .collect::<GenlBuffer<_, _>>();
         let nl1 = NlmsghdrBuilder::default()
             .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
             .nl_flags(NlmF::MULTI)
@@ -874,9 +908,30 @@ mod test {
             .build()
             .unwrap();
 
-        let mut attrs = GenlBuffer::new();
-        attrs.push(Nlattr::new(CtrlAttr::FamilyId, 6u32).unwrap());
-        attrs.push(Nlattr::new(CtrlAttr::FamilyName, "my_other_family_name").unwrap());
+        let attrs = vec![
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyId)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload(6u32)
+                .build()
+                .unwrap(),
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyName)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload("my_other_family_name")
+                .build()
+                .unwrap(),
+        ]
+        .into_iter()
+        .collect::<GenlBuffer<_, _>>();
         let nl2 = NlmsghdrBuilder::default()
             .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
             .nl_flags(NlmF::MULTI)
@@ -907,20 +962,12 @@ mod test {
             position: 0,
             end: bytes_len,
         };
-        let mut iter = s.iter(false);
-        let nl_next1 = if let Some(Ok(nl_next)) = iter.next() {
-            nl_next
-        } else {
-            panic!("Expected message not found");
-        };
-        let nl_next2 = if let Some(Ok(nl_next)) = iter.next() {
-            nl_next
-        } else {
-            panic!("Expected message not found");
-        };
-        let mut nl = NlBuffer::new();
-        nl.push(nl_next1);
-        nl.push(nl_next2);
+        let nl = s
+            .iter::<NlTypeWrapper, Genlmsghdr<_, _>>(false)
+            .take(2)
+            .map(|req| req.unwrap())
+            .collect::<NlBuffer<_, _>>();
+
         assert_eq!(nl, v);
     }
 

@@ -137,14 +137,20 @@ where
 
 /// The infomation packed into `nla_type` field of `nlattr`
 /// for the C data structure.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Builder, Getters, Debug, PartialEq, Eq, Clone)]
+#[builder(pattern = "owned")]
 pub struct AttrType<T> {
     /// If true, the payload contains nested attributes.
-    pub nla_nested: bool,
+    #[getset(get = "pub")]
+    #[builder(default = "false")]
+    nla_nested: bool,
     /// If true, the payload is in net work byte order.
-    pub nla_network_order: bool,
+    #[getset(get = "pub")]
+    #[builder(default = "false")]
+    nla_network_order: bool,
     /// Enum representing the type of the attribute payload
-    pub nla_type: T,
+    #[getset(get = "pub")]
+    nla_type: T,
 }
 
 impl<T> Size for AttrType<T>
@@ -223,75 +229,60 @@ where
 }
 
 /// Struct representing netlink attributes and payloads
-#[derive(Clone, Debug, PartialEq, Eq, Size, FromBytes, ToBytes, Header)]
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, FromBytes, ToBytes, Header)]
 #[neli(from_bytes_bound = "T: NlAttrType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(to_bytes_bound = "T: NlAttrType")]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(padding)]
+#[builder(pattern = "owned")]
+#[builder(build_fn(skip))]
 pub struct Nlattr<T, P> {
     /// Length of the attribute header and payload together
-    pub nla_len: u16,
+    #[getset(get = "pub")]
+    nla_len: u16,
     /// Type information for the netlink attribute
-    pub nla_type: AttrType<T>,
+    #[getset(get = "pub")]
+    nla_type: AttrType<T>,
     /// Payload of the attribute - either parsed or a binary buffer
     #[neli(input = "nla_len as usize - Self::header_size()")]
-    pub nla_payload: P,
+    #[getset(get = "pub")]
+    nla_payload: P,
+}
+
+impl<T, P> NlattrBuilder<T, P>
+where
+    T: Size,
+    P: Size + ToBytes,
+{
+    /// Build `Nlattr`.
+    pub fn build(self) -> Result<Nlattr<T, Buffer>, NlattrBuilderError> {
+        let nla_type = self
+            .nla_type
+            .ok_or_else(|| NlattrBuilderError::from(UninitializedFieldError::new("nl_type")))?;
+        let nla_payload = self
+            .nla_payload
+            .ok_or_else(|| NlattrBuilderError::from(UninitializedFieldError::new("nla_payload")))?;
+        let mut buffer = Cursor::new(vec![0; nla_payload.unpadded_size()]);
+        nla_payload.to_bytes(&mut buffer).map_err(|_| {
+            NlattrBuilderError::ValidationError(
+                "Could not convert payload to binary representation".to_string(),
+            )
+        })?;
+        let mut nlattr = Nlattr {
+            nla_len: 0,
+            nla_type,
+            nla_payload: Buffer::from(buffer.into_inner()),
+        };
+        nlattr.nla_len = nlattr.unpadded_size() as u16;
+        Ok(nlattr)
+    }
 }
 
 impl<T> Nlattr<T, Buffer>
 where
     T: NlAttrType,
 {
-    /// Create a new `Nlattr` with parameters for setting bitflags
-    /// in the header.
-    ///
-    /// This uses native byte order. If you need to use network byte order, see
-    /// [`new_be`][Nlattr::new_be].
-    pub fn new<P>(nla_type: T, nla_payload: P) -> Result<Self, SerError>
-    where
-        P: Size + ToBytes,
-    {
-        Nlattr::new_internal(false, nla_type, nla_payload)
-    }
-
-    /// Create a new `Nlattr` with parameters for setting bitflags
-    /// in the header.
-    ///
-    /// This uses network byte order. To use native byte order, see [`new`][Nlattr::new].
-    ///
-    /// The payload type's serialization must handle any necessary byteswapping. neli's built-in
-    /// conversions handle that.
-    pub fn new_be<P>(nla_type: T, nla_payload: P) -> Result<Self, SerError>
-    where
-        P: Size + ToBytes,
-    {
-        Nlattr::new_internal(true, nla_type, nla_payload)
-    }
-
-    /// Create a new `Nlattr` with parameters for setting bitflags
-    /// in the header.
-    fn new_internal<P>(
-        nla_network_order: bool,
-        nla_type: T,
-        nla_payload: P,
-    ) -> Result<Self, SerError>
-    where
-        P: Size + ToBytes,
-    {
-        let mut attr = Nlattr {
-            nla_len: Self::header_size() as u16,
-            nla_type: AttrType {
-                nla_nested: false,
-                nla_network_order,
-                nla_type,
-            },
-            nla_payload: Buffer::new(),
-        };
-        attr.set_payload(&nla_payload)?;
-        Ok(attr)
-    }
-
     /// Builder method to add a nested attribute to the end of the payload.
     ///
     /// Use this to construct an attribute and nest attributes within it in one method chain.
@@ -306,7 +297,7 @@ where
     }
 
     /// Add a nested attribute to the end of the payload.
-    pub fn add_nested_attribute<TT, P>(&mut self, attr: &Nlattr<TT, P>) -> Result<(), SerError>
+    fn add_nested_attribute<TT, P>(&mut self, attr: &Nlattr<TT, P>) -> Result<(), SerError>
     where
         TT: NlAttrType,
         P: ToBytes,

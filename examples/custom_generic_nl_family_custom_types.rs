@@ -12,16 +12,17 @@
 //! Received from kernel: 'Some data that has `Nl` trait implemented, like &str'
 //! ```
 
+use std::{iter::once, process};
+
 use neli::{
     consts::{nl::NlmF, socket::NlFamily},
-    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr},
+    genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder},
     neli_enum,
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
-    types::{Buffer, GenlBuffer},
+    types::GenlBuffer,
     utils::Groups,
 };
-use std::process;
 
 /// Name of the Netlink family registered via Generic Netlink
 const FAMILY_NAME: &str = "gnl_foobar_xmpl";
@@ -80,16 +81,21 @@ fn main() {
 
     // We want to send an Echo command
     // 1) prepare NlFoobarXmpl Attribute
-    let mut attrs: GenlBuffer<NlFoobarXmplAttribute, Buffer> = GenlBuffer::new();
-    attrs.push(
-        Nlattr::new(
-            // the type of the attribute. This is an u16 and corresponds
-            // to an enum on the receiving side
-            NlFoobarXmplAttribute::Msg,
-            ECHO_MSG,
-        )
-        .unwrap(),
-    );
+    let attrs = once(
+        NlattrBuilder::default()
+            .nla_type(
+                AttrTypeBuilder::default()
+                    // the type of the attribute. This is an u16 and corresponds
+                    // to an enum on the receiving side
+                    .nla_type(NlFoobarXmplAttribute::Msg)
+                    .build()
+                    .unwrap(),
+            )
+            .nla_payload(ECHO_MSG)
+            .build()
+            .unwrap(),
+    )
+    .collect::<GenlBuffer<_, _>>();
     // 2) prepare Generic Netlink Header. The Generic Netlink Header contains the
     //    attributes (actual data) as payload.
     let gnmsghdr = GenlmsghdrBuilder::default()
