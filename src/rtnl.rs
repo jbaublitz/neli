@@ -8,11 +8,13 @@
 //! `man 7 rtnetlink` so it is mainly a series of structs organized
 //! in a style similar to the rest of the library.
 
-use crate as neli;
-
 use std::io::Cursor;
 
+use derive_builder::Builder;
+use getset::Getters;
+
 use crate::{
+    self as neli,
     attr::{AttrHandle, AttrHandleMut, Attribute},
     consts::rtnl::*,
     err::{DeError, SerError},
@@ -21,81 +23,51 @@ use crate::{
 };
 
 /// Struct representing interface information messages
-#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ifinfomsg {
     /// Interface address family
-    pub ifi_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ifi_family: RtAddrFamily,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding: u8,
     /// Interface type
-    pub ifi_type: Arphrd,
+    #[getset(get = "pub")]
+    ifi_type: Arphrd,
     /// Interface index
-    pub ifi_index: libc::c_int,
+    #[getset(get = "pub")]
+    ifi_index: libc::c_int,
     /// Interface flags
-    pub ifi_flags: Iff,
+    #[getset(get = "pub")]
+    #[builder(default = "Iff::empty()")]
+    ifi_flags: Iff,
     /// Interface change mask
-    pub ifi_change: Iff,
+    #[getset(get = "pub")]
+    #[builder(default = "Iff::empty()")]
+    ifi_change: Iff,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Ifla, Buffer>,
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifla, Buffer>,
 }
 
-impl Ifinfomsg {
-    /// Create a fully initialized interface info struct
-    pub fn new(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        ifi_flags: Iff,
-        ifi_change: Iff,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags,
-            ifi_change,
-            rtattrs,
-        }
-    }
-
+impl IfinfomsgBuilder {
     /// Set the link with the given index up (equivalent to
     /// `ip link set dev DEV up`)
-    pub fn up(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags: Iff::UP,
-            ifi_change: Iff::UP,
-            rtattrs,
-        }
+    pub fn up(mut self) -> Self {
+        self.ifi_flags = Some(self.ifi_flags.unwrap_or_else(Iff::empty) | Iff::UP);
+        self.ifi_change = Some(self.ifi_change.unwrap_or_else(Iff::empty) | Iff::UP);
+        self
     }
 
     /// Set the link with the given index down (equivalent to
     /// `ip link set dev DEV down`)
-    pub fn down(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags: Iff::empty(),
-            ifi_change: Iff::UP,
-            rtattrs,
-        }
+    pub fn down(mut self) -> Self {
+        self.ifi_flags = Some(self.ifi_flags.unwrap_or_else(Iff::empty) & !Iff::UP);
+        self.ifi_change = Some(self.ifi_change.unwrap_or_else(Iff::empty) | Iff::UP);
+        self
     }
 }
 
@@ -469,14 +441,14 @@ mod test {
             NlmsghdrBuilder::default()
                 .nl_type(Rtm::Getlink)
                 .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
-                .nl_payload(NlPayload::Payload(Ifinfomsg::new(
-                    RtAddrFamily::Unspecified,
-                    Arphrd::None,
-                    0,
-                    Iff::empty(),
-                    Iff::empty(),
-                    RtBuffer::new(),
-                )))
+                .nl_payload(NlPayload::Payload(
+                    IfinfomsgBuilder::default()
+                        .ifi_family(RtAddrFamily::Unspecified)
+                        .ifi_type(Arphrd::None)
+                        .ifi_index(0)
+                        .build()
+                        .unwrap(),
+                ))
                 .build()
                 .unwrap(),
         )
