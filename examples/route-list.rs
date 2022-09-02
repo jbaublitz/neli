@@ -82,14 +82,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut socket = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty()).unwrap();
 
-    let ifmsg = Ifaddrmsg {
-        ifa_family: RtAddrFamily::Unspecified,
-        ifa_prefixlen: 0,
-        ifa_flags: IfaF::empty(),
-        ifa_scope: 0,
-        ifa_index: 0,
-        rtattrs: RtBuffer::new(),
-    };
+    let ifmsg = IfaddrmsgBuilder::default()
+        .ifa_family(RtAddrFamily::Unspecified)
+        .ifa_prefixlen(0)
+        .ifa_scope(RtScope::Universe)
+        .ifa_index(0)
+        .build()?;
     let nlhdr = NlmsghdrBuilder::default()
         .nl_type(Rtm::Getaddr)
         .nl_flags(NlmF::REQUEST | NlmF::DUMP)
@@ -101,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for msg in socket.iter::<Rtm, _>(false) {
         let msg = msg?;
         if let NlPayload::<_, Ifaddrmsg>::Payload(p) = msg.nl_payload() {
-            let handle = p.rtattrs.get_attr_handle();
+            let handle = p.rtattrs().get_attr_handle();
             let addr = {
                 if let Ok(mut ip_bytes) = handle.get_attr_payload_as_with_len::<&[u8]>(Ifa::Address)
                 {
