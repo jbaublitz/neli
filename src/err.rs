@@ -38,6 +38,7 @@ use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::NlmsghdrBuilderError,
+    rtnl::IfinfomsgBuilderError,
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -197,6 +198,8 @@ pub enum BuilderError {
     Nlattr(NlattrBuilderError),
     #[allow(missing_docs)]
     AttrType(AttrTypeBuilderError),
+    #[allow(missing_docs)]
+    Ifinfomsg(IfinfomsgBuilderError),
 }
 
 impl Display for BuilderError {
@@ -208,6 +211,7 @@ impl Display for BuilderError {
             BuilderError::Genlmsghdr(err) => write!(f, "{}", err),
             BuilderError::Nlattr(err) => write!(f, "{}", err),
             BuilderError::AttrType(err) => write!(f, "{}", err),
+            BuilderError::Ifinfomsg(err) => write!(f, "{}", err),
         }
     }
 }
@@ -245,6 +249,12 @@ impl From<NlattrBuilderError> for BuilderError {
 impl From<AttrTypeBuilderError> for BuilderError {
     fn from(e: AttrTypeBuilderError) -> Self {
         BuilderError::AttrType(e)
+    }
+}
+
+impl From<IfinfomsgBuilderError> for BuilderError {
+    fn from(e: IfinfomsgBuilderError) -> Self {
+        BuilderError::Ifinfomsg(e)
     }
 }
 
