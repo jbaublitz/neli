@@ -72,21 +72,29 @@ impl IfinfomsgBuilder {
 }
 
 /// Struct representing interface address messages
-#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
 pub struct Ifaddrmsg {
     /// Interface address family
-    pub ifa_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ifa_family: RtAddrFamily,
     /// Interface address prefix length
-    pub ifa_prefixlen: libc::c_uchar,
+    #[getset(get = "pub")]
+    ifa_prefixlen: libc::c_uchar,
     /// Interface address flags
-    pub ifa_flags: IfaF,
+    #[getset(get = "pub")]
+    #[builder(default = "IfaF::empty()")]
+    ifa_flags: IfaF,
     /// Interface address scope
-    pub ifa_scope: libc::c_uchar,
+    #[getset(get = "pub")]
+    ifa_scope: RtScope,
     /// Interface address index
-    pub ifa_index: libc::c_int,
+    #[getset(get = "pub")]
+    ifa_index: libc::c_int,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Ifa, Buffer>,
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
 /// General form of address family dependent message.  Used for
