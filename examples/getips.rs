@@ -4,14 +4,13 @@ use neli::{
     attr::Attribute,
     consts::{
         nl::NlmF,
-        rtnl::{Ifa, IfaF, RtAddrFamily, RtScope, Rtm},
+        rtnl::{Ifa, RtAddrFamily, RtScope, Rtm},
         socket::NlFamily,
     },
     err::NlError,
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
-    rtnl::Ifaddrmsg,
+    rtnl::{Ifaddrmsg, IfaddrmsgBuilder},
     socket::NlSocketHandle,
-    types::RtBuffer,
     utils::Groups,
 };
 
@@ -19,14 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty())?;
-    let ifaddrmsg = Ifaddrmsg {
-        ifa_family: RtAddrFamily::Inet,
-        ifa_prefixlen: 0,
-        ifa_flags: IfaF::empty(),
-        ifa_scope: 0,
-        ifa_index: 0,
-        rtattrs: RtBuffer::new(),
-    };
+    let ifaddrmsg = IfaddrmsgBuilder::default()
+        .ifa_family(RtAddrFamily::Inet)
+        .ifa_prefixlen(0)
+        .ifa_scope(RtScope::Universe)
+        .ifa_index(0)
+        .build()?;
     let nl_header = NlmsghdrBuilder::default()
         .nl_type(Rtm::Getaddr)
         .nl_flags(NlmF::REQUEST | NlmF::ROOT)
@@ -42,10 +39,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "Netlink error retrieving IP address",
                 )));
             }
-            if RtScope::from(p.ifa_scope) != RtScope::Universe {
+            if p.ifa_scope() != &RtScope::Universe {
                 continue;
             }
-            for rtattr in p.rtattrs.iter() {
+            for rtattr in p.rtattrs().iter() {
                 if rtattr.rta_type == Ifa::Local {
                     addrs.push(Ipv4Addr::from(u32::from_be(
                         rtattr.get_payload_as::<u32>()?,
