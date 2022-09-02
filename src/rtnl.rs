@@ -73,6 +73,7 @@ impl IfinfomsgBuilder {
 
 /// Struct representing interface address messages
 #[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ifaddrmsg {
     /// Interface address family
     #[getset(get = "pub")]
@@ -99,10 +100,17 @@ pub struct Ifaddrmsg {
 
 /// General form of address family dependent message.  Used for
 /// requesting things from rtnetlink.
-#[derive(Debug, Size, ToBytes, FromBytes)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Rtgenmsg {
     /// Address family for the request
-    pub rtgen_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    rtgen_family: RtAddrFamily,
+    /// Payload of [`Rtattr`]s
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
 /// Route message
