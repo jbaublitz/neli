@@ -114,29 +114,42 @@ pub struct Rtgenmsg {
 }
 
 /// Route message
-#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Rtmsg {
     /// Address family of route
-    pub rtm_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    rtm_family: RtAddrFamily,
     /// Length of destination
-    pub rtm_dst_len: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_dst_len: libc::c_uchar,
     /// Length of source
-    pub rtm_src_len: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_src_len: libc::c_uchar,
     /// TOS filter
-    pub rtm_tos: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_tos: libc::c_uchar,
     /// Routing table ID
-    pub rtm_table: RtTable,
+    #[getset(get = "pub")]
+    rtm_table: RtTable,
     /// Routing protocol
-    pub rtm_protocol: Rtprot,
+    #[getset(get = "pub")]
+    rtm_protocol: Rtprot,
     /// Routing scope
-    pub rtm_scope: RtScope,
+    #[getset(get = "pub")]
+    rtm_scope: RtScope,
     /// Routing type
-    pub rtm_type: Rtn,
+    #[getset(get = "pub")]
+    rtm_type: Rtn,
     /// Routing flags
-    pub rtm_flags: RtmF,
+    #[builder(default = "RtmF::empty()")]
+    #[getset(get = "pub")]
+    rtm_flags: RtmF,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Rta, Buffer>,
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Rta, Buffer>,
 }
 
 /// Represents an ARP (neighbor table) entry
