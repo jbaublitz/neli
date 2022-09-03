@@ -11,7 +11,6 @@ use neli::{
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     rtnl::*,
     socket::*,
-    types::RtBuffer,
     utils::Groups,
 };
 
@@ -21,12 +20,12 @@ fn parse_route_table(
 ) -> Result<(), NlError> {
     if let Some(payload) = rtm.get_payload() {
         // This sample is only interested in the main table.
-        if payload.rtm_table == RtTable::Main {
+        if payload.rtm_table() == &RtTable::Main {
             let mut src = None;
             let mut dst = None;
             let mut gateway = None;
 
-            for attr in payload.rtattrs.iter() {
+            for attr in payload.rtattrs().iter() {
                 fn to_addr(b: &[u8]) -> Option<IpAddr> {
                     use std::convert::TryFrom;
                     if let Ok(tup) = <&[u8; 4]>::try_from(b) {
@@ -47,7 +46,7 @@ fn parse_route_table(
             }
 
             if let Some(dst) = dst {
-                print!("{}/{} ", dst, payload.rtm_dst_len);
+                print!("{}/{} ", dst, payload.rtm_dst_len());
             } else {
                 print!("default ");
                 if let Some(gateway) = gateway {
@@ -59,10 +58,11 @@ fn parse_route_table(
                 print!("dev {}", ifs.get(&src).expect("Should be present"));
             }
 
-            if payload.rtm_scope != RtScope::Universe {
+            if payload.rtm_scope() != &RtScope::Universe {
                 print!(
                     " proto {:?}  scope {:?} ",
-                    payload.rtm_protocol, payload.rtm_scope
+                    payload.rtm_protocol(),
+                    payload.rtm_scope()
                 )
             }
             if let Some(src) = src {
@@ -134,18 +134,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let rtmsg = Rtmsg {
-        rtm_family: RtAddrFamily::Inet,
-        rtm_dst_len: 0,
-        rtm_src_len: 0,
-        rtm_tos: 0,
-        rtm_table: RtTable::Unspec,
-        rtm_protocol: Rtprot::Unspec,
-        rtm_scope: RtScope::Universe,
-        rtm_type: Rtn::Unspec,
-        rtm_flags: RtmF::empty(),
-        rtattrs: RtBuffer::new(),
-    };
+    let rtmsg = RtmsgBuilder::default()
+        .rtm_family(RtAddrFamily::Inet)
+        .rtm_dst_len(0)
+        .rtm_src_len(0)
+        .rtm_tos(0)
+        .rtm_table(RtTable::Unspec)
+        .rtm_protocol(Rtprot::Unspec)
+        .rtm_scope(RtScope::Universe)
+        .rtm_type(Rtn::Unspec)
+        .build()?;
     let nlhdr = NlmsghdrBuilder::default()
         .nl_type(Rtm::Getroute)
         .nl_flags(NlmF::REQUEST | NlmF::DUMP)
