@@ -1,8 +1,9 @@
-use crate as neli;
-
 use neli_proc_macros::neli_enum;
 
-use crate::consts::{netfilter::NetfilterMsg, rtnl::Rtm};
+use crate::{
+    self as neli,
+    consts::{netfilter::NetfilterMsg, rtnl::Rtm},
+};
 
 impl_trait!(
     /// Trait marking constants valid for use in

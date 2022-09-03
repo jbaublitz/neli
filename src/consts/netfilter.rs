@@ -3,9 +3,9 @@
 //! Note that this doesn't cover everything yet, both the list of
 //! types and variants in enums will be added over time.
 
-use crate as neli;
-
 use neli_proc_macros::neli_enum;
+
+use crate as neli;
 
 /// Attributes inside a netfilter log packet message.
 ///
