@@ -1,6 +1,6 @@
-use crate as neli;
-
 use neli_proc_macros::neli_enum;
+
+use crate as neli;
 
 /// General address families for sockets
 #[neli_enum(serialized_type = "libc::c_int")]

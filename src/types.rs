@@ -6,8 +6,6 @@
 //! cases to allow the internal representation to change without
 //! resulting in a breaking change.
 
-use crate as neli;
-
 use std::{
     fmt::{self, Debug},
     iter::FromIterator,
@@ -15,6 +13,7 @@ use std::{
 };
 
 use crate::{
+    self as neli,
     attr::{AttrHandle, AttrHandleMut},
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     genl::Nlattr,

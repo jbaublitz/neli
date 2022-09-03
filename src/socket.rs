@@ -36,7 +36,7 @@ use std::{
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
 
-use libc::{self, c_int, c_void};
+use libc::{c_int, c_void};
 use log::debug;
 
 use crate::{

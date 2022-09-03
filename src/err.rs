@@ -21,8 +21,6 @@
 //! [`Buffer`][crate::types::Buffer] respectively which work for
 //! all cases. See the `examples/` directory for a usage example.
 
-use crate as neli;
-
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
@@ -35,6 +33,7 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
+    self as neli,
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::NlmsghdrBuilderError,

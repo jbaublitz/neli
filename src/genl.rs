@@ -13,14 +13,13 @@
 //! nested within another, a use case that is instead handled using
 //! [`AttrHandle`][crate::attr::AttrHandle].
 
-use crate as neli;
-
 use std::io::Cursor;
 
 use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
+    self as neli,
     attr::{AttrHandle, AttrHandleMut, Attribute},
     consts::genl::{Cmd, NlAttrType},
     err::{DeError, SerError},
