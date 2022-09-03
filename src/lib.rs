@@ -155,8 +155,6 @@ pub mod socket;
 pub mod types;
 pub mod utils;
 
-use crate as neli;
-
 use std::{
     fmt::Debug,
     io::{Cursor, Read, Write},
@@ -168,6 +166,7 @@ use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 pub use neli_proc_macros::{neli_enum, FromBytes, FromBytesWithInput, Header, Size, ToBytes};
 
 use crate::{
+    self as neli,
     consts::alignto,
     err::{DeError, SerError},
 };
