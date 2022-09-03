@@ -38,7 +38,7 @@ use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::NlmsghdrBuilderError,
-    rtnl::{IfaddrmsgBuilderError, IfinfomsgBuilderError, RtgenmsgBuilderError},
+    rtnl::{IfaddrmsgBuilderError, IfinfomsgBuilderError, RtgenmsgBuilderError, RtmsgBuilderError},
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
@@ -204,6 +204,8 @@ pub enum BuilderError {
     Ifaddrmsg(IfaddrmsgBuilderError),
     #[allow(missing_docs)]
     Rtgenmsg(RtgenmsgBuilderError),
+    #[allow(missing_docs)]
+    Rtmsg(RtmsgBuilderError),
 }
 
 impl Display for BuilderError {
@@ -218,6 +220,7 @@ impl Display for BuilderError {
             BuilderError::Ifinfomsg(err) => write!(f, "{}", err),
             BuilderError::Ifaddrmsg(err) => write!(f, "{}", err),
             BuilderError::Rtgenmsg(err) => write!(f, "{}", err),
+            BuilderError::Rtmsg(err) => write!(f, "{}", err),
         }
     }
 }
@@ -273,6 +276,12 @@ impl From<IfaddrmsgBuilderError> for BuilderError {
 impl From<RtgenmsgBuilderError> for BuilderError {
     fn from(e: RtgenmsgBuilderError) -> Self {
         BuilderError::Rtgenmsg(e)
+    }
+}
+
+impl From<RtmsgBuilderError> for BuilderError {
+    fn from(e: RtmsgBuilderError) -> Self {
+        BuilderError::Rtmsg(e)
     }
 }
 
