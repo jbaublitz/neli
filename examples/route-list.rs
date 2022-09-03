@@ -37,10 +37,10 @@ fn parse_route_table(
                     }
                 }
 
-                match attr.rta_type {
-                    Rta::Dst => dst = to_addr(attr.rta_payload.as_ref()),
-                    Rta::Prefsrc => src = to_addr(attr.rta_payload.as_ref()),
-                    Rta::Gateway => gateway = to_addr(attr.rta_payload.as_ref()),
+                match attr.rta_type() {
+                    Rta::Dst => dst = to_addr(attr.rta_payload().as_ref()),
+                    Rta::Prefsrc => src = to_addr(attr.rta_payload().as_ref()),
+                    Rta::Gateway => gateway = to_addr(attr.rta_payload().as_ref()),
                     _ => (),
                 }
             }
