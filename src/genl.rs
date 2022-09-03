@@ -240,6 +240,7 @@ where
 pub struct Nlattr<T, P> {
     /// Length of the attribute header and payload together
     #[getset(get = "pub")]
+    #[builder(setter(skip))]
     nla_len: u16,
     /// Type information for the netlink attribute
     #[getset(get = "pub")]

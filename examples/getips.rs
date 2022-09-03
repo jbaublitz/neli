@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
             for rtattr in p.rtattrs().iter() {
-                if rtattr.rta_type == Ifa::Local {
+                if rtattr.rta_type() == &Ifa::Local {
                     addrs.push(Ipv4Addr::from(u32::from_be(
                         rtattr.get_payload_as::<u32>()?,
                     )));

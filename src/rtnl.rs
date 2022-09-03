@@ -10,7 +10,7 @@
 
 use std::io::Cursor;
 
-use derive_builder::Builder;
+use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
@@ -253,21 +253,56 @@ impl Tcmsg {
 }
 
 /// Struct representing route netlink attributes
-#[derive(Clone, Debug, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(padding)]
+#[builder(build_fn(skip))]
 pub struct Rtattr<T, P> {
     /// Length of the attribute
-    pub rta_len: libc::c_ushort,
+    #[getset(get = "pub")]
+    #[builder(setter(skip))]
+    rta_len: libc::c_ushort,
     /// Type of the attribute
-    pub rta_type: T,
+    #[getset(get = "pub")]
+    rta_type: T,
     /// Payload of the attribute
     #[neli(
         input = "(rta_len as usize).checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?"
     )]
-    pub rta_payload: P,
+    #[getset(get = "pub")]
+    rta_payload: P,
+}
+
+impl<T, P> RtattrBuilder<T, P>
+where
+    T: Size,
+    P: Size + ToBytes,
+{
+    /// Build an [`Rtattr`].
+    pub fn build(self) -> Result<Rtattr<T, Buffer>, RtattrBuilderError> {
+        let rta_type = self
+            .rta_type
+            .ok_or_else(|| RtattrBuilderError::from(UninitializedFieldError::new("rta_type")))?;
+        let rta_payload = self
+            .rta_payload
+            .ok_or_else(|| RtattrBuilderError::from(UninitializedFieldError::new("rta_payload")))?;
+        let mut buffer = Cursor::new(vec![0; rta_payload.unpadded_size()]);
+        rta_payload.to_bytes(&mut buffer).map_err(|_| {
+            RtattrBuilderError::ValidationError(
+                "Could not convert payload to binary representation".to_string(),
+            )
+        })?;
+
+        let mut rtattr = Rtattr {
+            rta_len: 0,
+            rta_type,
+            rta_payload: Buffer::from(buffer.into_inner()),
+        };
+        rtattr.rta_len = rtattr.unpadded_size() as libc::c_ushort;
+        Ok(rtattr)
+    }
 }
 
 impl<T> Rtattr<T, Buffer>
@@ -301,7 +336,7 @@ where
     }
 
     /// Add a nested attribute to the end of the payload.
-    pub fn add_nested_attribute<TT, P>(&mut self, attr: &Rtattr<TT, P>) -> Result<(), SerError>
+    fn add_nested_attribute<TT, P>(&mut self, attr: &Rtattr<TT, P>) -> Result<(), SerError>
     where
         TT: RtaType,
         P: ToBytes,
