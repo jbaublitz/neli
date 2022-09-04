@@ -255,11 +255,11 @@ where
     T: Size,
     P: Size + ToBytes,
 {
-    /// Build `Nlattr`.
+    /// Build [`Nlattr`].
     pub fn build(self) -> Result<Nlattr<T, Buffer>, NlattrBuilderError> {
         let nla_type = self
             .nla_type
-            .ok_or_else(|| NlattrBuilderError::from(UninitializedFieldError::new("nl_type")))?;
+            .ok_or_else(|| NlattrBuilderError::from(UninitializedFieldError::new("nla_type")))?;
         let nla_payload = self
             .nla_payload
             .ok_or_else(|| NlattrBuilderError::from(UninitializedFieldError::new("nla_payload")))?;

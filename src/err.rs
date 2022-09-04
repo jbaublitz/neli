@@ -38,8 +38,8 @@ use crate::{
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::NlmsghdrBuilderError,
     rtnl::{
-        IfaddrmsgBuilderError, IfinfomsgBuilderError, RtattrBuilderError, RtgenmsgBuilderError,
-        RtmsgBuilderError,
+        IfaddrmsgBuilderError, IfinfomsgBuilderError, NdaCacheinfoBuilderError, NdmsgBuilderError,
+        RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError,
     },
     types::{Buffer, GenlBuffer},
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
@@ -209,6 +209,12 @@ pub enum BuilderError {
     #[allow(missing_docs)]
     Rtmsg(RtmsgBuilderError),
     #[allow(missing_docs)]
+    Ndmsg(NdmsgBuilderError),
+    #[allow(missing_docs)]
+    NdaCacheinfo(NdaCacheinfoBuilderError),
+    #[allow(missing_docs)]
+    Tcmsg(TcmsgBuilderError),
+    #[allow(missing_docs)]
     Rtattr(RtattrBuilderError),
 }
 
@@ -225,6 +231,9 @@ impl Display for BuilderError {
             BuilderError::Ifaddrmsg(err) => write!(f, "{}", err),
             BuilderError::Rtgenmsg(err) => write!(f, "{}", err),
             BuilderError::Rtmsg(err) => write!(f, "{}", err),
+            BuilderError::Ndmsg(err) => write!(f, "{}", err),
+            BuilderError::NdaCacheinfo(err) => write!(f, "{}", err),
+            BuilderError::Tcmsg(err) => write!(f, "{}", err),
             BuilderError::Rtattr(err) => write!(f, "{}", err),
         }
     }
@@ -287,6 +296,24 @@ impl From<RtgenmsgBuilderError> for BuilderError {
 impl From<RtmsgBuilderError> for BuilderError {
     fn from(e: RtmsgBuilderError) -> Self {
         BuilderError::Rtmsg(e)
+    }
+}
+
+impl From<NdmsgBuilderError> for BuilderError {
+    fn from(e: NdmsgBuilderError) -> Self {
+        BuilderError::Ndmsg(e)
+    }
+}
+
+impl From<NdaCacheinfoBuilderError> for BuilderError {
+    fn from(e: NdaCacheinfoBuilderError) -> Self {
+        BuilderError::NdaCacheinfo(e)
+    }
+}
+
+impl From<TcmsgBuilderError> for BuilderError {
+    fn from(e: TcmsgBuilderError) -> Self {
+        BuilderError::Tcmsg(e)
     }
 }
 
