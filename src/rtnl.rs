@@ -153,103 +153,86 @@ pub struct Rtmsg {
 }
 
 /// Represents an ARP (neighbor table) entry
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ndmsg {
     /// Address family of entry
-    pub ndm_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ndm_family: RtAddrFamily,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     pad1: u8,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     pad2: u16,
     /// Index of entry
-    pub ndm_index: libc::c_int,
+    #[getset(get = "pub")]
+    ndm_index: libc::c_int,
     /// State of entry
-    pub ndm_state: Nud,
+    #[getset(get = "pub")]
+    ndm_state: Nud,
     /// Flags for entry
-    pub ndm_flags: Ntf,
+    #[getset(get = "pub")]
+    #[builder(default = "Ntf::empty()")]
+    ndm_flags: Ntf,
     /// Type of entry
-    pub ndm_type: Rtn,
+    #[getset(get = "pub")]
+    ndm_type: Rtn,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Nda, Buffer>,
-}
-
-impl Ndmsg {
-    /// Create a fully initialized neighbor table struct
-    pub fn new(
-        ndm_family: RtAddrFamily,
-        ndm_index: libc::c_int,
-        ndm_state: Nud,
-        ndm_flags: Ntf,
-        ndm_type: Rtn,
-        rtattrs: RtBuffer<Nda, Buffer>,
-    ) -> Self {
-        Ndmsg {
-            ndm_family,
-            pad1: 0,
-            pad2: 0,
-            ndm_index,
-            ndm_state,
-            ndm_flags,
-            ndm_type,
-            rtattrs,
-        }
-    }
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Nda, Buffer>,
 }
 
 /// Struct representing ARP cache info
-#[derive(Debug, Size, ToBytes, FromBytes)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytes)]
+#[builder(pattern = "owned")]
 pub struct NdaCacheinfo {
     /// Confirmed
-    pub ndm_confirmed: u32,
+    #[getset(get = "pub")]
+    ndm_confirmed: u32,
     /// Used
-    pub ndm_used: u32,
+    #[getset(get = "pub")]
+    ndm_used: u32,
     /// Updated
-    pub ndm_updated: u32,
+    #[getset(get = "pub")]
+    ndm_updated: u32,
     /// Reference count
-    pub ndm_refcnt: u32,
+    #[getset(get = "pub")]
+    ndm_refcnt: u32,
 }
 
 /// Message in response to queuing discipline operations
-#[derive(Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Tcmsg {
     /// Family
-    pub tcm_family: libc::c_uchar,
+    #[getset(get = "pub")]
+    tcm_family: libc::c_uchar,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding_char: libc::c_uchar,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding_short: libc::c_ushort,
     /// Interface index
-    pub tcm_ifindex: libc::c_int,
+    #[getset(get = "pub")]
+    tcm_ifindex: libc::c_int,
     /// Queuing discipline handle
-    pub tcm_handle: u32,
+    #[getset(get = "pub")]
+    tcm_handle: u32,
     /// Parent queuing discipline
-    pub tcm_parent: u32,
+    #[getset(get = "pub")]
+    tcm_parent: u32,
     /// Info
-    pub tcm_info: u32,
+    #[getset(get = "pub")]
+    tcm_info: u32,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Tca, Buffer>,
-}
-
-impl Tcmsg {
-    /// Create a new [`Tcmsg`] structure handling the necessary
-    /// padding.
-    pub fn new(
-        tcm_family: libc::c_uchar,
-        tcm_ifindex: libc::c_int,
-        tcm_handle: u32,
-        tcm_parent: u32,
-        tcm_info: u32,
-        rtattrs: RtBuffer<Tca, Buffer>,
-    ) -> Self {
-        Tcmsg {
-            tcm_family,
-            padding_char: 0,
-            padding_short: 0,
-            tcm_ifindex,
-            tcm_handle,
-            tcm_parent,
-            tcm_info,
-            rtattrs,
-        }
-    }
+    #[getset(get = "pub", get_mut = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Tca, Buffer>,
 }
 
 /// Struct representing route netlink attributes
@@ -258,6 +241,7 @@ impl Tcmsg {
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(padding)]
+#[builder(pattern = "owned")]
 #[builder(build_fn(skip))]
 pub struct Rtattr<T, P> {
     /// Length of the attribute
@@ -309,20 +293,6 @@ impl<T> Rtattr<T, Buffer>
 where
     T: RtaType,
 {
-    /// Create a new [`Rtattr`].
-    pub fn new<P>(rta_type: T, rta_payload: P) -> Result<Self, SerError>
-    where
-        P: Size + ToBytes,
-    {
-        let mut attr = Rtattr {
-            rta_len: Self::header_size() as u16,
-            rta_type,
-            rta_payload: Buffer::new(),
-        };
-        attr.set_payload(&rta_payload)?;
-        Ok(attr)
-    }
-
     /// Builder method to add a nested attribute to the end of the payload.
     ///
     /// Use this to construct an attribute and nest attributes within it in one method chain.
@@ -543,14 +513,16 @@ mod test {
             NlmsghdrBuilder::default()
                 .nl_type(Rtm::Getqdisc)
                 .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
-                .nl_payload(NlPayload::Payload(Tcmsg::new(
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    RtBuffer::new(),
-                )))
+                .nl_payload(NlPayload::Payload(
+                    TcmsgBuilder::default()
+                        .tcm_family(0)
+                        .tcm_ifindex(0)
+                        .tcm_handle(0)
+                        .tcm_parent(0)
+                        .tcm_info(0)
+                        .build()
+                        .unwrap(),
+                ))
                 .build()
                 .unwrap(),
         )
