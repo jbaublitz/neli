@@ -8,6 +8,7 @@ use std::{
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
     err::NlError,
+    iter::IterationBehavior,
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     rtnl::*,
     socket::*,
@@ -96,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     socket.send(nlhdr)?;
 
     let mut ifs = HashMap::new();
-    for msg in socket.iter::<Rtm, _>(false) {
+    for msg in socket.recv::<Rtm, _>(IterationBehavior::EndMultiOnDone) {
         let msg = msg?;
         if let NlPayload::<_, Ifaddrmsg>::Payload(p) = msg.nl_payload() {
             let handle = p.rtattrs().get_attr_handle();
@@ -151,7 +152,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
     socket.send(nlhdr)?;
 
-    for rtm_result in socket.iter(false) {
+    for rtm_result in socket.recv(IterationBehavior::EndMultiOnDone) {
         let rtm = rtm_result?;
         if let NlTypeWrapper::Rtm(_) = rtm.nl_type() {
             parse_route_table(&ifs, rtm)?;

@@ -4,6 +4,7 @@ use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
     genl::{Genlmsghdr, GenlmsghdrBuilder},
+    iter::IterationBehavior,
     nl::{NlPayload, NlmsghdrBuilder},
     socket::NlSocketHandle,
     types::{Buffer, GenlBuffer},
@@ -34,8 +35,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
     socket.send(nlhdr)?;
 
-    let iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
-    for response_result in iter {
+    for response_result in socket
+        .recv::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(IterationBehavior::EndMultiOnDone)
+    {
         let response = response_result?;
 
         if let Some(p) = response.get_payload() {

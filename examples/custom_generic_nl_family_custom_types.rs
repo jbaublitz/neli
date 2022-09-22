@@ -17,6 +17,7 @@ use std::{iter::once, process};
 use neli::{
     consts::{nl::NlmF, socket::NlFamily},
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder},
+    iter::IterationBehavior,
     neli_enum,
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::NlSocketHandle,
@@ -133,8 +134,11 @@ fn main() {
     sock.send(nlmsghdr).expect("Send must work");
 
     // receive echo'ed message
-    let res: Nlmsghdr<u16, Genlmsghdr<NlFoobarXmplOperation, NlFoobarXmplAttribute>> =
-        sock.recv().expect("Should receive a message").unwrap();
+    let res: Nlmsghdr<u16, Genlmsghdr<NlFoobarXmplOperation, NlFoobarXmplAttribute>> = sock
+        .recv(IterationBehavior::EndMultiOnDone)
+        .next()
+        .expect("Should receive a message")
+        .unwrap();
 
     /* USELESS, just note: this is always the case. Otherwise neli would have returned Error
     if res.nl_type == family_id {

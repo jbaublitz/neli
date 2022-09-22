@@ -131,7 +131,7 @@ where
 }
 
 /// Top level netlink header and payload
-#[derive(Builder, Getters, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]

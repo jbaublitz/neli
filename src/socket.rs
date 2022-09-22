@@ -8,8 +8,6 @@
 //! * [`NlSocketHandle::send`] and [`NlSocketHandle::recv`] methods
 //! are meant to provide an interface that is more idiomatic for
 //! the library.
-//! * [`NlSocketHandle::iter`] provides a loop based iteration
-//! through messages that are received in a stream over the socket.
 //!
 //! ## Features
 //! The `async` feature exposed by `cargo` allows the socket to use
@@ -45,10 +43,9 @@ use crate::{
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
     iter::{IterationBehavior, NlMessageIter},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
-    parse::packet_length_u32,
     types::{GenlBuffer, NlBuffer},
     utils::{Groups, NetlinkBitArray},
-    FromBytes, FromBytesWithInput, ToBytes,
+    FromBytesWithInput, ToBytes,
 };
 
 /// Low level access to a netlink socket.
@@ -118,7 +115,7 @@ impl NlSocket {
     /// netlink IDs and groups.
     pub fn bind(&self, pid: Option<u32>, groups: Groups) -> Result<(), io::Error> {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
-        nladdr.nl_family = libc::c_int::from(AddrFamily::Netlink) as u16;
+        nladdr.nl_family = c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
         nladdr.nl_groups = groups.as_bitmask();
         match unsafe {
@@ -240,6 +237,9 @@ impl NlSocket {
             )
         } {
             i if i >= 0 => Ok(i as libc::size_t),
+            i if i == -libc::EWOULDBLOCK as isize => {
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
+            }
             _ => Err(io::Error::last_os_error()),
         }
     }
@@ -316,11 +316,9 @@ impl Drop for NlSocket {
 
 /// Higher level handle for socket operations.
 pub struct NlSocketHandle {
-    socket: NlSocket,
-    buffer: Vec<u8>,
-    position: usize,
-    end: usize,
-    pub(super) needs_ack: bool,
+    pub(crate) socket: NlSocket,
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) needs_ack: bool,
 }
 
 type GenlFamily = Result<
@@ -335,8 +333,6 @@ impl NlSocketHandle {
         Ok(NlSocketHandle {
             socket: NlSocket::new(proto)?,
             buffer: vec![0; MAX_NL_LENGTH],
-            position: 0,
-            end: 0,
             needs_ack: false,
         })
     }
@@ -346,8 +342,6 @@ impl NlSocketHandle {
         Ok(NlSocketHandle {
             socket: NlSocket::connect(proto, pid, groups)?,
             buffer: vec![0; MAX_NL_LENGTH],
-            position: 0,
-            end: 0,
             needs_ack: false,
         })
     }
@@ -422,7 +416,7 @@ impl NlSocketHandle {
         )?;
 
         let mut buffer = NlBuffer::new();
-        for msg in self.iter(false) {
+        for msg in self.recv(IterationBehavior::EndMultiOnDone) {
             buffer.push(msg?);
         }
         Ok(buffer)
@@ -510,7 +504,9 @@ impl NlSocketHandle {
             .build()?;
 
         self.send(nlhdr)?;
-        for res_msg in self.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(false) {
+        for res_msg in
+            self.recv::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(IterationBehavior::EndMultiOnDone)
+        {
             let msg = res_msg?;
 
             if let NlPayload::Payload(p) = msg.nl_payload() {
@@ -557,85 +553,29 @@ impl NlSocketHandle {
         Ok(())
     }
 
-    /// Convenience function to read a stream of
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs one by one.
-    /// Use [`NlSocketHandle::iter`] instead for easy iteration over
-    /// returned packets.
+    /// Convenience function to read a stream of [`Nlmsghdr`][crate::nl::Nlmsghdr]
+    /// structs one by one using an iterator.
     ///
-    /// Returns [`None`] only in non-blocking contexts if no
-    /// message can be immediately returned or if the socket
-    /// has been closed.
-    pub fn recv<'a, T, P>(&'a mut self) -> Result<Option<Nlmsghdr<T, P>>, NlError<T, P>>
+    /// Returns `Some(Err(_))` with an error containing
+    /// [`ErrorKind::WouldBlock`][std::io::ErrorKind] in non-blocking contexts if no
+    /// data could be read immediately.
+    ///
+    /// Returns [`None`] when either the socket has been closed or the stream of
+    /// messages has been completely processed in the case of
+    /// [`NlmF::MULTI`].
+    ///
+    /// See [`NlMessageIter`] for more detailed information.
+    pub fn recv<'a, T, P>(&'a mut self, behavior: IterationBehavior) -> NlMessageIter<'a, T, P>
     where
         T: NlType + Debug,
         P: FromBytesWithInput<'a, Input = usize> + Debug,
     {
-        if self.end == self.position {
-            // Read the buffer from the socket and fail if nothing
-            // was read.
-            let mem_read_res = self.socket.recv(&mut self.buffer, 0);
-            if let Err(ref e) = mem_read_res {
-                if e.kind() == io::ErrorKind::WouldBlock {
-                    return Ok(None);
-                }
-            }
-            let mem_read = mem_read_res?;
-            if mem_read == 0 {
-                return Ok(None);
-            }
-            self.position = 0;
-            self.end = mem_read;
-        }
-
-        let (packet_res, next_packet_len) = {
-            let end = self.buffer.len();
-            // Get the next packet length at the current position of the
-            // buffer for the next read operation.
-            if self.position == end {
-                return Ok(None);
-            }
-            let next_packet_len = packet_length_u32(&self.buffer, self.position);
-            // If the packet extends past the end of the number of bytes
-            // read into the buffer, return an error; something
-            // has gone wrong.
-            if self.position + next_packet_len > end {
-                return Err(NlError::new("Incomplete packet received from socket"));
-            }
-
-            // Deserialize the next Nlmsghdr struct.
-            let deserialized_packet_result = Nlmsghdr::<T, P>::from_bytes(&mut Cursor::new(
-                &self.buffer[self.position..self.position + next_packet_len],
-            ));
-
-            (deserialized_packet_result, next_packet_len)
-        };
-
-        let mut packet = match packet_res {
-            Ok(packet) => {
-                // If successful, forward the position of the buffer
-                // for the next read.
-                self.position += next_packet_len;
-
-                packet
-            }
-            Err(e) => return Err(NlError::De(e)),
-        };
-
-        debug!("Message received: {:?}", packet);
-
-        if let NlPayload::Ack(_) = packet.nl_payload() {
-            if self.needs_ack {
-                self.needs_ack = false;
-            } else {
-                return Err(NlError::new(
-                    "Socket did not expect an ACK but one was received",
-                ));
-            }
-        } else if let Some(e) = packet.get_err() {
-            return Err(NlError::from(e));
-        }
-
-        Ok(Some(packet))
+        NlMessageIter::new(
+            &mut self.needs_ack,
+            &self.socket,
+            &mut self.buffer,
+            behavior,
+        )
     }
 
     /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
@@ -646,46 +586,25 @@ impl NlSocketHandle {
     /// this method will discard any non-error
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
     /// error. This method checks for ACKs. For a more granular
-    /// approach, use either [`NlSocketHandle::recv`] or
-    /// [`NlSocketHandle::iter`].
+    /// approach, use either [`NlSocketHandle::recv`].
     pub fn recv_all<'a, T, P>(&'a mut self) -> Result<NlBuffer<T, P>, NlError>
     where
         T: NlType + Debug,
         P: FromBytesWithInput<'a, Input = usize> + Debug,
     {
-        if self.position == self.end {
-            let mem_read = self.socket.recv(&mut self.buffer, 0)?;
-            if mem_read == 0 {
-                return Err(NlError::new("No data could be read from the socket"));
-            }
-            self.end = mem_read;
+        self.needs_ack = false;
+
+        let mem_read = self.socket.recv(&mut self.buffer, 0)?;
+        if mem_read == 0 {
+            return Ok(NlBuffer::new());
         }
 
         let vec =
-            NlBuffer::from_bytes_with_input(&mut Cursor::new(&self.buffer[0..self.end]), self.end)?;
+            NlBuffer::from_bytes_with_input(&mut Cursor::new(&self.buffer[0..mem_read]), mem_read)?;
 
         debug!("Messages received: {:?}", vec);
 
-        self.position = 0;
-        self.end = 0;
         Ok(vec)
-    }
-
-    /// Return an iterator object
-    ///
-    /// The argument `iterate_indefinitely` is documented
-    /// in more detail in [`NlMessageIter`]
-    pub fn iter<'a, T, P>(&'a mut self, iter_indefinitely: bool) -> NlMessageIter<'a, T, P>
-    where
-        T: NlType + Debug,
-        P: FromBytesWithInput<'a, Input = usize> + Debug,
-    {
-        let behavior = if iter_indefinitely {
-            IterationBehavior::IterIndefinitely
-        } else {
-            IterationBehavior::EndMultiOnDone
-        };
-        NlMessageIter::new(self, behavior)
     }
 
     /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]
@@ -712,8 +631,6 @@ impl FromRawFd for NlSocketHandle {
         NlSocketHandle {
             socket: NlSocket::from_raw_fd(fd),
             buffer: vec![0; MAX_NL_LENGTH],
-            end: 0,
-            position: 0,
             needs_ack: false,
         }
     }
@@ -864,112 +781,7 @@ pub mod tokio {
 mod test {
     use super::*;
 
-    use crate::{consts::nl::Nlmsg, test::setup};
-
-    #[test]
-    fn multi_msg_iter() {
-        setup();
-
-        let attrs = vec![
-            NlattrBuilder::default()
-                .nla_type(
-                    AttrTypeBuilder::default()
-                        .nla_type(CtrlAttr::FamilyId)
-                        .build()
-                        .unwrap(),
-                )
-                .nla_payload(5u32)
-                .build()
-                .unwrap(),
-            NlattrBuilder::default()
-                .nla_type(
-                    AttrTypeBuilder::default()
-                        .nla_type(CtrlAttr::FamilyName)
-                        .build()
-                        .unwrap(),
-                )
-                .nla_payload("my_family_name")
-                .build()
-                .unwrap(),
-        ]
-        .into_iter()
-        .collect::<GenlBuffer<_, _>>();
-        let nl1 = NlmsghdrBuilder::default()
-            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
-            .nl_flags(NlmF::MULTI)
-            .nl_payload(NlPayload::Payload(
-                GenlmsghdrBuilder::default()
-                    .cmd(CtrlCmd::Unspec)
-                    .version(2)
-                    .attrs(attrs)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap();
-
-        let attrs = vec![
-            NlattrBuilder::default()
-                .nla_type(
-                    AttrTypeBuilder::default()
-                        .nla_type(CtrlAttr::FamilyId)
-                        .build()
-                        .unwrap(),
-                )
-                .nla_payload(6u32)
-                .build()
-                .unwrap(),
-            NlattrBuilder::default()
-                .nla_type(
-                    AttrTypeBuilder::default()
-                        .nla_type(CtrlAttr::FamilyName)
-                        .build()
-                        .unwrap(),
-                )
-                .nla_payload("my_other_family_name")
-                .build()
-                .unwrap(),
-        ]
-        .into_iter()
-        .collect::<GenlBuffer<_, _>>();
-        let nl2 = NlmsghdrBuilder::default()
-            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
-            .nl_flags(NlmF::MULTI)
-            .nl_payload(NlPayload::Payload(
-                GenlmsghdrBuilder::default()
-                    .cmd(CtrlCmd::Unspec)
-                    .version(2)
-                    .attrs(attrs)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap();
-        let mut v = NlBuffer::new();
-        v.push(nl1);
-        v.push(nl2);
-        let mut buffer = Cursor::new(Vec::new());
-        let bytes = {
-            v.to_bytes(&mut buffer).unwrap();
-            buffer.into_inner()
-        };
-
-        let bytes_len = bytes.len();
-        let mut s = NlSocketHandle {
-            socket: unsafe { NlSocket::from_raw_fd(-1) },
-            buffer: bytes,
-            needs_ack: false,
-            position: 0,
-            end: bytes_len,
-        };
-        let nl = s
-            .iter::<NlTypeWrapper, Genlmsghdr<_, _>>(false)
-            .take(2)
-            .map(|req| req.unwrap())
-            .collect::<NlBuffer<_, _>>();
-
-        assert_eq!(nl, v);
-    }
+    use crate::{test::setup, types::Buffer};
 
     #[test]
     fn real_test_mcast_groups() {
@@ -1022,5 +834,21 @@ mod test {
 
         let s = NlSocket::connect(NlFamily::Generic, Some(5555), Groups::empty()).unwrap();
         assert_eq!(s.pid().unwrap(), 5555);
+    }
+
+    #[test]
+    fn real_test_nonblocking() {
+        setup();
+
+        let mut s = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        s.nonblock().unwrap();
+        let err = match s
+            .recv::<u16, Buffer>(IterationBehavior::EndMultiOnDone)
+            .next()
+        {
+            Some(Err(e)) => e,
+            _ => panic!("Unexpected response received"),
+        };
+        assert!(err.is_would_block());
     }
 }
