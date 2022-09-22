@@ -77,13 +77,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     sock.send(req)?;
-    let data: Result<Option<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>>, _> =
-        sock.recv();
+    let data: Option<Result<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>, _>> =
+        sock.recv(neli::iter::IterationBehavior::EndMultiOnDone)
+            .next();
     match data {
-        Ok(msgs) => {
+        Some(Ok(msgs)) => {
             println!("msgs: {:?}", msgs);
         }
-        Err(NlError::Nlmsgerr(e)) => {
+        Some(Err(NlError::Nlmsgerr(e))) => {
             println!("msg err: {:?}", e);
             println!(
                 "unix error: {:?}",
@@ -110,8 +111,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Err(e) => {
+        Some(Err(e)) => {
             println!("err: {:#?}", e);
+        }
+        None => {
+            println!("No messages received");
         }
     }
     Ok(())

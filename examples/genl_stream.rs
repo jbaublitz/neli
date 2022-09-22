@@ -1,5 +1,7 @@
 use std::{env, error::Error};
 
+#[cfg(not(feature = "async"))]
+use neli::iter::IterationBehavior;
 #[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{
@@ -64,7 +66,8 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
     let mut s = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.add_mcast_membership(Groups::new_groups(&[id]))?;
-    for next in s.iter::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(true) {
+    for next in s.recv::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(IterationBehavior::IterIndefinitely)
+    {
         println!("{:?}", next?);
     }
     Ok(())

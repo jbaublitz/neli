@@ -58,6 +58,7 @@
 //!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
 //!     genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr},
+//!     iter::IterationBehavior,
 //!     nl::{NlmsghdrBuilder, NlPayload},
 //!     socket::NlSocketHandle,
 //!     types::{Buffer, GenlBuffer},
@@ -86,13 +87,20 @@
 //!     socket.send(nlhdr)?;
 //!     
 //!     // Do things with multi-message response to request...
-//!     let mut iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
+//!     let mut iter = socket.recv::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(
+//!         IterationBehavior::EndMultiOnDone
+//!     );
 //!     while let Some(Ok(response)) = iter.next() {
 //!         // Do things with response here...
 //!     }
 //!     
 //!     // Or get single message back...
-//!     let msg = socket.recv::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>()?;
+//!     let msg = socket.recv::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>(
+//!         IterationBehavior::EndMultiOnDone
+//!     )
+//!     .next()
+//!     .ok_or_else(|| NlError::new("No message received"))
+//!     .and_then(|res| res)?;
 //!
 //!     Ok(())
 //! }
@@ -107,6 +115,7 @@
 //!     consts::{genl::*, nl::*, socket::*},
 //!     err::NlError,
 //!     genl::Genlmsghdr,
+//!     iter::IterationBehavior,
 //!     socket,
 //!     utils::Groups,
 //! };
@@ -122,7 +131,9 @@
 //!         "my_multicast_group_name",
 //!     )?;
 //!     s.add_mcast_membership(Groups::new_groups(&[id]))?;
-//!     for next in s.iter::<NlTypeWrapper, Genlmsghdr<u8, u16>>(true) {
+//!     for next in s.recv::<NlTypeWrapper, Genlmsghdr<u8, u16>>(
+//!         IterationBehavior::IterIndefinitely
+//!     ) {
 //!         // Do stuff here with parsed packets...
 //!     
 //!         // like printing a debug representation of them:
@@ -149,7 +160,6 @@ pub mod err;
 pub mod genl;
 pub mod iter;
 pub mod nl;
-mod parse;
 pub mod rtnl;
 pub mod socket;
 pub mod types;

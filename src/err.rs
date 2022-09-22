@@ -218,6 +218,8 @@ pub enum BuilderError {
     Rtattr(RtattrBuilderError),
 }
 
+impl Error for BuilderError {}
+
 impl Display for BuilderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -342,6 +344,10 @@ pub enum NlError<T = u16, P = Buffer> {
     /// [`NlmF::Ack`][crate::consts::nl::NlmF] was specified in the
     /// request.
     NoAck,
+    /// An ack was received when
+    /// [`NlmF::Ack`][crate::consts::nl::NlmF] was not specified in the
+    /// request.
+    UnexpectedAck,
     /// The sequence number for the response did not match the
     /// request.
     BadSeq,
@@ -402,6 +408,16 @@ impl<T, P> NlError<T, P> {
     {
         NlError::Msg(s.to_string())
     }
+
+    /// Returns `true` if the error returned is caused by
+    pub fn is_would_block(&self) -> bool {
+        match self {
+            NlError::IO(e) | NlError::Ser(SerError::IO(e)) | NlError::De(DeError::IO(e)) => {
+                e.kind() == io::ErrorKind::WouldBlock
+            }
+            _ => false,
+        }
+    }
 }
 
 impl<T, P> Display for NlError<T, P>
@@ -427,7 +443,8 @@ where
             NlError::Builder(ref err) => {
                 write!(f, "Builder error: {}", err)
             }
-            NlError::NoAck => write!(f, "No ack received"),
+            NlError::NoAck => write!(f, "No ACK received"),
+            NlError::UnexpectedAck => write!(f, "ACK received when none was expected"),
             NlError::BadSeq => write!(f, "Sequence number does not match the request"),
             NlError::BadPid => write!(f, "PID does not match the socket"),
         }
