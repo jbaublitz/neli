@@ -1,13 +1,13 @@
 //! Module for iteration over netlink responses
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, io::Cursor, marker::PhantomData};
 
 use crate::{
     consts::nl::{NlType, NlmF, Nlmsg},
     err::NlError,
     nl::{NlPayload, Nlmsghdr},
-    socket::NlSocketHandle,
-    FromBytesWithInput,
+    socket::NlSocket,
+    FromBytes, FromBytesWithInput,
 };
 
 /// Define iteration behavior when traversing a stream of netlink
@@ -39,10 +39,12 @@ pub enum IterationBehavior {
 /// received at which point [`None`] will be returned indicating the
 /// end of the response.
 pub struct NlMessageIter<'a, T, P> {
-    sock_ref: &'a mut NlSocketHandle,
+    needs_ack: &'a mut bool,
+    socket: &'a NlSocket,
+    buffer: &'a mut Vec<u8>,
     next_is_none: Option<bool>,
-    type_: PhantomData<T>,
-    payload: PhantomData<P>,
+    cur_info: Option<(u64, usize)>,
+    phantom: PhantomData<(T, P)>,
 }
 
 impl<'a, T, P> NlMessageIter<'a, T, P>
@@ -69,41 +71,77 @@ where
     /// a terminating message with
     /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is reached
     /// at which point [`None`] will be returned by the iterator.
-    pub fn new(sock_ref: &'a mut NlSocketHandle, behavior: IterationBehavior) -> Self {
+    pub fn new(
+        needs_ack: &'a mut bool,
+        socket: &'a NlSocket,
+        buffer: &'a mut Vec<u8>,
+        behavior: IterationBehavior,
+    ) -> Self {
         NlMessageIter {
-            sock_ref,
+            needs_ack,
+            socket,
+            buffer,
             next_is_none: if behavior == IterationBehavior::IterIndefinitely {
                 None
             } else {
                 Some(false)
             },
-            type_: PhantomData,
-            payload: PhantomData,
+            cur_info: None,
+            phantom: PhantomData,
         }
     }
 
     fn next<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError<TT, PP>>>
     where
-        TT: NlType + Debug,
+        TT: NlType + Debug + Copy + Into<u16>,
         PP: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
-        for<'b> u16: From<&'b TT>,
     {
         if let Some(true) = self.next_is_none {
             return None;
         }
 
-        let next_res = self.sock_ref.recv::<TT, PP>();
-        let next = match next_res {
-            Ok(Some(n)) => n,
-            Ok(None) => return None,
-            Err(e) => return Some(Err(e)),
+        let mut cursor = match self.cur_info {
+            None => {
+                let read = match self.socket.recv(&mut *self.buffer, 0) {
+                    Ok(r) => r,
+                    Err(e) => return Some(Err(NlError::from(e))),
+                };
+                Cursor::new(&self.buffer[..read])
+            }
+            Some((pos, len)) => {
+                let mut cur = Cursor::new(&self.buffer[..len]);
+                cur.set_position(pos);
+                cur
+            }
         };
 
-        let nl_type: u16 = next.nl_type().into();
+        let nlmsghdr_res = Nlmsghdr::<TT, PP>::from_bytes(&mut cursor);
+
+        let pos = cursor.position();
+        let len = cursor.get_ref().len();
+        if pos == len as u64 {
+            self.cur_info = None;
+        } else {
+            self.cur_info = Some((pos, len));
+        }
+
+        let mut next = match nlmsghdr_res {
+            Ok(n) => n,
+            Err(e) => return Some(Err(NlError::from(e))),
+        };
+
+        let nl_type: u16 = (*next.nl_type()).into();
         if let NlPayload::Ack(_) = next.nl_payload() {
             self.next_is_none = self.next_is_none.map(|_| true);
+            if *self.needs_ack {
+                *self.needs_ack = false;
+            } else {
+                return Some(Err(NlError::UnexpectedAck));
+            }
+        } else if let Some(e) = next.get_err() {
+            return Some(Err(NlError::Nlmsgerr(e)));
         } else if (!next.nl_flags().contains(NlmF::MULTI) || nl_type == Nlmsg::Done.into())
-            && !self.sock_ref.needs_ack
+            && !*self.needs_ack
         {
             self.next_is_none = self.next_is_none.map(|_| true);
         }
@@ -116,11 +154,139 @@ impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
 where
     T: NlType + Debug,
     P: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
-    for<'b> u16: From<&'b T>,
 {
     type Item = Result<Nlmsghdr<T, P>, NlError<T, P>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         NlMessageIter::next::<T, P>(self)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use std::os::unix::io::FromRawFd;
+
+    use crate::{
+        consts::{
+            genl::{CtrlAttr, CtrlCmd},
+            nl::{NlTypeWrapper, NlmF, Nlmsg},
+        },
+        genl::{AttrTypeBuilder, GenlmsghdrBuilder, NlattrBuilder},
+        nl::{NlPayload, NlmsghdrBuilder},
+        test::setup,
+        types::{GenlBuffer, NlBuffer},
+        ToBytes,
+    };
+
+    #[test]
+    fn multi_msg_iter() {
+        setup();
+
+        let attrs = vec![
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyId)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload(5u32)
+                .build()
+                .unwrap(),
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyName)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload("my_family_name")
+                .build()
+                .unwrap(),
+        ]
+        .into_iter()
+        .collect::<GenlBuffer<_, _>>();
+        let nl1 = NlmsghdrBuilder::default()
+            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
+            .nl_flags(NlmF::MULTI)
+            .nl_payload(NlPayload::Payload(
+                GenlmsghdrBuilder::default()
+                    .cmd(CtrlCmd::Unspec)
+                    .version(2)
+                    .attrs(attrs)
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap();
+
+        let nl2 = NlmsghdrBuilder::default()
+            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Done))
+            .nl_flags(NlmF::MULTI)
+            .nl_payload(NlPayload::Empty)
+            .build()
+            .unwrap();
+
+        let attrs = vec![
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyId)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload(6u32)
+                .build()
+                .unwrap(),
+            NlattrBuilder::default()
+                .nla_type(
+                    AttrTypeBuilder::default()
+                        .nla_type(CtrlAttr::FamilyName)
+                        .build()
+                        .unwrap(),
+                )
+                .nla_payload("my_other_family_name")
+                .build()
+                .unwrap(),
+        ]
+        .into_iter()
+        .collect::<GenlBuffer<_, _>>();
+        let nl3 = NlmsghdrBuilder::default()
+            .nl_type(NlTypeWrapper::Nlmsg(Nlmsg::Noop))
+            .nl_flags(NlmF::MULTI)
+            .nl_payload(NlPayload::Payload(
+                GenlmsghdrBuilder::default()
+                    .cmd(CtrlCmd::Unspec)
+                    .version(2)
+                    .attrs(attrs)
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap();
+        let v = vec![nl1.clone(), nl2.clone(), nl3]
+            .into_iter()
+            .collect::<NlBuffer<_, _>>();
+        let mut buffer = Cursor::new(Vec::new());
+        let mut bytes = {
+            v.to_bytes(&mut buffer).unwrap();
+            buffer.into_inner()
+        };
+
+        let mut needs_ack = false;
+        let socket = unsafe { NlSocket::from_raw_fd(-1) };
+        let len = bytes.len();
+        let mut iter = NlMessageIter::new(
+            &mut needs_ack,
+            &socket,
+            &mut bytes,
+            IterationBehavior::EndMultiOnDone,
+        );
+        iter.cur_info = Some((0, len));
+        let nl = iter.map(|req| req.unwrap()).collect::<NlBuffer<_, _>>();
+
+        assert_eq!(nl, vec![nl1, nl2].into_iter().collect::<NlBuffer<_, _>>());
     }
 }

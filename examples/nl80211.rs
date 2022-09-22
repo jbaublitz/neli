@@ -1,5 +1,7 @@
 use std::error::Error;
 
+#[cfg(not(feature = "async"))]
+use neli::iter::IterationBehavior;
 #[cfg(feature = "async")]
 use neli::socket::tokio::NlSocket;
 use neli::{
@@ -97,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     sock.send(req)?;
 
-    for msg in sock.iter(false) {
+    for msg in sock.recv(IterationBehavior::EndMultiOnDone) {
         let msg = msg?;
         handle(msg);
     }
