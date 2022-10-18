@@ -161,8 +161,8 @@ where
 {
     fn from(v: AttrType<T>) -> Self {
         let mut int: u16 = v.nla_type.into();
-        int |= (if v.nla_nested { 1 } else { 0 }) << 15;
-        int |= (if v.nla_network_order { 1 } else { 0 }) << 14;
+        int |= u16::from(v.nla_nested) << 15;
+        int |= u16::from(v.nla_network_order) << 14;
         int
     }
 }
@@ -173,8 +173,8 @@ where
 {
     fn from(v: &'a AttrType<T>) -> Self {
         let mut int: u16 = v.nla_type.into();
-        int |= (if v.nla_nested { 1 } else { 0 }) << 15;
-        int |= (if v.nla_network_order { 1 } else { 0 }) << 14;
+        int |= u16::from(v.nla_nested) << 15;
+        int |= u16::from(v.nla_network_order) << 14;
         int
     }
 }
