@@ -40,7 +40,7 @@ impl NetlinkBitArray {
     }
 
     /// Resize the underlying vector to have enough space for
-    /// the nearest multiple of [`size_of::<
+    /// the nearest multiple of [`size_of::<BitArrayType>()`][std::mem::size_of].
     pub fn resize(&mut self, bytes: usize) {
         let byte_round = size_of::<BitArrayType>() - 1;
         self.0.resize(

@@ -164,7 +164,7 @@ impl NlSocket {
                     libc::SOL_NETLINK,
                     libc::NETLINK_DROP_MEMBERSHIP,
                     group as *const _ as *const libc::c_void,
-                    (groups.len() * size_of::<u32>()) as libc::socklen_t,
+                    size_of::<u32>() as libc::socklen_t,
                 )
             } {
                 i if i == 0 => (),
