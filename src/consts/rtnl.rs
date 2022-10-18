@@ -123,15 +123,15 @@ pub enum Nud {
 /// Arp neighbor cache entry flags
 #[neli_enum(serialized_type = "u8")]
 pub enum Ntf {
-    Use = libc::NTF_USE as u8,
-    Self_ = libc::NTF_SELF as u8,
-    Master = libc::NTF_MASTER as u8,
-    Proxy = libc::NTF_PROXY as u8,
+    Use = libc::NTF_USE,
+    Self_ = libc::NTF_SELF,
+    Master = libc::NTF_MASTER,
+    Proxy = libc::NTF_PROXY,
     #[cfg(target_env = "gnu")]
-    ExtLearned = libc::NTF_EXT_LEARNED as u8,
+    ExtLearned = libc::NTF_EXT_LEARNED,
     #[cfg(target_env = "gnu")]
-    Offloaded = libc::NTF_OFFLOADED as u8,
-    Router = libc::NTF_ROUTER as u8,
+    Offloaded = libc::NTF_OFFLOADED,
+    Router = libc::NTF_ROUTER,
 }
 
 impl_trait!(
