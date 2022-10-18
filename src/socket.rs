@@ -268,7 +268,7 @@ impl NlSocket {
                 self.fd,
                 libc::SOL_NETLINK,
                 libc::NETLINK_EXT_ACK,
-                &if enable { 1 } else { 0 } as *const _ as *const libc::c_void,
+                &i32::from(enable) as *const _ as *const libc::c_void,
                 size_of::<u32>() as libc::socklen_t,
             )
         } {
