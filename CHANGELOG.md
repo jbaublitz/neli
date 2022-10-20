@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3
+### Bug fixes
+* Fixed memory bug in `NlSocket::drop_mcast_membership()` unsafe code found using
+valgrind
+
+### Clean up
+* CI and clippy maintenance
+
 ## 0.6.2
 ### Enhancements
 * Added support for option user header in netlink protocol for generic netlink 
