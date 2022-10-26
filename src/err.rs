@@ -76,7 +76,7 @@ pub struct Nlmsgerr<T, P> {
 
 impl<T, P> Display for Nlmsgerr<T, P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", io::Error::from_raw_os_error(self.error))
+        write!(f, "{}", io::Error::from_raw_os_error(-self.error))
     }
 }
 
