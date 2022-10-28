@@ -327,8 +327,10 @@ pub enum Arphrd {
     Eui64 = libc::ARPHRD_EUI64,
     Infiniband = libc::ARPHRD_INFINIBAND,
 
+    Tunnel = libc::ARPHRD_TUNNEL,
+    Tunnel6 = libc::ARPHRD_TUNNEL6,
     Loopback = libc::ARPHRD_LOOPBACK,
-
+    
     // Possibly more types here - need to look into ARP more
     Void = libc::ARPHRD_VOID,
     None = libc::ARPHRD_NONE,
