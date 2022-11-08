@@ -63,10 +63,50 @@ pub enum Rtn {
 #[neli_enum(serialized_type = "libc::c_uchar")]
 pub enum Rtprot {
     Unspec = libc::RTPROT_UNSPEC,
+    /// Route installed by ICMP redirects
     Redirect = libc::RTPROT_REDIRECT,
+    /// Route installed by kernel
     Kernel = libc::RTPROT_KERNEL,
+    /// Route installed during boot
     Boot = libc::RTPROT_BOOT,
+    /// Route installed by administrator
     Static = libc::RTPROT_STATIC,
+    /// Apparently, GateD
+    Gated = libc::RTPROT_GATED,
+    /// RDISC/ND router advertisements
+    Ra = libc::RTPROT_RA,
+    /// Merit MRT
+    Meritmrt = libc::RTPROT_MRT,
+    /// Zebra
+    Zebra = libc::RTPROT_ZEBRA,
+    /// BIRD
+    Bird = libc::RTPROT_BIRD,
+    /// DECnet routing daemon
+    Dnrouted = libc::RTPROT_DNROUTED,
+    /// XORP
+    Xorp = libc::RTPROT_XORP,
+    /// Netsukuku
+    Netsukuku = libc::RTPROT_NTK,
+    /// DHCP client
+    Dhcp = libc::RTPROT_DHCP,
+    /// Multicast daemon
+    Mrouted = libc::RTPROT_MROUTED,
+    /// Keepalived daemon
+    Keepalived = libc::RTPROT_KEEPALIVED,
+    /// Babel daemon
+    Babel = libc::RTPROT_BABEL,
+    /// Open Routing (Open/R) Routes
+    Openr = libc::RTPROT_OPENR,
+    /// BGP Routes
+    Bgp = libc::RTPROT_BGP,
+    /// ISIS Routes
+    Isis = libc::RTPROT_ISIS,
+    /// OSPF Routes
+    Ospf = libc::RTPROT_OSPF,
+    /// RIP Routes
+    Rip = libc::RTPROT_RIP,
+    /// EIGRP Routes
+    Eigrp = libc::RTPROT_EIGRP,
 }
 
 /// `rtm_scope`
@@ -269,23 +309,18 @@ pub enum Rta {
     Table = libc::RTA_TABLE,
     Mark = libc::RTA_MARK,
     MfcStats = libc::RTA_MFC_STATS,
-    #[cfg(target_env = "gnu")]
     Via = libc::RTA_VIA,
-    #[cfg(target_env = "gnu")]
     Newdst = libc::RTA_NEWDST,
-    #[cfg(target_env = "gnu")]
     Pref = libc::RTA_PREF,
-    #[cfg(target_env = "gnu")]
     EncapType = libc::RTA_ENCAP_TYPE,
-    #[cfg(target_env = "gnu")]
     Encap = libc::RTA_ENCAP,
-    #[cfg(target_env = "gnu")]
     Expires = libc::RTA_EXPIRES,
-    #[cfg(target_env = "gnu")]
     Pad = libc::RTA_PAD,
-    #[cfg(target_env = "gnu")]
     Uid = libc::RTA_UID,
-    #[cfg(target_env = "gnu")]
+    Ipproto = libc::RTA_IP_PROTO,
+    Sport = libc::RTA_SPORT,
+    Dport = libc::RTA_DPORT,
+    Nhid = libc::RTA_NH_ID,
     TtlPropagate = libc::RTA_TTL_PROPAGATE,
 }
 
