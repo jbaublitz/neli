@@ -303,10 +303,12 @@ impl_nl_int!(u8, read_u8, write_u8);
 impl_nl_int!(u16, read_u16, write_u16, NativeEndian);
 impl_nl_int!(u32, read_u32, write_u32, NativeEndian);
 impl_nl_int!(u64, read_u64, write_u64, NativeEndian);
+impl_nl_int!(u128, read_u128, write_u128, NativeEndian);
 impl_nl_int!(i8, read_i8, write_i8);
 impl_nl_int!(i16, read_i16, write_i16, NativeEndian);
 impl_nl_int!(i32, read_i32, write_i32, NativeEndian);
 impl_nl_int!(i64, read_i64, write_i64, NativeEndian);
+impl_nl_int!(i128, read_i128, write_i128, NativeEndian);
 impl_nl_int!(f32, read_f32, write_f32, NativeEndian);
 impl_nl_int!(f64, read_f64, write_f64, NativeEndian);
 
@@ -616,6 +618,19 @@ mod test {
 
         let de = u64::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
         assert_eq!(de, 12_345_678_901_234);
+    }
+
+    #[test]
+    fn test_nl_u128() {
+        setup();
+
+        let v = 123_456_789_012_345_678_901_234_567_890_123_456_789u128;
+        let desired_buffer = v.to_ne_bytes();
+        let ser_buffer = serialize(&v).unwrap();
+        assert_eq!(ser_buffer.as_slice(), &desired_buffer);
+
+        let de = u128::from_bytes(&mut Cursor::new(&v.to_ne_bytes() as &[u8])).unwrap();
+        assert_eq!(de, 123_456_789_012_345_678_901_234_567_890_123_456_789);
     }
 
     #[test]

@@ -21,7 +21,7 @@ name = "neli"
 path = "src/lib.rs"
 
 [dependencies]
-byteorder = "1.2"
+byteorder = "1.3"
 libc = "0.2.82"
 log = "0.4"
 
