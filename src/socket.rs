@@ -224,7 +224,7 @@ impl NlSocket {
     }
 
     /// Receive message encoded as byte slice from the netlink socket.
-    pub fn recv<B>(&self, mut buf: B, flags: i32) -> Result<libc::size_t, io::Error>
+    pub fn recv<B>(&self, mut buf: B, flags: Msg) -> Result<libc::size_t, io::Error>
     where
         B: AsMut<[u8]>,
     {
@@ -233,7 +233,7 @@ impl NlSocket {
                 self.fd,
                 buf.as_mut() as *mut _ as *mut c_void,
                 buf.as_mut().len(),
-                flags,
+                flags.bits() as i32,
             )
         } {
             i if i >= 0 => Ok(i as libc::size_t),
@@ -594,7 +594,7 @@ impl NlSocketHandle {
     {
         self.needs_ack = false;
 
-        let mem_read = self.socket.recv(&mut self.buffer, 0)?;
+        let mem_read = self.socket.recv(&mut self.buffer, Msg::empty())?;
         if mem_read == 0 {
             return Ok(NlBuffer::new());
         }
@@ -671,7 +671,7 @@ pub mod tokio {
         loop {
             let mut guard = ready!(async_fd.poll_read_ready(cx))?;
             match guard.try_io(|fd| {
-                let bytes_read = fd.get_ref().recv(buf.initialized_mut(), 0)?;
+                let bytes_read = fd.get_ref().recv(buf.initialized_mut(), Msg::empty())?;
                 buf.advance(bytes_read);
                 Ok(bytes_read)
             }) {
