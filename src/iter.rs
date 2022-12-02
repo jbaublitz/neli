@@ -3,7 +3,10 @@
 use std::{fmt::Debug, io::Cursor, marker::PhantomData};
 
 use crate::{
-    consts::nl::{NlType, NlmF, Nlmsg},
+    consts::{
+        nl::{NlType, NlmF, Nlmsg},
+        socket::Msg,
+    },
     err::NlError,
     nl::{NlPayload, Nlmsghdr},
     socket::NlSocket,
@@ -102,7 +105,7 @@ where
 
         let mut cursor = match self.cur_info {
             None => {
-                let read = match self.socket.recv(&mut *self.buffer, 0) {
+                let read = match self.socket.recv(&mut *self.buffer, Msg::empty()) {
                     Ok(r) => r,
                     Err(e) => return Some(Err(NlError::from(e))),
                 };
