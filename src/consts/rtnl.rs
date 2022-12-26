@@ -134,6 +134,25 @@ pub enum Ntf {
     Router = libc::NTF_ROUTER,
 }
 
+#[neli_enum(serialized_type = "u8")]
+pub enum LinkMode {
+    Default = libc::IF_LINK_MODE_DEFAULT,
+    Dormant = libc::IF_LINK_MODE_DORMANT,
+    Testing = libc::IF_LINK_MODE_TESTING,
+}
+
+/// Operational Status (RFC 2863)
+#[neli_enum(serialized_type = "u8")]
+pub enum OperState {
+    Unknown = libc::IF_OPER_UNKNOWN,
+    NotPresent = libc::IF_OPER_NOTPRESENT,
+    Down = libc::IF_OPER_DOWN,
+    LowerLayerDown = libc::IF_OPER_LOWERLAYERDOWN,
+    Testing = libc::IF_OPER_TESTING,
+    Dormant = libc::IF_OPER_DORMANT,
+    Up = libc::IF_OPER_UP,
+}
+
 impl_trait!(
     /// Marker trait for [`Rtattr`][crate::rtnl::Rtattr] field,
     /// `rta_type`.
