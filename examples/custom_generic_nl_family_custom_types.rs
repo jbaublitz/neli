@@ -12,15 +12,14 @@
 //! Received from kernel: 'Some data that has `Nl` trait implemented, like &str'
 //! ```
 
-use std::{iter::once, process};
+use std::iter::once;
 
 use neli::{
     consts::{nl::NlmF, socket::NlFamily},
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder},
-    iter::IterationBehavior,
     neli_enum,
-    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
-    socket::NlSocketHandle,
+    nl::{NlPayload, Nlmsghdr},
+    router::synchronous::NlRouter,
     types::GenlBuffer,
     utils::Groups,
 };
@@ -56,7 +55,7 @@ pub enum NlFoobarXmplAttribute {
 impl neli::consts::genl::NlAttrType for NlFoobarXmplAttribute {}
 
 fn main() {
-    let mut sock = NlSocketHandle::connect(
+    let (sock, _) = NlRouter::connect(
         NlFamily::Generic,
         // 0 is pid of kernel -> socket is connected to kernel
         Some(0),
@@ -108,37 +107,28 @@ fn main() {
         .attrs(attrs)
         .build()
         .unwrap();
-    // 3) Prepare Netlink header. The Netlink header contains the Generic Netlink header
-    //    as payload.
-    let nlmsghdr = NlmsghdrBuilder::default()
-        .nl_type(family_id)
-        // You can use flags in an application specific way (e.g. ACK flag). It is up to you
-        // if you check against flags in your Kernel module. It is required to add NLM_F_REQUEST,
-        // otherwise the Kernel doesn't route the packet to the right Netlink callback handler
-        // in your Kernel module. This might result in a deadlock on the socket if an expected
-        // reply you are waiting for in a blocking way is never received.
-        // Kernel reference: https://elixir.bootlin.com/linux/v5.10.16/source/net/netlink/af_netlink.c#L2487
-        .nl_flags(NlmF::REQUEST)
-        // Port ID. Not necessarily the process id of the current process. This field
-        // could be used to identify different points or threads inside your application
-        // that send data to the kernel. This has nothing to do with "routing" the packet to
-        // the kernel, because this is done by the socket itself
-        .nl_pid(process::id())
-        .nl_payload(NlPayload::Payload(gnmsghdr))
-        .build()
-        .unwrap();
-
     println!("Send to kernel: '{}'", ECHO_MSG);
 
     // Send data
-    sock.send(nlmsghdr).expect("Send must work");
+    let mut recv = sock
+        .send::<_, _, u16, Genlmsghdr<NlFoobarXmplOperation, NlFoobarXmplAttribute>>(
+            family_id,
+            // You can use flags in an application specific way (e.g. ACK flag). It is up to you
+            // if you check against flags in your Kernel module. It is required to add NLM_F_REQUEST,
+            // otherwise the Kernel doesn't route the packet to the right Netlink callback handler
+            // in your Kernel module. This might result in a deadlock on the socket if an expected
+            // reply you are waiting for in a blocking way is never received.
+            // Kernel reference: https://elixir.bootlin.com/linux/v5.10.16/source/net/netlink/af_netlink.c#L2487
+            //
+            // NlRouter automatically adds the REQUEST flag.
+            NlmF::empty(),
+            NlPayload::Payload(gnmsghdr),
+        )
+        .expect("Send must work");
 
     // receive echo'ed message
-    let res: Nlmsghdr<u16, Genlmsghdr<NlFoobarXmplOperation, NlFoobarXmplAttribute>> = sock
-        .recv(IterationBehavior::EndMultiOnDone)
-        .next()
-        .expect("Should receive a message")
-        .unwrap();
+    let res: Nlmsghdr<u16, Genlmsghdr<NlFoobarXmplOperation, NlFoobarXmplAttribute>> =
+        recv.next().expect("Should receive a message").unwrap();
 
     /* USELESS, just note: this is always the case. Otherwise neli would have returned Error
     if res.nl_type == family_id {

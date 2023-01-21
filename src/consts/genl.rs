@@ -97,8 +97,8 @@ impl ToBytes for Index {
     }
 }
 
-impl<'lt> FromBytes<'lt> for Index {
-    fn from_bytes(buffer: &mut Cursor<&'lt [u8]>) -> Result<Self, DeError> {
+impl FromBytes for Index {
+    fn from_bytes(buffer: &mut Cursor<impl AsRef<[u8]>>) -> Result<Self, DeError> {
         Ok(Index(u16::from_bytes(buffer)?))
     }
 }

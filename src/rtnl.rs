@@ -15,11 +15,11 @@ use getset::Getters;
 
 use crate::{
     self as neli,
-    attr::{AttrHandle, AttrHandleMut, Attribute},
+    attr::{AttrHandle, Attribute},
     consts::rtnl::*,
     err::{DeError, SerError},
     types::{Buffer, RtBuffer},
-    FromBytes, FromBytesWithInput, Header, Size, ToBytes,
+    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes,
 };
 
 /// Struct representing interface information messages
@@ -47,8 +47,8 @@ pub struct Ifinfomsg {
     #[builder(default = "Iff::empty()")]
     ifi_change: Iff,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Ifla, Buffer>,
 }
@@ -92,8 +92,8 @@ pub struct Ifaddrmsg {
     #[getset(get = "pub")]
     ifa_index: libc::c_int,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Ifa, Buffer>,
 }
@@ -107,8 +107,8 @@ pub struct Rtgenmsg {
     #[getset(get = "pub")]
     rtgen_family: RtAddrFamily,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Ifa, Buffer>,
 }
@@ -146,8 +146,8 @@ pub struct Rtmsg {
     #[getset(get = "pub")]
     rtm_flags: RtmF,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Rta, Buffer>,
 }
@@ -179,8 +179,8 @@ pub struct Ndmsg {
     #[getset(get = "pub")]
     ndm_type: Rtn,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Nda, Buffer>,
 }
@@ -229,8 +229,8 @@ pub struct Tcmsg {
     #[getset(get = "pub")]
     tcm_info: u32,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    #[getset(get = "pub", get_mut = "pub")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
     #[builder(default = "RtBuffer::new()")]
     rtattrs: RtBuffer<Tca, Buffer>,
 }
@@ -253,7 +253,7 @@ pub struct Rtattr<T, P> {
     rta_type: T,
     /// Payload of the attribute
     #[neli(
-        input = "(rta_len as usize).checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?"
+        input = "(rta_len as usize).checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(rta_len as usize))?"
     )]
     #[getset(get = "pub")]
     rta_payload: P,
@@ -330,18 +330,6 @@ where
             self.rta_payload.len(),
         )?))
     }
-
-    /// Return an [`AttrHandleMut`][crate::attr::AttrHandleMut] for
-    /// attributes nested in the given attribute payload.
-    pub fn get_attr_handle_mut<R>(&mut self) -> Result<RtAttrHandleMut<R>, DeError>
-    where
-        R: RtaType,
-    {
-        Ok(AttrHandleMut::new(RtBuffer::from_bytes_with_input(
-            &mut Cursor::new(self.rta_payload.as_ref()),
-            self.rta_payload.len(),
-        )?))
-    }
 }
 
 impl<T> Attribute<T> for Rtattr<T, Buffer>
@@ -370,9 +358,8 @@ where
 }
 
 type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
-type RtAttrHandleMut<'a, T> = AttrHandleMut<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
+impl<'a, T> RtAttrHandle<'a, T>
 where
     T: RtaType,
 {
@@ -399,9 +386,9 @@ where
     }
 
     /// Parse binary payload as a type that implements [`FromBytes`].
-    pub fn get_attr_payload_as<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytes<'b>,
+        R: FromBytes,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as::<R>(),
@@ -410,12 +397,23 @@ where
     }
 
     /// Parse binary payload as a type that implements [`FromBytesWithInput`].
-    pub fn get_attr_payload_as_with_len<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as_with_len<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytesWithInput<'b, Input = usize>,
+        R: FromBytesWithInput<Input = usize>,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as_with_len::<R>(),
+            _ => Err(DeError::new("Failed to find specified attribute")),
+        }
+    }
+
+    /// Parse binary payload as a type that implements [`FromBytesWithInput`].
+    pub fn get_attr_payload_as_with_len_borrowed<R>(&'a self, attr: T) -> Result<R, DeError>
+    where
+        R: FromBytesWithInputBorrowed<'a, Input = usize>,
+    {
+        match self.get_attribute(attr) {
+            Some(a) => a.get_payload_as_with_len_borrowed::<R>(),
             _ => Err(DeError::new("Failed to find specified attribute")),
         }
     }
@@ -427,9 +425,10 @@ mod test {
 
     use crate::{
         consts::{nl::NlmF, socket::NlFamily},
-        nl::{NlPayload, NlmsghdrBuilder},
-        socket::NlSocketHandle,
+        nl::NlPayload,
+        router::synchronous::NlRouter,
         test::setup,
+        utils::Groups,
     };
 
     #[test]
@@ -470,37 +469,31 @@ mod test {
     fn real_test_ifinfomsg() {
         setup();
 
-        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(
-            NlmsghdrBuilder::default()
-                .nl_type(Rtm::Getlink)
-                .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
-                .nl_payload(NlPayload::Payload(
+        let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        let recv = sock
+            .send::<_, _, Rtm, Ifinfomsg>(
+                Rtm::Getlink,
+                NlmF::DUMP | NlmF::ACK,
+                NlPayload::Payload(
                     IfinfomsgBuilder::default()
                         .ifi_family(RtAddrFamily::Unspecified)
                         .ifi_type(Arphrd::None)
                         .ifi_index(0)
                         .build()
                         .unwrap(),
-                ))
-                .build()
-                .unwrap(),
-        )
-        .unwrap();
-        let msgs = sock.recv_all::<Rtm, Ifinfomsg>().unwrap();
-        for msg in msgs {
+                ),
+            )
+            .unwrap();
+        for msg in recv {
+            let msg = msg.unwrap();
             let handle = msg.get_payload().unwrap().rtattrs.get_attr_handle();
             handle
                 .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
                 .unwrap();
             // Assert length of ethernet address
-            assert_eq!(
-                handle
-                    .get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address)
-                    .unwrap()
-                    .len(),
-                6
-            );
+            if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
+                assert_eq!(attr.len(), 6);
+            }
         }
     }
 
@@ -508,12 +501,12 @@ mod test {
     fn real_test_tcmsg() {
         setup();
 
-        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(
-            NlmsghdrBuilder::default()
-                .nl_type(Rtm::Getqdisc)
-                .nl_flags(NlmF::DUMP | NlmF::REQUEST | NlmF::ACK)
-                .nl_payload(NlPayload::Payload(
+        let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        let recv = sock
+            .send::<_, _, Rtm, Tcmsg>(
+                Rtm::Getqdisc,
+                NlmF::DUMP | NlmF::ACK,
+                NlPayload::Payload(
                     TcmsgBuilder::default()
                         .tcm_family(0)
                         .tcm_ifindex(0)
@@ -522,13 +515,11 @@ mod test {
                         .tcm_info(0)
                         .build()
                         .unwrap(),
-                ))
-                .build()
-                .unwrap(),
-        )
-        .unwrap();
-        let msgs = sock.recv_all::<Rtm, Tcmsg>().unwrap();
-        for msg in msgs {
+                ),
+            )
+            .unwrap();
+        for msg in recv {
+            let msg = msg.unwrap();
             assert!(matches!(msg.get_payload().unwrap(), Tcmsg { .. }));
             assert_eq!(msg.nl_type(), &Rtm::Newqdisc);
         }

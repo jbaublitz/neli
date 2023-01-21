@@ -85,7 +85,7 @@ macro_rules! impl_trait {
             + Copy
             + $crate::Size
             + $crate::TypeSize
-            + for<'a> $crate::FromBytes<'a>
+            + $crate::FromBytes
             + $crate::ToBytes
             + std::fmt::Debug
         {}
@@ -132,8 +132,8 @@ macro_rules! impl_trait {
             }
         }
 
-        impl<'lt> $crate::FromBytes<'lt> for $wrapper_type {
-            fn from_bytes(buffer: &mut std::io::Cursor<&'lt [u8]>) -> Result<Self, $crate::err::DeError> {
+        impl $crate::FromBytes for $wrapper_type {
+            fn from_bytes(buffer: &mut std::io::Cursor<impl AsRef<[u8]>>) -> Result<Self, $crate::err::DeError> {
                 Ok($wrapper_type::from(<$to_from_ty as $crate::FromBytes>::from_bytes(
                     buffer
                 )?))

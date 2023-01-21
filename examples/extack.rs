@@ -5,10 +5,10 @@ use neli::{
         nl::{GenlId, NlmF},
         socket::NlFamily,
     },
-    err::NlError,
+    err::RouterError,
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
-    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
-    socket::NlSocketHandle,
+    nl::{NlPayload, Nlmsghdr},
+    router::synchronous::NlRouter,
     types::GenlBuffer,
     utils::Groups,
 };
@@ -40,7 +40,7 @@ impl neli::consts::genl::NlAttrType for ExtAckAttr {}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut sock = NlSocketHandle::connect(
+    let (sock, _) = NlRouter::connect(
         NlFamily::Generic, /* family */
         None,              /* pid */
         Groups::empty(),   /* groups */
@@ -63,28 +63,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .collect::<GenlBuffer<_, _>>();
 
-    let req = NlmsghdrBuilder::default()
-        .nl_type(family_id)
-        .nl_flags(NlmF::REQUEST | NlmF::ACK)
-        .nl_seq(1)
-        .nl_payload(NlPayload::Payload(
+    let mut recv = sock.send::<_, _, GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>(
+        family_id,
+        NlmF::ACK,
+        NlPayload::Payload(
             GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
                 .cmd(Nl80211Command::GetInterface)
                 .version(1)
                 .attrs(attrs)
                 .build()?,
-        ))
-        .build()?;
-
-    sock.send(req)?;
+        ),
+    )?;
     let data: Option<Result<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>, _>> =
-        sock.recv(neli::iter::IterationBehavior::EndMultiOnDone)
-            .next();
+        recv.next();
     match data {
         Some(Ok(msgs)) => {
             println!("msgs: {:?}", msgs);
         }
-        Some(Err(NlError::Nlmsgerr(e))) => {
+        Some(Err(RouterError::Nlmsgerr(e))) => {
             println!("msg err: {:?}", e);
             println!(
                 "unix error: {:?}",

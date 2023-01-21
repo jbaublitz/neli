@@ -1,39 +1,16 @@
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{
-    parse_str, AngleBracketedGenericArguments, Attribute, Fields, GenericArgument, GenericParam,
-    Ident, ItemStruct, LifetimeDef, PathArguments, Token, TraitBound, Type, TypeParamBound,
-};
+use syn::{parse_str, Attribute, Fields, Ident, ItemStruct, Type};
 
-use crate::shared::{process_input, process_lifetime, process_size, StructInfo};
+use crate::shared::{process_input, process_size, process_skip_debug, StructInfo};
 
-fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeDef) {
-    trt.path.segments.iter_mut().for_each(|elem| {
-        if elem.ident == parse_str::<Ident>("FromBytes").unwrap()
-            || elem.ident == parse_str::<Ident>("FromBytesWithInput").unwrap()
-        {
-            if let PathArguments::AngleBracketed(ref mut args) = elem.arguments {
-                args.args = std::iter::once(GenericArgument::Lifetime(lt.lifetime.clone()))
-                    .chain(args.args.clone())
-                    .collect();
-            } else if let PathArguments::None = elem.arguments {
-                elem.arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                    colon2_token: Some(Token![::](Span::call_site())),
-                    lt_token: Token![<](Span::call_site()),
-                    args: std::iter::once(GenericArgument::Lifetime(lt.lifetime.clone())).collect(),
-                    gt_token: Token![>](Span::call_site()),
-                });
-            }
-        }
-    });
-}
-
-fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 {
+fn process_attrs(field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 {
     let input = process_input(&field_attrs);
+    let skip_debug = process_skip_debug(&field_attrs);
     let size = process_size(&field_attrs)
         .unwrap_or_else(|| parse_str("input").expect("input is a valid expression"));
-    match input {
-        Some(Some(input)) => quote! {
+    match (input, skip_debug) {
+        (Some(Some(input)), _) => quote! {
             {
                 let input = #input;
                 log::trace!(
@@ -43,9 +20,9 @@ fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>
                 let position = buffer.position() as usize;
                 log::trace!(
                     "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref()[position..position + #size],
+                    &buffer.get_ref().as_ref()[position..position + #size],
                 );
-                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(
+                let ok = <#field_type as neli::FromBytesWithInput>::from_bytes_with_input(
                     buffer,
                     input,
                 )?;
@@ -53,7 +30,7 @@ fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>
                 ok
             }
         },
-        Some(None) => quote! {
+        (Some(None), _) => quote! {
             {
                 log::trace!(
                     "Deserializing field type {}",
@@ -62,9 +39,9 @@ fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>
                 let position = buffer.position() as usize;
                 log::trace!(
                     "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref()[position..position + #size],
+                    &buffer.get_ref().as_ref()[position..position + #size],
                 );
-                let ok = <#field_type as neli::FromBytesWithInput<#lt>>::from_bytes_with_input(
+                let ok = <#field_type as neli::FromBytesWithInput>::from_bytes_with_input(
                     buffer,
                     input,
                 )?;
@@ -72,7 +49,19 @@ fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>
                 ok
             }
         },
-        None => quote! {
+        (None, true) => quote! {
+            {
+                log::trace!(
+                    "Deserializing field type {}",
+                    std::any::type_name::<#field_type>(),
+                );
+                let position = buffer.position() as usize;
+                let ok = <#field_type as neli::FromBytes>::from_bytes(buffer)?;
+                log::trace!("Field deserialized: {:?}", ok);
+                ok
+            }
+        },
+        (None, false) => quote! {
             {
                 log::trace!(
                     "Deserializing field type {}",
@@ -81,9 +70,9 @@ fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>
                 let position = buffer.position() as usize;
                 log::trace!(
                     "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref()[position..position + <#field_type as neli::TypeSize>::type_size()],
+                    &buffer.get_ref().as_ref()[position..position + <#field_type as neli::TypeSize>::type_size()],
                 );
-                let ok = <#field_type as neli::FromBytes<#lt>>::from_bytes(buffer)?;
+                let ok = <#field_type as neli::FromBytes>::from_bytes(buffer)?;
                 log::trace!("Field deserialized: {:?}", ok);
                 ok
             }
@@ -107,7 +96,7 @@ pub fn impl_frombytes_struct(
 
     let (
         struct_name,
-        mut generics,
+        generics,
         generics_without_bounds,
         field_names,
         field_types,
@@ -115,14 +104,12 @@ pub fn impl_frombytes_struct(
         padded,
     ) = info.into_tuple();
 
-    let lt = process_lifetime(&mut generics);
-
     if field_names.is_empty() {
         return quote! {
-            impl#generics neli::#trt<#lt> for #struct_name#generics_without_bounds {
+            impl#generics neli::#trt for #struct_name#generics_without_bounds {
                 #input_type
 
-                fn #method_name(buffer: &mut std::io::Cursor<&#lt [u8]> #input) -> Result<Self, neli::err::DeError> {
+                fn #method_name(buffer: &mut std::io::Cursor<impl AsRef<[u8]>> #input) -> Result<Self, neli::err::DeError> {
                     Ok(#struct_name)
                 }
             }
@@ -143,34 +130,24 @@ pub fn impl_frombytes_struct(
         }
     };
 
-    for generic in generics.params.iter_mut() {
-        if let GenericParam::Type(ref mut ty) = generic {
-            for bound in ty.bounds.iter_mut() {
-                if let TypeParamBound::Trait(ref mut trt) = bound {
-                    add_lifetime(trt, &lt);
-                }
-            }
-        }
-    }
-
     let from_bytes_exprs = field_types
         .into_iter()
         .zip(field_attrs.into_iter())
-        .map(|(field_type, field_attrs)| process_attrs(&lt, field_type, field_attrs));
+        .map(|(field_type, field_attrs)| process_attrs(field_type, field_attrs));
 
     let padding = if padded {
         quote! {
-            <#struct_name#generics_without_bounds as neli::FromBytes<#lt>>::strip(buffer)?;
+            <#struct_name#generics_without_bounds as neli::FromBytes>::strip(buffer)?;
         }
     } else {
         TokenStream2::new()
     };
 
     quote! {
-        impl#generics neli::#trt<#lt> for #struct_name#generics_without_bounds {
+        impl#generics neli::#trt for #struct_name#generics_without_bounds {
             #input_type
 
-            fn #method_name(buffer: &mut std::io::Cursor<&#lt [u8]> #input) -> Result<Self, neli::err::DeError> {
+            fn #method_name(buffer: &mut std::io::Cursor<impl AsRef<[u8]>> #input) -> Result<Self, neli::err::DeError> {
                 let pos = buffer.position();
 
                 let res = {
