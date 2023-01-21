@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.4
+### Bug fixes
+* Fixed bug in error intepretation for Nlmsgerr.
+
+### Features
+* Add `FromBytes`/`ToBytes` implementations for `u128`.
+
+Thanks to the upstream contributors who provided the code for this release!
+
 ## 0.6.3
 ### Bug fixes
 * Fixed memory bug in `NlSocket::drop_mcast_membership()` unsafe code found using
