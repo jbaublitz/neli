@@ -27,6 +27,14 @@
 //! The buffer allocated in the [`BufferPool`][crate::utils::synchronous::BufferPool]
 //! structure should be allocated on the heap. This is intentional as a buffer
 //! that large could be a problem on the stack.
+//!
+//! neli now uses [`BufferPool`][crate::utils::synchronous::BufferPool] to manage
+//! parallel message receive operations. Memory usage can be tuned using the following
+//! environment variables at compile time:
+//! * `NELI_AUTO_BUFFER_LEN`: This configures how many bytes are allocated for each
+//! buffer in the buffer pool.
+//! * `NELI_MAX_PARALLEL_READ_OPS`: This configures how many buffers of size
+//! `NELI_AUTO_BUFFER_LEN` are allocated for parallel receive operations.
 
 /// Asynchronous socket operations
 #[cfg(feature = "async")]

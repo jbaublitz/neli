@@ -45,7 +45,7 @@ pub enum NlFamily {
 }
 
 impl_flags!(
-    /// Flags to be used in socket [recv][crate::socket::NlSocket::recv] calls.
+    /// Flags to be used in [NlSocket][crate::socket::NlSocket::recv] calls.
     pub Msg: u32 {
         CMSG_CLOEXEC = libc::MSG_CMSG_CLOEXEC as u32,
         DONTWAIT = libc::MSG_DONTWAIT as u32,
