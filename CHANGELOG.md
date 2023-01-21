@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.7.0
+### Breaking changes
+* `FromBytes` and `FromBytesWithInput` have had the lifetime parameter removed. This
+removes the ability to borrow data from the buffer written to by the `recv()` syscall.
+This is intentional as it provides more ergonomic support for `NlRouter` to send
+messages across threads. A new trait, `FromBytesWithInputBorrowed`, has been added to
+support the use case of borrowing payloads from attributes as `&str` or `&[u8]`.
+* The `async` feature API has been completely redesigned to more closely resemble
+it's corresponding synchronous API.
+* All `new()` methods and public fields on data structures used to construct packets
+have been replaced by the builder pattern.
+
+### New Cargo features
+* `sync` has been added as a Cargo feature. If a user is only interested in asynchronous
+functionality, `sync` can be disabled to disable the higher level synchronous API
+and reduce the number of required dependencies. 
+
+### Features
+* Extended ACK support. Sockets now support parsing and enabling entended ACKs for more
+information in error cases.
+* New router infrastructure allowing ACK handling, seq management, and PID validation
+for requests sent in parallel.
+* Builder pattern defined for all data structures used to construct netlink packets.
+
+### Dependency version updates
+* syn
+* libc
+
+### Migration guide
+* If you were previously using certain `new()` methods defined on structs with padding,
+all packet data structures have been migrated over to a builder pattern.
+* Flags in packets have been migrated from a custom data structure to
+[`bitflags`][https://docs.rs/bitflags].
+* Because of previous errors around multicast groups, there is a new data structure
+to handle group management that allows either converting from group numbers or a
+bitmask. If you previously passed in 0 for groups, you will now use `Groups::empty()`.
+* If you were previously using convenience methods like `NlSocketHandle::iter()` or
+`NlSocketHandle::resolve_genl_family`, this functionality has been migrated to the
+new `NlRouter` functionality. `NlSocketHandle` has been repurposed for a slightly
+lower level API providing iteration over all messages in a single `recv()` buffer.
+`NlRouter` provides a safer, parallelization-capable version of the functionality
+previously provided by `NlSocketHandle`. See the documentation in the `neli::router`
+module for a more detailed explanation of the problem this was meant to solve.
+* If you were previously using `Attr::get_payload_as_with_len()` with a `&[u8]` or
+`&str` type, you should change this to `Attr::get_payload_as_with_len_borrowed()`.
+
 ## 0.6.4
 ### Bug fixes
 * Fixed bug in error intepretation for Nlmsgerr.

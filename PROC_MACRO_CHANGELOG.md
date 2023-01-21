@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+### Breaking changes
+* Adapt to trait breaking changes introduced in neli v0.7.0. See info in
+[CHANGELOG.md][CHANGELOG.md] on `FromBytes` and `FromBytesWithInput` for more
+information.
+
 ## 0.1.3
 ### Documentation
 * Clean up documentation issues.
