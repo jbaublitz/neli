@@ -29,9 +29,7 @@ pub struct NlSocketHandle {
 }
 
 impl NlSocketHandle {
-    /// Set up [`NlSocket`][crate::socket::NlSocket] for use
-    /// with tokio; set to nonblocking state and wrap in polling
-    /// mechanism.
+    /// Set up asynchronous socket handle.
     pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Groups) -> Result<Self, SocketError> {
         let socket = NlSocket::connect(proto, pid, groups)?;
         socket.nonblock()?;

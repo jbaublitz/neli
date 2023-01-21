@@ -193,7 +193,6 @@ macro_rules! impl_trait {
 /// ```
 /// use neli::neli_enum;
 ///
-///
 /// neli::impl_flags!(
 ///     pub MyFlags: u16 {
 ///         ThisFlag = 1,

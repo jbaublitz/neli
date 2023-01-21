@@ -1,11 +1,12 @@
 //! This is the module that contains the error types used in `neli`
 //!
-//! There are four main types:
+//! There are five main types:
 //! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
 //! returned from netlink as a packet.
-//! * [`SocketError`][crate::err::SocketError] - a general netlink error
-//! wrapping application errors, serialization and deserialization
-//! errors, and other errors that occur in `neli`.
+//! * [`RouterError`][crate::err::RouterError] - errors returned by
+//! [`NlRouter`][crate::router::synchronous::NlRouter].
+//! * [`SocketError`][crate::err::SocketError] - errors returned by
+//! [`NlSocketHandle`][crate::socket::synchronous::NlSocketHandle].
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
 //!
@@ -13,13 +14,6 @@
 //! All errors implement [`std::error::Error`] in an attempt to allow
 //! them to be used in conjunction with [`Result`] for easier error
 //! management even at the protocol error level.
-//!
-//! As of v0.6.0, deserializing the [`NlmsghdrErr`] struct has two
-//! optional type parameters for specifying the type of the type
-//! constant and the payload. If neither of these are provided,
-//! the deserialization defaults to [`u16`] and
-//! [`Buffer`][crate::types::Buffer] respectively which work for
-//! all cases. See the `examples/` directory for a usage example.
 
 use std::{
     error::Error,
@@ -45,12 +39,8 @@ use crate::{
     FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
-/// A special struct that represents the contents of an error
-/// returned at the application level. Because the returned
-/// [`nl_len`][NlmsghdrErr::nl_len] cannot always determine the
-/// length of the packet (as in the case of ACKs where no payload
-/// will be returned), this data structure relies on the total
-/// packet size for deserialization.
+/// A special struct that represents the contents of an ACK
+/// returned at the application level.
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType")]
@@ -91,11 +81,7 @@ impl NlmsghdrAck<u16> {
 }
 
 /// A special struct that represents the contents of an error
-/// returned at the application level. Because the returned
-/// [`nl_len`][NlmsghdrErr::nl_len] cannot always determine the
-/// length of the packet (as in the case of ACKs where no payload
-/// will be returned), this data structure relies on the total
-/// packet size for deserialization.
+/// returned at the application level.
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: TypeSize")]
 #[neli(from_bytes_bound = "T: NlType + TypeSize")]
