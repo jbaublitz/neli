@@ -357,7 +357,8 @@ where
     }
 }
 
-type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
+/// Represents a routing netlink attribute handle.
+pub type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
 
 impl<'a, T> RtAttrHandle<'a, T>
 where

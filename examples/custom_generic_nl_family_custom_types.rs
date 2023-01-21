@@ -135,7 +135,7 @@ fn main() {
         println!("Received successful reply!");
     }*/
 
-    let attr_handle = res.get_payload().unwrap().get_attr_handle();
+    let attr_handle = res.get_payload().unwrap().attrs().get_attr_handle();
     let received = attr_handle
         .get_attr_payload_as_with_len::<String>(NlFoobarXmplAttribute::Msg)
         .unwrap();

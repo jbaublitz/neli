@@ -64,6 +64,7 @@ pub struct Genlmsghdr<C, T, H = NoUserHeader> {
     #[getset(get = "pub")]
     header: H,
     /// Attributes included in generic netlink message
+    #[getset(get = "pub")]
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
     attrs: GenlBuffer<T, Buffer>,
 }
@@ -113,17 +114,6 @@ impl<C, T, H> GenlmsghdrBuilder<C, T, H> {
             header,
             attrs,
         })
-    }
-}
-
-impl<C, T> Genlmsghdr<C, T>
-where
-    C: Cmd,
-    T: NlAttrType,
-{
-    /// Get handle for attribute parsing and traversal
-    pub fn get_attr_handle(&self) -> AttrHandle<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
-        self.attrs.get_attr_handle()
     }
 }
 
@@ -343,7 +333,8 @@ where
     }
 }
 
-type GenlAttrHandle<'a, T> = AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
+/// Type representing a generic netlink attribute handle.
+pub type GenlAttrHandle<'a, T> = AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 
 impl<'a, T> GenlAttrHandle<'a, T>
 where
