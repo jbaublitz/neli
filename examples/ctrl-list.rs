@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let response = response_result?;
 
         if let Some(p) = response.get_payload() {
-            let handle = p.get_attr_handle();
+            let handle = p.attrs().get_attr_handle();
             for attr in handle.iter() {
                 match attr.nla_type().nla_type() {
                     CtrlAttr::FamilyName => {

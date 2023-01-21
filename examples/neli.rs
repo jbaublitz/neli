@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut handle = nlmsg
         .get_payload()
         .ok_or_else(|| MsgError::new("No payload found"))?
+        .attrs()
         .get_attr_handle();
     // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
     // a handler containing only this nested attribute internally

@@ -16,9 +16,10 @@ use crate::{
     self as neli,
     attr::AttrHandle,
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
-    genl::Nlattr,
+    err::DeError,
+    genl::{AttrTypeBuilder, GenlAttrHandle, Nlattr, NlattrBuilder},
     nl::Nlmsghdr,
-    rtnl::Rtattr,
+    rtnl::{RtAttrHandle, Rtattr},
     FromBytesWithInput, Size, ToBytes,
 };
 
@@ -184,6 +185,34 @@ impl<T> GenlBuffer<T, Buffer> {
     }
 }
 
+impl GenlBuffer<u16, Buffer> {
+    /// Convert a [`GenlBuffer`] that can represent all types to a buffer that
+    /// is of a particular type.
+    pub fn get_typed_attr_handle<T>(&self) -> Result<GenlAttrHandle<T>, DeError>
+    where
+        T: NlAttrType,
+    {
+        Ok(AttrHandle::new({
+            let mut attrs = GenlBuffer::new();
+            for attr in self.0.iter() {
+                attrs.push(
+                    NlattrBuilder::default()
+                        .nla_type(
+                            AttrTypeBuilder::default()
+                                .nla_type(T::from(*attr.nla_type().nla_type()))
+                                .nla_nested(*attr.nla_type().nla_nested())
+                                .nla_network_order(*attr.nla_type().nla_network_order())
+                                .build()?,
+                        )
+                        .nla_payload(attr.nla_payload().clone())
+                        .build()?,
+                );
+            }
+            attrs
+        }))
+    }
+}
+
 impl<T, P> AsRef<[Nlattr<T, P>]> for GenlBuffer<T, P> {
     fn as_ref(&self) -> &[Nlattr<T, P>] {
         self.0.as_slice()
@@ -278,7 +307,7 @@ where
 impl<T> RtBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
     /// underlying [`Rtattr`]s.
-    pub fn get_attr_handle(&self) -> AttrHandle<Self, Rtattr<T, Buffer>> {
+    pub fn get_attr_handle(&self) -> RtAttrHandle<T> {
         AttrHandle::new_borrowed(self.0.as_ref())
     }
 }
