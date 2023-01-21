@@ -8,6 +8,8 @@
 
 use std::mem::size_of;
 
+use crate::consts::MAX_NL_LENGTH;
+
 type BitArrayType = u32;
 
 /// A bit array meant to be compatible with the bit array
@@ -178,6 +180,343 @@ impl Groups {
     /// Return the set of groups as a vector of group values.
     pub fn as_groups(&self) -> Vec<u32> {
         mask_to_vec(self.0)
+    }
+}
+
+/// Synchronous (blocking) utils.
+pub mod synchronous {
+    use super::*;
+
+    use std::{
+        mem::swap,
+        ops::{Deref, DerefMut},
+    };
+
+    use log::trace;
+    use parking_lot::{Condvar, Mutex};
+
+    /// Type containing information pertaining to the semaphore tracking.
+    struct SemInfo {
+        max: u64,
+        count: u64,
+    }
+
+    /// Guard indicating that a buffer has been acquired and the semaphore has been
+    /// incremented.
+    pub struct BufferPoolGuard<'a>(&'a BufferPool, Vec<u8>);
+
+    impl<'a> Deref for BufferPoolGuard<'a> {
+        type Target = Vec<u8>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.1
+        }
+    }
+
+    impl<'a> DerefMut for BufferPoolGuard<'a> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.1
+        }
+    }
+
+    impl<'a> AsRef<[u8]> for BufferPoolGuard<'a> {
+        fn as_ref(&self) -> &[u8] {
+            self.1.as_ref()
+        }
+    }
+
+    impl<'a> AsMut<[u8]> for BufferPoolGuard<'a> {
+        fn as_mut(&mut self) -> &mut [u8] {
+            self.1.as_mut()
+        }
+    }
+
+    impl<'a> BufferPoolGuard<'a> {
+        /// Reduce the size of the internal buffer to the number of bytes read.
+        pub fn reduce_size(&mut self, bytes_read: usize) {
+            assert!(bytes_read <= self.1.len());
+            self.1.resize(bytes_read, 0);
+        }
+
+        /// Reset the buffer to the original size.
+        pub fn reset(&mut self) {
+            self.1.resize(
+                option_env!("NELI_AUTO_BUFFER_LEN")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .unwrap_or(MAX_NL_LENGTH),
+                0,
+            );
+        }
+    }
+
+    impl<'a> Drop for BufferPoolGuard<'a> {
+        fn drop(&mut self) {
+            {
+                let mut vec = Vec::new();
+                swap(&mut self.1, &mut vec);
+                let mut sem_info = self.0.sem_info.lock();
+                let mut pool = self.0.pool.lock();
+                sem_info.count -= 1;
+                vec.resize(
+                    option_env!("NELI_AUTO_BUFFER_LEN")
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(MAX_NL_LENGTH),
+                    0,
+                );
+                pool.push(vec);
+                trace!(
+                    "Semaphore released; current count is {}, available is {}",
+                    sem_info.count,
+                    sem_info.max - sem_info.count
+                );
+            }
+            self.0.condvar.notify_one();
+        }
+    }
+
+    /// A pool of buffers available for reading concurrent netlink messages without
+    /// truncation.
+    pub struct BufferPool {
+        pool: Mutex<Vec<Vec<u8>>>,
+        sem_info: Mutex<SemInfo>,
+        condvar: Condvar,
+    }
+
+    impl Default for BufferPool {
+        fn default() -> Self {
+            let max_parallel = option_env!("NELI_MAX_PARALLEL_READ_OPS")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(3);
+            let buffer_size = option_env!("NELI_AUTO_BUFFER_LEN")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(MAX_NL_LENGTH);
+
+            BufferPool {
+                pool: Mutex::new(
+                    (0..max_parallel)
+                        .map(|_| vec![0; buffer_size])
+                        .collect::<Vec<_>>(),
+                ),
+                sem_info: Mutex::new(SemInfo {
+                    count: 0,
+                    max: max_parallel,
+                }),
+                condvar: Condvar::new(),
+            }
+        }
+    }
+
+    impl BufferPool {
+        /// Acquire a buffer for use.
+        ///
+        /// This method is backed by a semaphore.
+        pub fn acquire(&self) -> BufferPoolGuard {
+            let mut sem_info = self.sem_info.lock();
+            self.condvar
+                .wait_while(&mut sem_info, |sem_info| sem_info.count >= sem_info.max);
+            let mut pool = self.pool.lock();
+            sem_info.count += 1;
+            trace!(
+                "Semaphore acquired; current count is {}, available is {}",
+                sem_info.count,
+                sem_info.max - sem_info.count
+            );
+            BufferPoolGuard(
+                self,
+                pool.pop()
+                    .expect("Checked that there is an available permit"),
+            )
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        use std::{
+            io::Write,
+            thread::{scope, sleep},
+            time::Duration,
+        };
+
+        use crate::test::setup;
+
+        #[test]
+        fn test_buffer_pool() {
+            setup();
+
+            let pool = BufferPool::default();
+            scope(|s| {
+                s.spawn(|| {
+                    let mut guard = pool.acquire();
+                    sleep(Duration::from_secs(2));
+                    guard.as_mut_slice().write_all(&[4]).unwrap();
+                    assert_eq!(Some(&4), guard.first());
+                });
+                s.spawn(|| {
+                    let mut guard = pool.acquire();
+                    sleep(Duration::from_secs(3));
+                    guard.as_mut_slice().write_all(&[1]).unwrap();
+                    assert_eq!(Some(&1), guard.first());
+                });
+                s.spawn(|| {
+                    let mut guard = pool.acquire();
+                    sleep(Duration::from_secs(3));
+                    guard.as_mut_slice().write_all(&[1]).unwrap();
+                    assert_eq!(Some(&1), guard.first());
+                });
+                s.spawn(|| {
+                    sleep(Duration::from_secs(1));
+                    let mut guard = pool.acquire();
+                    guard.as_mut_slice().write_all(&[1]).unwrap();
+                    assert_eq!(Some(&1), guard.first());
+                });
+            });
+            let pool = pool.pool.lock();
+            assert_eq!(pool.len(), 3);
+            for buf in pool.iter() {
+                assert_eq!(Some(&1), buf.first());
+            }
+        }
+    }
+}
+
+/// Asynchronous utils.
+#[cfg(feature = "async")]
+pub mod asynchronous {
+    use super::*;
+
+    use std::{
+        mem::swap,
+        ops::{Deref, DerefMut},
+    };
+
+    use log::trace;
+    use parking_lot::Mutex;
+    use tokio::sync::{Semaphore, SemaphorePermit};
+
+    /// Guard indicating that a buffer has been acquired and the semaphore has been
+    /// incremented.
+    pub struct BufferPoolGuard<'a>(&'a BufferPool, SemaphorePermit<'a>, Vec<u8>);
+
+    impl<'a> Deref for BufferPoolGuard<'a> {
+        type Target = Vec<u8>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.2
+        }
+    }
+
+    impl<'a> DerefMut for BufferPoolGuard<'a> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.2
+        }
+    }
+
+    impl<'a> AsRef<[u8]> for BufferPoolGuard<'a> {
+        fn as_ref(&self) -> &[u8] {
+            self.2.as_ref()
+        }
+    }
+
+    impl<'a> AsMut<[u8]> for BufferPoolGuard<'a> {
+        fn as_mut(&mut self) -> &mut [u8] {
+            self.2.as_mut()
+        }
+    }
+
+    impl<'a> BufferPoolGuard<'a> {
+        /// Reduce the size of the internal buffer to the number of bytes read.
+        pub fn reduce_size(&mut self, bytes_read: usize) {
+            assert!(bytes_read <= self.2.len());
+            self.2.resize(bytes_read, 0);
+        }
+
+        /// Reset the buffer to the original size.
+        pub fn reset(&mut self) {
+            self.2.resize(
+                option_env!("NELI_AUTO_BUFFER_LEN")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .unwrap_or(MAX_NL_LENGTH),
+                0,
+            );
+        }
+    }
+
+    impl<'a> Drop for BufferPoolGuard<'a> {
+        fn drop(&mut self) {
+            {
+                let mut vec = Vec::new();
+                swap(&mut self.2, &mut vec);
+                let mut pool = self.0.pool.lock();
+                vec.resize(
+                    option_env!("NELI_AUTO_BUFFER_LEN")
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(MAX_NL_LENGTH),
+                    0,
+                );
+                pool.push(vec);
+                trace!(
+                    "Semaphore released; current count is {}, max is {}",
+                    self.0.max - self.0.semaphore.available_permits(),
+                    self.0.semaphore.available_permits()
+                );
+            }
+        }
+    }
+
+    /// A pool of buffers available for reading concurrent netlink messages without
+    /// truncation.
+    pub struct BufferPool {
+        pool: Mutex<Vec<Vec<u8>>>,
+        max: usize,
+        semaphore: Semaphore,
+    }
+
+    impl Default for BufferPool {
+        fn default() -> Self {
+            let max_parallel = option_env!("NELI_MAX_PARALLEL_READ_OPS")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(3);
+            let buffer_size = option_env!("NELI_AUTO_BUFFER_LEN")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(MAX_NL_LENGTH);
+
+            BufferPool {
+                pool: Mutex::new(
+                    (0..max_parallel)
+                        .map(|_| vec![0; buffer_size])
+                        .collect::<Vec<_>>(),
+                ),
+                max: max_parallel,
+                semaphore: Semaphore::new(max_parallel),
+            }
+        }
+    }
+
+    impl BufferPool {
+        /// Acquire a buffer for use.
+        ///
+        /// This method is backed by a semaphore.
+        pub async fn acquire(&self) -> BufferPoolGuard {
+            let permit = self
+                .semaphore
+                .acquire()
+                .await
+                .expect("Semaphore is never closed");
+            let mut pool = self.pool.lock();
+            trace!(
+                "Semaphore acquired; current count is {}, available is {}",
+                self.max - self.semaphore.available_permits(),
+                self.semaphore.available_permits(),
+            );
+            BufferPoolGuard(
+                self,
+                permit,
+                pool.pop()
+                    .expect("Checked that there is an available permit"),
+            )
+        }
     }
 }
 

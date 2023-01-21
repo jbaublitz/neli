@@ -1,18 +1,10 @@
 use std::{env, error::Error};
 
+use neli::consts::socket::NlFamily;
 #[cfg(not(feature = "async"))]
-use neli::iter::IterationBehavior;
+use neli::router::synchronous::NlRouter;
 #[cfg(feature = "async")]
-use neli::socket::tokio::NlSocket;
-use neli::{
-    consts::{
-        genl::{CtrlAttr, CtrlCmd},
-        nl::GenlId,
-        socket::NlFamily,
-    },
-    genl::Genlmsghdr,
-    socket::NlSocketHandle,
-};
+use neli::{genl::Genlmsghdr, router::asynchronous::NlRouter};
 
 #[cfg(feature = "async")]
 fn debug_stream() -> Result<(), Box<dyn Error>> {
@@ -29,20 +21,16 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
-    let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.add_mcast_membership(Groups::new_groups(&[id]))?;
     let runtime = ::tokio::runtime::Runtime::new().unwrap();
     runtime.block_on(async {
-        let mut ss = NlSocket::new(s)?;
-        let mut buffer = Vec::new();
-        while let Ok(msgs) = ss
-            .recv::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(&mut buffer)
-            .await
-        {
-            for msg in msgs {
-                println!("{:?}", msg);
-            }
+        let (s, mut multicast) =
+            NlRouter::connect(NlFamily::Generic, None, Groups::empty()).await?;
+        let id = s
+            .resolve_nl_mcast_group(&family_name, &mc_group_name)
+            .await?;
+        s.add_mcast_membership(Groups::new_groups(&[id]))?;
+        while let Some(Ok(msg)) = multicast.next::<u16, Genlmsghdr<u8, u16>>().await {
+            println!("{:?}", msg);
         }
         Ok(())
     })
@@ -63,11 +51,10 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
             std::process::exit(1)
         }
     };
-    let mut s = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
+    let (s, mc_recv) = NlRouter::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
     s.add_mcast_membership(Groups::new_groups(&[id]))?;
-    for next in s.recv::<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>(IterationBehavior::IterIndefinitely)
-    {
+    for next in mc_recv {
         println!("{:?}", next?);
     }
     Ok(())

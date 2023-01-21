@@ -4,9 +4,8 @@ use neli::{
     attr::Attribute,
     consts::{genl::*, nl::*, socket::*},
     genl::{Genlmsghdr, GenlmsghdrBuilder},
-    iter::IterationBehavior,
-    nl::{NlPayload, NlmsghdrBuilder},
-    socket::NlSocketHandle,
+    nl::NlPayload,
+    router::synchronous::NlRouter,
     types::{Buffer, GenlBuffer},
     utils::Groups,
 };
@@ -19,25 +18,20 @@ const GENL_VERSION: u8 = 2;
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut socket = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty())?;
-
-    let attrs = GenlBuffer::<NlAttrTypeWrapper, Buffer>::new();
-    let nlhdr = NlmsghdrBuilder::default()
-        .nl_type(GenlId::Ctrl)
-        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
-        .nl_payload(NlPayload::Payload(
+    let (socket, _) = NlRouter::connect(NlFamily::Generic, None, Groups::empty())?;
+    let recv = socket.send::<_, _, NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(
+        GenlId::Ctrl,
+        NlmF::DUMP,
+        NlPayload::Payload(
             GenlmsghdrBuilder::default()
                 .cmd(CtrlCmd::Getfamily)
                 .version(GENL_VERSION)
-                .attrs(attrs)
+                .attrs(GenlBuffer::<u16, Buffer>::new())
                 .build()?,
-        ))
-        .build()?;
-    socket.send(nlhdr)?;
+        ),
+    )?;
 
-    for response_result in socket
-        .recv::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(IterationBehavior::EndMultiOnDone)
-    {
+    for response_result in recv {
         let response = response_result?;
 
         if let Some(p) = response.get_payload() {

@@ -7,36 +7,30 @@ use neli::{
         rtnl::{Ifa, RtAddrFamily, RtScope, Rtm},
         socket::NlFamily,
     },
-    err::NlError,
-    iter::IterationBehavior,
-    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
+    err::MsgError,
+    nl::{NlPayload, Nlmsghdr},
+    router::synchronous::NlRouter,
     rtnl::{Ifaddrmsg, IfaddrmsgBuilder},
-    socket::NlSocketHandle,
     utils::Groups,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut rtnl = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty())?;
+    let (rtnl, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty())?;
     let ifaddrmsg = IfaddrmsgBuilder::default()
         .ifa_family(RtAddrFamily::Inet)
         .ifa_prefixlen(0)
         .ifa_scope(RtScope::Universe)
         .ifa_index(0)
         .build()?;
-    let nl_header = NlmsghdrBuilder::default()
-        .nl_type(Rtm::Getaddr)
-        .nl_flags(NlmF::REQUEST | NlmF::ROOT)
-        .nl_payload(NlPayload::Payload(ifaddrmsg))
-        .build()?;
-    rtnl.send(nl_header)?;
+    let recv = rtnl.send(Rtm::Getaddr, NlmF::ROOT, NlPayload::Payload(ifaddrmsg))?;
     let mut addrs = Vec::<Ipv4Addr>::with_capacity(1);
-    for response in rtnl.recv(IterationBehavior::EndMultiOnDone) {
+    for response in recv {
         let header: Nlmsghdr<Rtm, Ifaddrmsg> = response?;
         if let NlPayload::Payload(p) = header.nl_payload() {
             if header.nl_type() != &Rtm::Newaddr {
-                return Err(Box::new(NlError::msg(
+                return Err(Box::new(MsgError::new(
                     "Netlink error retrieving IP address",
                 )));
             }

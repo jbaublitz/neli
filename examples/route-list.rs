@@ -7,18 +7,18 @@ use std::{
 
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
-    err::NlError,
-    iter::IterationBehavior,
-    nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
+    err::{MsgError, RouterError},
+    nl::{NlPayload, Nlmsghdr},
+    router::synchronous::NlRouter,
     rtnl::*,
-    socket::*,
+    types::Buffer,
     utils::Groups,
 };
 
 fn parse_route_table(
     ifs: &HashMap<IpAddr, String>,
     rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>,
-) -> Result<(), NlError> {
+) -> Result<(), RouterError<u16, Buffer>> {
     if let Some(payload) = rtm.get_payload() {
         // This sample is only interested in the main table.
         if payload.rtm_table() == &RtTable::Main {
@@ -81,7 +81,7 @@ fn parse_route_table(
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+    let (socket, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
 
     let ifmsg = IfaddrmsgBuilder::default()
         .ifa_family(RtAddrFamily::Unspecified)
@@ -89,20 +89,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ifa_scope(RtScope::Universe)
         .ifa_index(0)
         .build()?;
-    let nlhdr = NlmsghdrBuilder::default()
-        .nl_type(Rtm::Getaddr)
-        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
-        .nl_payload(NlPayload::Payload(ifmsg))
-        .build()?;
-    socket.send(nlhdr)?;
+    let recv = socket.send::<_, _, NlTypeWrapper, _>(
+        Rtm::Getaddr,
+        NlmF::DUMP,
+        NlPayload::Payload(ifmsg),
+    )?;
 
     let mut ifs = HashMap::new();
-    for msg in socket.recv::<Rtm, _>(IterationBehavior::EndMultiOnDone) {
+    for msg in recv {
         let msg = msg?;
         if let NlPayload::<_, Ifaddrmsg>::Payload(p) = msg.nl_payload() {
             let handle = p.rtattrs().get_attr_handle();
             let addr = {
-                if let Ok(mut ip_bytes) = handle.get_attr_payload_as_with_len::<&[u8]>(Ifa::Address)
+                if let Ok(mut ip_bytes) =
+                    handle.get_attr_payload_as_with_len_borrowed::<&[u8]>(Ifa::Address)
                 {
                     if ip_bytes.len() == 4 {
                         let mut bytes = [0u8; 4];
@@ -117,7 +117,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             u128::from_ne_bytes(bytes).to_be(),
                         )))
                     } else {
-                        return Err(Box::new(NlError::msg(format!(
+                        return Err(Box::new(MsgError::new(format!(
                             "Unrecognized address length of {} found",
                             ip_bytes.len()
                         ))));
@@ -145,14 +145,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .rtm_scope(RtScope::Universe)
         .rtm_type(Rtn::Unspec)
         .build()?;
-    let nlhdr = NlmsghdrBuilder::default()
-        .nl_type(Rtm::Getroute)
-        .nl_flags(NlmF::REQUEST | NlmF::DUMP)
-        .nl_payload(NlPayload::Payload(rtmsg))
-        .build()?;
-    socket.send(nlhdr)?;
+    let recv = socket.send(Rtm::Getroute, NlmF::DUMP, NlPayload::Payload(rtmsg))?;
 
-    for rtm_result in socket.recv(IterationBehavior::EndMultiOnDone) {
+    for rtm_result in recv {
         let rtm = rtm_result?;
         if let NlTypeWrapper::Rtm(_) = rtm.nl_type() {
             parse_route_table(&ifs, rtm)?;

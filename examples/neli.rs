@@ -2,23 +2,25 @@ use std::error::Error;
 
 use neli::{
     consts::{genl::*, nl::*, socket::NlFamily},
-    err::NlError,
+    err::MsgError,
     genl::*,
     nl::{NlPayload, NlmsghdrBuilder},
-    socket::*,
+    router::synchronous::NlRouter,
     utils::Groups,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Resolve generic netlink family ID
     let family_name = "your_family_name_here";
-    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
+    let (sock, _mcast_receiver) =
+        NlRouter::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
     let _id = sock.resolve_genl_family(family_name).unwrap();
 
     // Resolve generic netlink multicast group ID
     let family_name = "your_family_name_here";
     let group_name = "your_group_name_here";
-    let mut sock = NlSocketHandle::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
+    let (sock, _mcast_receiver) =
+        NlRouter::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
     let _id = sock
         .resolve_nl_mcast_group(family_name, group_name)
         .unwrap();
@@ -42,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // to be provided
     let mut handle = nlmsg
         .get_payload()
-        .ok_or_else(|| NlError::msg("No payload found"))?
+        .ok_or_else(|| MsgError::new("No payload found"))?
         .get_attr_handle();
     // Get the nested attribute where the Nlattr field of nla_type is equal to 1 and return
     // a handler containing only this nested attribute internally

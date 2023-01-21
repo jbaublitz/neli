@@ -3,7 +3,7 @@
 //! There are four main types:
 //! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
 //! returned from netlink as a packet.
-//! * [`NlError`][crate::err::NlError] - a general netlink error
+//! * [`SocketError`][crate::err::SocketError] - a general netlink error
 //! wrapping application errors, serialization and deserialization
 //! errors, and other errors that occur in `neli`.
 //! * [`DeError`] - error while deserializing
@@ -24,7 +24,7 @@
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
-    io,
+    io::{self, Cursor, ErrorKind},
     str::Utf8Error,
     string::FromUtf8Error,
 };
@@ -36,7 +36,7 @@ use crate::{
     self as neli,
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
-    nl::NlmsghdrBuilderError,
+    nl::{Nlmsghdr, NlmsghdrBuilderError},
     rtnl::{
         IfaddrmsgBuilderError, IfinfomsgBuilderError, NdaCacheinfoBuilderError, NdmsgBuilderError,
         RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError,
@@ -51,15 +51,11 @@ use crate::{
 /// length of the packet (as in the case of ACKs where no payload
 /// will be returned), this data structure relies on the total
 /// packet size for deserialization.
-#[derive(
-    Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header,
-)]
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes)]
 #[neli(header_bound = "T: TypeSize")]
-#[neli(from_bytes_bound = "T: TypeSize + FromBytes")]
-#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
-#[builder(build_fn(skip))]
+#[neli(from_bytes_bound = "T: NlType")]
 #[builder(pattern = "owned")]
-pub struct NlmsghdrErr<T, P> {
+pub struct NlmsghdrAck<T> {
     /// Length of the netlink message
     #[getset(get = "pub")]
     nl_len: u32,
@@ -76,62 +72,71 @@ pub struct NlmsghdrErr<T, P> {
     /// responses.
     #[getset(get = "pub")]
     nl_pid: u32,
+}
+
+impl NlmsghdrAck<u16> {
+    /// Create a typed ACK from an ACK that can represent all types.
+    pub fn to_typed<T, P>(self) -> Result<NlmsghdrAck<T>, RouterError<T, P>>
+    where
+        T: NlType,
+    {
+        Ok(NlmsghdrAckBuilder::default()
+            .nl_len(self.nl_len)
+            .nl_type(T::from(self.nl_type))
+            .nl_flags(self.nl_flags)
+            .nl_seq(self.nl_seq)
+            .nl_pid(self.nl_pid)
+            .build()?)
+    }
+}
+
+/// A special struct that represents the contents of an error
+/// returned at the application level. Because the returned
+/// [`nl_len`][NlmsghdrErr::nl_len] cannot always determine the
+/// length of the packet (as in the case of ACKs where no payload
+/// will be returned), this data structure relies on the total
+/// packet size for deserialization.
+#[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytes, Header)]
+#[neli(header_bound = "T: TypeSize")]
+#[neli(from_bytes_bound = "T: NlType + TypeSize")]
+#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+#[builder(build_fn(skip))]
+#[builder(pattern = "owned")]
+pub struct NlmsghdrErr<T, P> {
+    /// Length of the netlink message
+    #[getset(get = "pub")]
+    #[builder(setter(skip))]
+    nl_len: u32,
+    /// Type of the netlink message
+    #[getset(get = "pub")]
+    nl_type: T,
+    /// Flags indicating properties of the request or response
+    #[getset(get = "pub")]
+    nl_flags: NlmF,
+    /// Sequence number for netlink protocol
+    #[getset(get = "pub")]
+    nl_seq: u32,
+    /// ID of the netlink destination for requests and source for
+    /// responses.
+    #[getset(get = "pub")]
+    nl_pid: u32,
     /// Payload of netlink message
-    #[neli(input = "input - Self::header_size()")]
+    #[neli(input = "nl_len as usize - Self::header_size()")]
     #[getset(get = "pub")]
     nl_payload: P,
 }
 
-impl<T> NlmsghdrErrBuilder<T, ()>
+impl<T, P> NlmsghdrErrBuilder<T, P>
 where
-    T: Clone + NlType,
+    T: NlType,
+    P: Size + FromBytesWithInput<Input = usize>,
 {
     /// Build [`NlmsghdrErr`].
-    pub fn build_ack(self) -> Result<NlmsghdrErr<T, ()>, NlmsghdrErrBuilderError> {
-        let nl_len = self
-            .nl_len
-            .ok_or_else(|| NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_len")))?;
+    pub fn build(self) -> Result<NlmsghdrErr<T, P>, NlmsghdrErrBuilderError> {
         let nl_type = self.nl_type.ok_or_else(|| {
             NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_type"))
         })?;
-        let nl_flags = self.nl_flags.ok_or_else(|| {
-            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_flags"))
-        })?;
-        let nl_seq = self.nl_seq.unwrap_or(0);
-        let nl_pid = self.nl_pid.unwrap_or(0);
-        self.nl_payload.map_or_else(
-            || Ok(()),
-            |_| {
-                Err(NlmsghdrErrBuilderError::ValidationError(
-                    "Building ACKs disables payload option".to_string(),
-                ))
-            },
-        )?;
-
-        Ok(NlmsghdrErr {
-            nl_len,
-            nl_type,
-            nl_flags,
-            nl_seq,
-            nl_pid,
-            nl_payload: (),
-        })
-    }
-}
-
-impl<'a, T, P> NlmsghdrErrBuilder<T, P>
-where
-    T: Clone + NlType,
-    P: Clone + Size + FromBytesWithInput<'a, Input = usize>,
-{
-    /// Build [`NlmsghdrErr`].
-    pub fn build_err(self) -> Result<NlmsghdrErr<T, P>, NlmsghdrErrBuilderError> {
-        let nl_type = self.nl_type.ok_or_else(|| {
-            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_type"))
-        })?;
-        let nl_flags = self.nl_flags.ok_or_else(|| {
-            NlmsghdrErrBuilderError::from(UninitializedFieldError::new("nl_flags"))
-        })?;
+        let nl_flags = self.nl_flags.unwrap_or(NlmF::empty());
         let nl_seq = self.nl_seq.unwrap_or(0);
         let nl_pid = self.nl_pid.unwrap_or(0);
         let nl_payload = self.nl_payload.ok_or_else(|| {
@@ -151,38 +156,79 @@ where
     }
 }
 
+impl NlmsghdrErr<u16, Buffer> {
+    /// Create a typed error from an error that can represent all types.
+    pub fn to_typed<T, P>(self) -> Result<NlmsghdrErr<T, P>, RouterError<T, P>>
+    where
+        T: NlType,
+        P: Size + FromBytesWithInput<Input = usize>,
+    {
+        Ok(NlmsghdrErrBuilder::default()
+            .nl_type(T::from(self.nl_type))
+            .nl_flags(self.nl_flags)
+            .nl_seq(self.nl_seq)
+            .nl_pid(self.nl_pid)
+            .nl_payload(P::from_bytes_with_input(
+                &mut Cursor::new(self.nl_payload),
+                self.nl_len as usize - Self::header_size(),
+            )?)
+            .build()?)
+    }
+}
+
 /// Struct representing netlink packets containing errors
 #[derive(Builder, Getters, Clone, Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
-#[neli(from_bytes_bound = "T: NlType")]
-#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
+#[neli(from_bytes_bound = "M: Size + FromBytes")]
 #[builder(pattern = "owned")]
-pub struct Nlmsgerr<T, P> {
+pub struct Nlmsgerr<M> {
     /// Error code
     #[builder(default = "0")]
     #[getset(get = "pub")]
     error: libc::c_int,
     /// Packet header for request that failed
-    #[neli(input = "input - std::mem::size_of::<libc::c_int>()")]
     #[getset(get = "pub")]
-    nlmsg: NlmsghdrErr<T, P>,
-    #[neli(input = "input - std::mem::size_of::<libc::c_int>() - nlmsg.padded_size()")]
+    #[neli(skip_debug)]
+    nlmsg: M,
+    #[neli(input = "input - error.padded_size() - nlmsg.padded_size()")]
     /// Contains attributes representing the extended ACK
     #[builder(default = "GenlBuffer::new()")]
     #[getset(get = "pub")]
     ext_ack: GenlBuffer<NlmsgerrAttr, Buffer>,
 }
 
-impl<T, P> Display for Nlmsgerr<T, P> {
+impl<M> Display for Nlmsgerr<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", io::Error::from_raw_os_error(-self.error))
     }
 }
 
-impl<T, P> Error for Nlmsgerr<T, P>
-where
-    T: Debug,
-    P: Debug,
-{
+impl<M> Error for Nlmsgerr<M> where M: Debug {}
+
+impl Nlmsgerr<NlmsghdrErr<u16, Buffer>> {
+    /// Create a typed error from an error that can represent all types.
+    pub fn to_typed<T, P>(self) -> Result<Nlmsgerr<NlmsghdrErr<T, P>>, RouterError<T, P>>
+    where
+        T: NlType,
+        P: Size + FromBytesWithInput<Input = usize>,
+    {
+        Ok(NlmsgerrBuilder::default()
+            .error(self.error)
+            .nlmsg(self.nlmsg.to_typed()?)
+            .build()?)
+    }
+}
+
+impl Nlmsgerr<NlmsghdrAck<u16>> {
+    /// Create a typed ACK from an ACK that can represent all types.
+    pub fn to_typed<T, P>(self) -> Result<Nlmsgerr<NlmsghdrAck<T>>, RouterError<T, P>>
+    where
+        T: NlType,
+    {
+        Ok(NlmsgerrBuilder::default()
+            .error(self.error)
+            .nlmsg(self.nlmsg.to_typed()?)
+            .build()?)
+    }
 }
 
 #[derive(Debug)]
@@ -216,6 +262,8 @@ pub enum BuilderError {
     Tcmsg(TcmsgBuilderError),
     #[allow(missing_docs)]
     Rtattr(RtattrBuilderError),
+    #[allow(missing_docs)]
+    NlmsghdrAck(NlmsghdrAckBuilderError),
 }
 
 impl Error for BuilderError {}
@@ -237,6 +285,7 @@ impl Display for BuilderError {
             BuilderError::NdaCacheinfo(err) => write!(f, "{}", err),
             BuilderError::Tcmsg(err) => write!(f, "{}", err),
             BuilderError::Rtattr(err) => write!(f, "{}", err),
+            BuilderError::NlmsghdrAck(err) => write!(f, "{}", err),
         }
     }
 }
@@ -325,21 +374,28 @@ impl From<RtattrBuilderError> for BuilderError {
     }
 }
 
-/// General netlink error
-#[derive(Debug)]
-pub enum NlError<T = u16, P = Buffer> {
-    /// Variant for [`String`]-based messages.
-    Msg(String),
-    /// An error packet sent back by netlink.
-    Nlmsgerr(Nlmsgerr<T, P>),
-    /// A serialization error.
-    Ser(SerError),
-    /// A deserialization error.
+impl From<NlmsghdrAckBuilderError> for BuilderError {
+    fn from(e: NlmsghdrAckBuilderError) -> Self {
+        BuilderError::NlmsghdrAck(e)
+    }
+}
+
+/// Sendable, clonable error that can be sent across channels in the router infrastructure
+/// to provide typed errors to all receivers indicating what went wrong.
+#[derive(Clone, Debug)]
+pub enum RouterError<T, P> {
+    /// Arbitrary message
+    Msg(MsgError),
+    /// errno indicating what went wrong in an IO error.
+    Io(ErrorKind),
+    /// Deserialization error.
     De(DeError),
-    /// IO error.
-    IO(io::Error),
-    /// Error resulting from a builder invocation.
-    Builder(BuilderError),
+    /// Error from socket infrastructure.
+    Socket(SocketError),
+    /// An error packet sent back by netlink.
+    Nlmsgerr(Nlmsgerr<NlmsghdrErr<T, P>>),
+    /// A bad sequence number or PID was received.
+    BadSeqOrPid(Nlmsghdr<T, P>),
     /// No ack was received when
     /// [`NlmF::Ack`][crate::consts::nl::NlmF] was specified in the
     /// request.
@@ -348,118 +404,179 @@ pub enum NlError<T = u16, P = Buffer> {
     /// [`NlmF::Ack`][crate::consts::nl::NlmF] was not specified in the
     /// request.
     UnexpectedAck,
-    /// The sequence number for the response did not match the
-    /// request.
-    BadSeq,
-    /// Incorrect PID socket identifier in received message.
-    BadPid,
+    /// A channel has closed and message processing cannot continue.
+    ClosedChannel,
 }
 
-impl<T, P> From<Nlmsgerr<T, P>> for NlError<T, P> {
-    fn from(err: Nlmsgerr<T, P>) -> Self {
-        NlError::Nlmsgerr(err)
+impl<T, P> RouterError<T, P> {
+    /// Create a new arbitrary error message.
+    pub fn new<D>(d: D) -> Self
+    where
+        D: Display,
+    {
+        RouterError::Msg(MsgError::new(d.to_string()))
     }
 }
 
-impl<T, P> From<SerError> for NlError<T, P> {
+impl RouterError<u16, Buffer> {
+    /// Convert to typed router error from a router error that can represent all types.
+    pub fn to_typed<T, P>(self) -> Result<RouterError<T, P>, RouterError<T, P>>
+    where
+        T: NlType,
+        P: Size + FromBytesWithInput<Input = usize>,
+    {
+        match self {
+            RouterError::Msg(msg) => Ok(RouterError::Msg(msg)),
+            RouterError::Io(kind) => Ok(RouterError::Io(kind)),
+            RouterError::De(err) => Ok(RouterError::De(err)),
+            RouterError::Socket(err) => Ok(RouterError::Socket(err)),
+            RouterError::Nlmsgerr(err) => Ok(RouterError::Nlmsgerr(err.to_typed()?)),
+            RouterError::BadSeqOrPid(msg) => Ok(RouterError::BadSeqOrPid(msg.to_typed()?)),
+            RouterError::NoAck => Ok(RouterError::NoAck),
+            RouterError::UnexpectedAck => Ok(RouterError::UnexpectedAck),
+            RouterError::ClosedChannel => Ok(RouterError::ClosedChannel),
+        }
+    }
+}
+
+impl<T, P> Display for RouterError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RouterError::Msg(msg) => write!(f, "{}", msg),
+            RouterError::Io(kind) => write!(f, "IO error: {}", kind),
+            RouterError::De(err) => write!(f, "Deserialization failed: {}", err),
+            RouterError::Socket(err) => write!(f, "Socket error: {}", err),
+            RouterError::Nlmsgerr(msg) => {
+                write!(f, "Application error was returned by netlink: {:?}", msg)
+            }
+            RouterError::BadSeqOrPid(msg) => {
+                write!(f, "A bad sequence number or PID was received: {:?}", msg)
+            }
+            RouterError::NoAck => write!(f, "No ACK received"),
+            RouterError::UnexpectedAck => write!(f, "ACK received when none was expected"),
+            RouterError::ClosedChannel => {
+                write!(f, "A channel required for message processing closed")
+            }
+        }
+    }
+}
+
+impl<E, T, P> From<E> for RouterError<T, P>
+where
+    BuilderError: From<E>,
+{
+    fn from(e: E) -> Self {
+        RouterError::new(BuilderError::from(e).to_string())
+    }
+}
+
+impl<T, P> From<DeError> for RouterError<T, P> {
+    fn from(e: DeError) -> Self {
+        RouterError::De(e)
+    }
+}
+
+impl<T, P> From<SocketError> for RouterError<T, P> {
+    fn from(e: SocketError) -> Self {
+        RouterError::Socket(e)
+    }
+}
+
+impl<T, P> From<MsgError> for RouterError<T, P> {
+    fn from(e: MsgError) -> Self {
+        RouterError::Msg(e)
+    }
+}
+
+impl<T, P> Error for RouterError<T, P>
+where
+    T: Debug,
+    P: Debug,
+{
+}
+
+/// General netlink error
+#[derive(Clone, Debug)]
+pub enum SocketError {
+    /// Variant for [`String`]-based messages.
+    Msg(MsgError),
+    /// A serialization error.
+    Ser(SerError),
+    /// A deserialization error.
+    De(DeError),
+    /// IO error.
+    Io(ErrorKind),
+}
+
+impl From<SerError> for SocketError {
     fn from(err: SerError) -> Self {
-        NlError::Ser(err)
+        SocketError::Ser(err)
     }
 }
 
-impl<T, P> From<DeError> for NlError<T, P> {
+impl From<DeError> for SocketError {
     fn from(err: DeError) -> Self {
-        NlError::De(err)
+        SocketError::De(err)
     }
 }
 
-impl<T, P> From<io::Error> for NlError<T, P> {
+impl From<io::Error> for SocketError {
     fn from(err: io::Error) -> Self {
-        NlError::IO(err)
+        SocketError::Io(err.kind())
     }
 }
 
-impl<T, P, E> From<E> for NlError<T, P>
+impl<E> From<E> for SocketError
 where
     BuilderError: From<E>,
 {
     fn from(err: E) -> Self {
-        NlError::<T, P>::Builder(BuilderError::from(err))
+        SocketError::new(BuilderError::from(err).to_string())
     }
 }
 
-impl NlError {
-    /// Create new error from a data type implementing
-    /// [`Display`][std::fmt::Display]
-    pub fn msg<D>(s: D) -> Self
-    where
-        D: Display,
-    {
-        NlError::Msg(s.to_string())
+impl From<MsgError> for SocketError {
+    fn from(e: MsgError) -> Self {
+        SocketError::Msg(e)
     }
 }
 
-impl<T, P> NlError<T, P> {
+impl SocketError {
     /// Create new error from a data type implementing
     /// [`Display`][std::fmt::Display]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
     {
-        NlError::Msg(s.to_string())
-    }
-
-    /// Returns `true` if the error returned is caused by
-    pub fn is_would_block(&self) -> bool {
-        match self {
-            NlError::IO(e) | NlError::Ser(SerError::IO(e)) | NlError::De(DeError::IO(e)) => {
-                e.kind() == io::ErrorKind::WouldBlock
-            }
-            _ => false,
-        }
+        SocketError::Msg(MsgError::new(s))
     }
 }
 
-impl<T, P> Display for NlError<T, P>
-where
-    T: Debug,
-    P: Debug,
-{
+impl Display for SocketError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            NlError::Msg(ref msg) => write!(f, "{}", msg),
-            NlError::Nlmsgerr(ref err) => {
-                write!(f, "Error response received from netlink: {}", err)
-            }
-            NlError::Ser(ref err) => {
+            SocketError::Msg(ref msg) => write!(f, "{}", msg),
+            SocketError::Ser(ref err) => {
                 write!(f, "Serialization error: {}", err)
             }
-            NlError::De(ref err) => {
+            SocketError::De(ref err) => {
                 write!(f, "Deserialization error: {}", err)
             }
-            NlError::IO(ref err) => {
+            SocketError::Io(ref err) => {
                 write!(f, "IO error: {}", err)
             }
-            NlError::Builder(ref err) => {
-                write!(f, "Builder error: {}", err)
-            }
-            NlError::NoAck => write!(f, "No ACK received"),
-            NlError::UnexpectedAck => write!(f, "ACK received when none was expected"),
-            NlError::BadSeq => write!(f, "Sequence number does not match the request"),
-            NlError::BadPid => write!(f, "PID does not match the socket"),
         }
     }
 }
 
-impl<T, P> Error for NlError<T, P>
-where
-    T: Debug,
-    P: Debug,
-{
-}
+impl Error for SocketError {}
 
 /// [`String`] or [`str`] UTF error.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Utf8 {
     #[allow(missing_docs)]
     Str(Utf8Error),
@@ -477,18 +594,14 @@ impl Display for Utf8 {
 }
 
 /// Serialization error
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SerError {
     /// Abitrary error message.
-    Msg(String),
+    Msg(MsgError),
     /// IO error.
-    IO(io::Error),
+    Io(ErrorKind),
     /// String UTF conversion error.
     Utf8(Utf8),
-    /// The end of the buffer was reached before serialization finished.
-    UnexpectedEOB,
-    /// Serialization did not fill the buffer.
-    BufferNotFilled,
 }
 
 impl SerError {
@@ -497,7 +610,7 @@ impl SerError {
     where
         D: Display,
     {
-        SerError::Msg(msg.to_string())
+        SerError::Msg(MsgError::new(msg))
     }
 }
 
@@ -505,17 +618,8 @@ impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SerError::Msg(ref s) => write!(f, "{}", s),
-            SerError::IO(ref err) => write!(f, "IO error: {}", err),
+            SerError::Io(ref err) => write!(f, "IO error: {}", err),
             SerError::Utf8(ref err) => write!(f, "UTF error: {}", err),
-            SerError::UnexpectedEOB => write!(
-                f,
-                "The buffer was too small for the requested serialization operation",
-            ),
-            SerError::BufferNotFilled => write!(
-                f,
-                "The number of bytes written to the buffer did not fill the \
-                 given space",
-            ),
         }
     }
 }
@@ -524,7 +628,7 @@ impl Error for SerError {}
 
 impl From<io::Error> for SerError {
     fn from(err: io::Error) -> Self {
-        SerError::IO(err)
+        SerError::Io(err.kind())
     }
 }
 
@@ -540,28 +644,23 @@ impl From<FromUtf8Error> for SerError {
     }
 }
 
+impl From<MsgError> for SerError {
+    fn from(e: MsgError) -> Self {
+        SerError::Msg(e)
+    }
+}
+
 /// Deserialization error
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DeError {
     /// Abitrary error message.
-    Msg(String),
-    /// IO error.
-    IO(io::Error),
+    Msg(MsgError),
+    /// IO error
+    Io(ErrorKind),
     /// String UTF conversion error.
     Utf8(Utf8),
-    /// Builder error during deserialization
-    Builder(BuilderError),
-    /// The end of the buffer was reached before deserialization
-    /// finished.
-    UnexpectedEOB,
-    /// Deserialization did not fill the buffer.
-    BufferNotParsed,
-    /// A null byte was found before the end of the serialized
-    /// [`String`].
-    NullError,
-    /// A null byte was not found at the end of the serialized
-    /// [`String`].
-    NoNullError,
+    /// Invalid input parameter for [`FromBytesWithInput`][crate::FromBytesWithInput].
+    InvalidInput(usize),
 }
 
 impl DeError {
@@ -571,25 +670,17 @@ impl DeError {
     where
         D: Display,
     {
-        DeError::Msg(s.to_string())
+        DeError::Msg(MsgError::new(s))
     }
 }
 
 impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            DeError::Msg(ref s) => write!(f, "{}", s),
-            DeError::IO(ref err) => write!(f, "IO error: {}", err),
-            DeError::Utf8(ref err) => write!(f, "UTF8 error: {}", err),
-            DeError::Builder(ref err) => write!(f, "Builder error: {}", err),
-            DeError::UnexpectedEOB => write!(
-                f,
-                "The buffer was not large enough to complete the deserialize \
-                 operation",
-            ),
-            DeError::BufferNotParsed => write!(f, "Unparsed data left in buffer"),
-            DeError::NullError => write!(f, "A null was found before the end of the buffer"),
-            DeError::NoNullError => write!(f, "No terminating null byte was found in the buffer"),
+        match self {
+            DeError::Msg(s) => write!(f, "{}", s),
+            DeError::Utf8(err) => write!(f, "UTF8 error: {}", err),
+            DeError::Io(err) => write!(f, "IO error: {}", err),
+            DeError::InvalidInput(input) => write!(f, "Invalid input was provided: {}", input),
         }
     }
 }
@@ -598,7 +689,7 @@ impl Error for DeError {}
 
 impl From<io::Error> for DeError {
     fn from(err: io::Error) -> Self {
-        DeError::IO(err)
+        DeError::Io(err.kind())
     }
 }
 
@@ -619,6 +710,34 @@ where
     BuilderError: From<E>,
 {
     fn from(err: E) -> Self {
-        DeError::Builder(BuilderError::from(err))
+        DeError::new(BuilderError::from(err).to_string())
     }
 }
+
+impl From<MsgError> for DeError {
+    fn from(e: MsgError) -> Self {
+        DeError::Msg(e)
+    }
+}
+
+/// Arbitrary error message.
+#[derive(Clone, Debug)]
+pub struct MsgError(String);
+
+impl MsgError {
+    /// Construct a new error message.
+    pub fn new<D>(d: D) -> Self
+    where
+        D: Display,
+    {
+        MsgError(d.to_string())
+    }
+}
+
+impl Display for MsgError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Error for MsgError {}

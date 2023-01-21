@@ -9,15 +9,12 @@
 //! [`Nlattr`][crate::genl::Nlattr] types in the
 //! `rtnl.rs` and `genl.rs` modules respectively.
 
-use std::{
-    io::Cursor,
-    slice::{Iter, IterMut},
-};
+use std::{io::Cursor, slice::Iter};
 
 use crate::{
     err::{DeError, SerError},
     types::Buffer,
-    FromBytes, FromBytesWithInput, Size, ToBytes,
+    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Size, ToBytes,
 };
 
 /// Trait that defines shared operations for netlink attributes.
@@ -44,18 +41,31 @@ pub trait Attribute<T> {
 
     /// Get an [`Nlattr`][crate::genl::Nlattr] payload as the
     /// provided type parameter, `R`.
-    fn get_payload_as<'a, R>(&'a self) -> Result<R, DeError>
+    fn get_payload_as<R>(&self) -> Result<R, DeError>
     where
-        R: FromBytes<'a>,
+        R: FromBytes,
     {
         R::from_bytes(&mut Cursor::new(self.payload().as_ref()))
     }
 
     /// Get an [`Nlattr`][crate::genl::Nlattr] payload as the
     /// provided type parameter, `R`.
-    fn get_payload_as_with_len<'a, R>(&'a self) -> Result<R, DeError>
+    fn get_payload_as_with_len<R>(&self) -> Result<R, DeError>
     where
-        R: FromBytesWithInput<'a, Input = usize>,
+        R: FromBytesWithInput<Input = usize>,
+    {
+        R::from_bytes_with_input(
+            &mut Cursor::new(self.payload().as_ref()),
+            self.payload().len(),
+        )
+    }
+
+    /// Get an [`Nlattr`][crate::genl::Nlattr] payload as the
+    /// provided type parameter, `R`. This method borrows the data instead
+    /// of copying it.
+    fn get_payload_as_with_len_borrowed<'a, R>(&'a self) -> Result<R, DeError>
+    where
+        R: FromBytesWithInputBorrowed<'a, Input = usize>,
     {
         R::from_bytes_with_input(
             &mut Cursor::new(self.payload().as_ref()),
@@ -96,43 +106,6 @@ where
         match *self {
             AttrHandle::Owned(ref o) => o.as_ref(),
             AttrHandle::Borrowed(b) => b,
-        }
-    }
-}
-
-/// Handle for traversing nested attribute structures mutably
-pub enum AttrHandleMut<'a, O, I> {
-    /// Owned vector
-    Owned(O),
-    /// Vector reference
-    Borrowed(&'a mut [I]),
-}
-
-impl<'a, O, I> AttrHandleMut<'a, O, I>
-where
-    O: AsRef<[I]> + AsMut<[I]>,
-{
-    /// Create new `AttrHandle`
-    pub fn new(owned: O) -> Self {
-        AttrHandleMut::Owned(owned)
-    }
-
-    /// Create new borrowed [`AttrHandleMut`]
-    pub fn new_borrowed(borrowed: &'a mut [I]) -> Self {
-        AttrHandleMut::Borrowed(borrowed)
-    }
-
-    /// Pass back iterator over attributes
-    pub fn iter_mut(&mut self) -> IterMut<I> {
-        self.get_mut_attrs().iter_mut()
-    }
-
-    /// Get the underlying owned value as a mutable reference or
-    /// return [`None`].
-    pub fn get_mut_attrs(&mut self) -> &mut [I] {
-        match self {
-            AttrHandleMut::Owned(ref mut o) => o.as_mut(),
-            AttrHandleMut::Borrowed(b) => b,
         }
     }
 }

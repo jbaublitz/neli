@@ -20,11 +20,11 @@ use getset::Getters;
 
 use crate::{
     self as neli,
-    attr::{AttrHandle, AttrHandleMut, Attribute},
+    attr::{AttrHandle, Attribute},
     consts::genl::{Cmd, NlAttrType},
     err::{DeError, SerError},
     types::{Buffer, GenlBuffer},
-    FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
+    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes, TypeSize,
 };
 
 /// Struct indicating that no user header is in the generic netlink packet.
@@ -64,7 +64,7 @@ pub struct Genlmsghdr<C, T, H = NoUserHeader> {
     #[getset(get = "pub")]
     header: H,
     /// Attributes included in generic netlink message
-    #[neli(input = "input - Self::header_size()")]
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
     attrs: GenlBuffer<T, Buffer>,
 }
 
@@ -125,13 +125,6 @@ where
     pub fn get_attr_handle(&self) -> AttrHandle<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
         self.attrs.get_attr_handle()
     }
-
-    /// Get handle for attribute mutable and traversal
-    pub fn get_attr_handle_mut(
-        &mut self,
-    ) -> AttrHandleMut<GenlBuffer<T, Buffer>, Nlattr<T, Buffer>> {
-        self.attrs.get_attr_handle_mut()
-    }
 }
 
 /// The infomation packed into `nla_type` field of `nlattr`
@@ -180,11 +173,11 @@ where
     }
 }
 
-impl<'lt, T> FromBytes<'lt> for AttrType<T>
+impl<T> FromBytes for AttrType<T>
 where
     T: NlAttrType,
 {
-    fn from_bytes(buffer: &mut Cursor<&'lt [u8]>) -> Result<Self, DeError> {
+    fn from_bytes(buffer: &mut Cursor<impl AsRef<[u8]>>) -> Result<Self, DeError> {
         let int = u16::from_bytes(buffer)?;
         Ok(AttrType::from(int))
     }
@@ -245,7 +238,9 @@ pub struct Nlattr<T, P> {
     #[getset(get = "pub")]
     nla_type: AttrType<T>,
     /// Payload of the attribute - either parsed or a binary buffer
-    #[neli(input = "nla_len as usize - Self::header_size()")]
+    #[neli(
+        input = "(nla_len as usize).checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(nla_len as usize))?"
+    )]
     #[getset(get = "pub")]
     nla_payload: P,
 }
@@ -321,17 +316,6 @@ where
             self.nla_payload.unpadded_size(),
         )?))
     }
-
-    /// Return a mutable `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_attr_handle_mut<R>(&mut self) -> Result<GenlAttrHandleMut<R>, DeError>
-    where
-        R: NlAttrType,
-    {
-        Ok(AttrHandleMut::new(GenlBuffer::from_bytes_with_input(
-            &mut Cursor::new(self.nla_payload.as_ref()),
-            self.nla_payload.unpadded_size(),
-        )?))
-    }
 }
 
 impl<T> Attribute<T> for Nlattr<T, Buffer>
@@ -360,9 +344,8 @@ where
 }
 
 type GenlAttrHandle<'a, T> = AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
-type GenlAttrHandleMut<'a, T> = AttrHandleMut<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
+impl<'a, T> GenlAttrHandle<'a, T>
 where
     T: NlAttrType,
 {
@@ -389,9 +372,9 @@ where
     }
 
     /// Parse binary payload as a type that implements [`FromBytes`].
-    pub fn get_attr_payload_as<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytes<'b>,
+        R: FromBytes,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as::<R>(),
@@ -401,12 +384,24 @@ where
 
     /// Parse binary payload as a type that implements
     /// [`FromBytesWithInput`]
-    pub fn get_attr_payload_as_with_len<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as_with_len<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytesWithInput<'b, Input = usize>,
+        R: FromBytesWithInput<Input = usize>,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as_with_len::<R>(),
+            _ => Err(DeError::new("Failed to find specified attribute")),
+        }
+    }
+
+    /// Parse binary payload as a type that implements
+    /// [`FromBytesWithInputBorrowed`]
+    pub fn get_attr_payload_as_with_len_borrowed<R>(&'a self, attr: T) -> Result<R, DeError>
+    where
+        R: FromBytesWithInputBorrowed<'a, Input = usize>,
+    {
+        match self.get_attribute(attr) {
+            Some(a) => a.get_payload_as_with_len_borrowed::<R>(),
             _ => Err(DeError::new("Failed to find specified attribute")),
         }
     }

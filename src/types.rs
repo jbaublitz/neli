@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     self as neli,
-    attr::{AttrHandle, AttrHandleMut},
+    attr::AttrHandle,
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     genl::Nlattr,
     nl::Nlmsghdr,
@@ -87,7 +87,7 @@ impl Default for Buffer {
 /// A buffer of netlink messages.
 #[derive(Debug, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
 #[neli(from_bytes_bound = "T: NlType")]
-#[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
+#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
 pub struct NlBuffer<T, P>(#[neli(input)] Vec<Nlmsghdr<T, P>>);
 
 impl<T, P> FromIterator<Nlmsghdr<T, P>> for NlBuffer<T, P> {
@@ -181,12 +181,6 @@ impl<T> GenlBuffer<T, Buffer> {
     /// underlying [`Nlattr`]s.
     pub fn get_attr_handle(&self) -> AttrHandle<Self, Nlattr<T, Buffer>> {
         AttrHandle::new_borrowed(self.0.as_ref())
-    }
-
-    /// Get a data structure with a mutable reference to the
-    /// underlying [`Nlattr`]s.
-    pub fn get_attr_handle_mut(&mut self) -> AttrHandleMut<Self, Nlattr<T, Buffer>> {
-        AttrHandleMut::new_borrowed(self.0.as_mut())
     }
 }
 
@@ -286,12 +280,6 @@ impl<T> RtBuffer<T, Buffer> {
     /// underlying [`Rtattr`]s.
     pub fn get_attr_handle(&self) -> AttrHandle<Self, Rtattr<T, Buffer>> {
         AttrHandle::new_borrowed(self.0.as_ref())
-    }
-
-    /// Get a data structure with a mutable reference to the
-    /// underlying [`Rtattr`]s.
-    pub fn get_attr_handle_mut(&mut self) -> AttrHandleMut<Self, Rtattr<T, Buffer>> {
-        AttrHandleMut::new_borrowed(self.0.as_mut())
     }
 }
 
