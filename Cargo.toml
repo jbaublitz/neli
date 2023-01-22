@@ -1,6 +1,6 @@
 [package]
 name = "neli"
-version = "0.7.0"
+version = "0.7.0-rc1"
 edition = "2018"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
@@ -29,7 +29,7 @@ libc = "0.2.105"
 log = "0.4"
 
 [dependencies.neli-proc-macros]
-version = "0.2"
+version = "0.2.0-rc1"
 path = "neli-proc-macros"
 
 [dependencies.crossbeam-channel]
