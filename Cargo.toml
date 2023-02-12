@@ -38,7 +38,7 @@ optional = true
 
 [dependencies.tokio]
 version = "1"
-features = ["io-util", "net", "sync"]
+features = ["io-util", "net", "sync", "rt"]
 optional = true
 
 [dev-dependencies]
