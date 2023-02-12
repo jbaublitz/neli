@@ -257,21 +257,21 @@ impl Error for BuilderError {}
 impl Display for BuilderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BuilderError::Nlmsghdr(err) => write!(f, "{}", err),
-            BuilderError::Nlmsgerr(err) => write!(f, "{}", err),
-            BuilderError::NlmsghdrErr(err) => write!(f, "{}", err),
-            BuilderError::Genlmsghdr(err) => write!(f, "{}", err),
-            BuilderError::Nlattr(err) => write!(f, "{}", err),
-            BuilderError::AttrType(err) => write!(f, "{}", err),
-            BuilderError::Ifinfomsg(err) => write!(f, "{}", err),
-            BuilderError::Ifaddrmsg(err) => write!(f, "{}", err),
-            BuilderError::Rtgenmsg(err) => write!(f, "{}", err),
-            BuilderError::Rtmsg(err) => write!(f, "{}", err),
-            BuilderError::Ndmsg(err) => write!(f, "{}", err),
-            BuilderError::NdaCacheinfo(err) => write!(f, "{}", err),
-            BuilderError::Tcmsg(err) => write!(f, "{}", err),
-            BuilderError::Rtattr(err) => write!(f, "{}", err),
-            BuilderError::NlmsghdrAck(err) => write!(f, "{}", err),
+            BuilderError::Nlmsghdr(err) => write!(f, "{err}"),
+            BuilderError::Nlmsgerr(err) => write!(f, "{err}"),
+            BuilderError::NlmsghdrErr(err) => write!(f, "{err}"),
+            BuilderError::Genlmsghdr(err) => write!(f, "{err}"),
+            BuilderError::Nlattr(err) => write!(f, "{err}"),
+            BuilderError::AttrType(err) => write!(f, "{err}"),
+            BuilderError::Ifinfomsg(err) => write!(f, "{err}"),
+            BuilderError::Ifaddrmsg(err) => write!(f, "{err}"),
+            BuilderError::Rtgenmsg(err) => write!(f, "{err}"),
+            BuilderError::Rtmsg(err) => write!(f, "{err}"),
+            BuilderError::Ndmsg(err) => write!(f, "{err}"),
+            BuilderError::NdaCacheinfo(err) => write!(f, "{err}"),
+            BuilderError::Tcmsg(err) => write!(f, "{err}"),
+            BuilderError::Rtattr(err) => write!(f, "{err}"),
+            BuilderError::NlmsghdrAck(err) => write!(f, "{err}"),
         }
     }
 }
@@ -432,15 +432,15 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RouterError::Msg(msg) => write!(f, "{}", msg),
-            RouterError::Io(kind) => write!(f, "IO error: {}", kind),
-            RouterError::De(err) => write!(f, "Deserialization failed: {}", err),
-            RouterError::Socket(err) => write!(f, "Socket error: {}", err),
+            RouterError::Msg(msg) => write!(f, "{msg}"),
+            RouterError::Io(kind) => write!(f, "IO error: {kind}"),
+            RouterError::De(err) => write!(f, "Deserialization failed: {err}"),
+            RouterError::Socket(err) => write!(f, "Socket error: {err}"),
             RouterError::Nlmsgerr(msg) => {
-                write!(f, "Application error was returned by netlink: {:?}", msg)
+                write!(f, "Application error was returned by netlink: {msg:?}")
             }
             RouterError::BadSeqOrPid(msg) => {
-                write!(f, "A bad sequence number or PID was received: {:?}", msg)
+                write!(f, "A bad sequence number or PID was received: {msg:?}")
             }
             RouterError::NoAck => write!(f, "No ACK received"),
             RouterError::UnexpectedAck => write!(f, "ACK received when none was expected"),
@@ -545,15 +545,15 @@ impl SocketError {
 impl Display for SocketError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            SocketError::Msg(ref msg) => write!(f, "{}", msg),
+            SocketError::Msg(ref msg) => write!(f, "{msg}"),
             SocketError::Ser(ref err) => {
-                write!(f, "Serialization error: {}", err)
+                write!(f, "Serialization error: {err}")
             }
             SocketError::De(ref err) => {
-                write!(f, "Deserialization error: {}", err)
+                write!(f, "Deserialization error: {err}")
             }
             SocketError::Io(ref err) => {
-                write!(f, "IO error: {}", err)
+                write!(f, "IO error: {err}")
             }
         }
     }
@@ -573,8 +573,8 @@ pub enum Utf8 {
 impl Display for Utf8 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Utf8::Str(e) => write!(f, "{}", e),
-            Utf8::String(e) => write!(f, "{}", e),
+            Utf8::Str(e) => write!(f, "{e}"),
+            Utf8::String(e) => write!(f, "{e}"),
         }
     }
 }
@@ -603,9 +603,9 @@ impl SerError {
 impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SerError::Msg(ref s) => write!(f, "{}", s),
-            SerError::Io(ref err) => write!(f, "IO error: {}", err),
-            SerError::Utf8(ref err) => write!(f, "UTF error: {}", err),
+            SerError::Msg(ref s) => write!(f, "{s}"),
+            SerError::Io(ref err) => write!(f, "IO error: {err}"),
+            SerError::Utf8(ref err) => write!(f, "UTF error: {err}"),
         }
     }
 }
@@ -663,10 +663,10 @@ impl DeError {
 impl Display for DeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DeError::Msg(s) => write!(f, "{}", s),
-            DeError::Utf8(err) => write!(f, "UTF8 error: {}", err),
-            DeError::Io(err) => write!(f, "IO error: {}", err),
-            DeError::InvalidInput(input) => write!(f, "Invalid input was provided: {}", input),
+            DeError::Msg(s) => write!(f, "{s}"),
+            DeError::Utf8(err) => write!(f, "UTF8 error: {err}"),
+            DeError::Io(err) => write!(f, "IO error: {err}"),
+            DeError::InvalidInput(input) => write!(f, "Invalid input was provided: {input}"),
         }
     }
 }

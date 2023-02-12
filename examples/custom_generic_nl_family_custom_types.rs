@@ -68,8 +68,7 @@ fn main() {
         Ok(id) => id,
         Err(e) => {
             eprintln!(
-                "The Netlink family '{}' can't be found. Is the kernel module loaded yet? neli-error='{}'",
-                FAMILY_NAME, e
+                "The Netlink family '{FAMILY_NAME}' can't be found. Is the kernel module loaded yet? neli-error='{e}'"
             );
             // Exit without error in order for Continuous Integration and automatic testing not to fail.
             // This is because in testing/build scenarios we do not have a Kernel module which we can load.
@@ -77,7 +76,7 @@ fn main() {
         }
     };
 
-    println!("Generic family number is {}", family_id);
+    println!("Generic family number is {family_id}");
 
     // We want to send an Echo command
     // 1) prepare NlFoobarXmpl Attribute
@@ -107,7 +106,7 @@ fn main() {
         .attrs(attrs)
         .build()
         .unwrap();
-    println!("Send to kernel: '{}'", ECHO_MSG);
+    println!("Send to kernel: '{ECHO_MSG}'");
 
     // Send data
     let mut recv = sock
@@ -139,5 +138,5 @@ fn main() {
     let received = attr_handle
         .get_attr_payload_as_with_len::<String>(NlFoobarXmplAttribute::Msg)
         .unwrap();
-    println!("Received from kernel: '{}'", received);
+    println!("Received from kernel: '{received}'");
 }
