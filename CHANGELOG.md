@@ -29,10 +29,10 @@ for requests sent in parallel.
 * libc
 
 ### Migration guide
-* If you were previously using certain `new()` methods defined on structs with padding,
-all packet data structures have been migrated over to a builder pattern.
+* If you were previously using `new()` methods defined on structs representing packet 
+data, all packet data structures have been migrated over to a builder pattern.
 * Flags in packets have been migrated from a custom data structure to
-[`bitflags`](https://docs.rs/bitflags).
+[`bitflags`](https://docs.rs/bitflags). For example `&[Nlm::Request, Nlm::Ack]` is now `NlmF::REQUEST | NlmF::ACK`.
 * Because of previous errors around multicast groups, there is a new data structure
 to handle group management that allows either converting from group numbers or a
 bitmask. If you previously passed in 0 for groups, you will now use `Groups::empty()`.
@@ -45,6 +45,11 @@ previously provided by `NlSocketHandle`. See the documentation in the `neli::rou
 module for a more detailed explanation of the problem this was meant to solve.
 * If you were previously using `Attr::get_payload_as_with_len()` with a `&[u8]` or
 `&str` type, you should change this to `Attr::get_payload_as_with_len_borrowed()`.
+* `NlError` has been removed and replaced by `SocketError` for `NlSocketHandle`
+operations and `RouterError` for `NlRouter` operations. The appropriate conversions
+between errors using `From` should be implemented.
+* `Genlmsghdr::get_attr_handle()` has been removed in favor of
+`genl.attrs().get_attr_handle()`.
 
 ## 0.6.4
 ### Bug fixes
