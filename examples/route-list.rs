@@ -51,7 +51,7 @@ fn parse_route_table(
             } else {
                 print!("default ");
                 if let Some(gateway) = gateway {
-                    print!("via {} ", gateway);
+                    print!("via {gateway} ");
                 }
             }
 
@@ -67,7 +67,7 @@ fn parse_route_table(
                 )
             }
             if let Some(src) = src {
-                print!(" src {} ", src);
+                print!(" src {src} ");
             }
             println!();
         }

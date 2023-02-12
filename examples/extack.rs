@@ -78,10 +78,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         recv.next();
     match data {
         Some(Ok(msgs)) => {
-            println!("msgs: {:?}", msgs);
+            println!("msgs: {msgs:?}");
         }
         Some(Err(RouterError::Nlmsgerr(e))) => {
-            println!("msg err: {:?}", e);
+            println!("msg err: {e:?}");
             println!(
                 "unix error: {:?}",
                 std::io::Error::from_raw_os_error(-e.error())
@@ -103,12 +103,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ExtAckAttr::Policy => {
                         println!("Policy={:?}", attr.nla_payload().as_ref());
                     }
-                    _ => println!("attr: {:?}", attr),
+                    _ => println!("attr: {attr:?}"),
                 }
             }
         }
         Some(Err(e)) => {
-            println!("err: {:#?}", e);
+            println!("err: {e:#?}");
         }
         None => {
             println!("No messages received");

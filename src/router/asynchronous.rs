@@ -290,8 +290,7 @@ impl NlRouter {
         family_name: &str,
     ) -> Result<u16, RouterError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
         let mut res = Err(RouterError::new(format!(
-            "Generic netlink family {} was not found",
-            family_name
+            "Generic netlink family {family_name} was not found"
         )));
 
         let nlhdrs = self.get_genl_family(family_name).await?;
@@ -315,8 +314,7 @@ impl NlRouter {
         mcast_name: &str,
     ) -> Result<u32, RouterError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>> {
         let mut res = Err(RouterError::new(format!(
-            "Failed to resolve multicast group ID for family name {}, multicast group name {}",
-            family_name, mcast_name,
+            "Failed to resolve multicast group ID for family name {family_name}, multicast group name {mcast_name}"
         )));
 
         let nlhdrs = self.get_genl_family(family_name).await?;

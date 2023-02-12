@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Local IPv4 addresses:");
     for addr in addrs {
-        println!("{}", addr);
+        println!("{addr}");
     }
 
     Ok(())
