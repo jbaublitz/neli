@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(_) => panic!("Should not succeed"),
         Err(RouterError::Nlmsgerr(e)) => {
             // Should be packet that caused error
-            println!("{:?}", e);
+            println!("{e:?}");
         }
         Err(_) => panic!("Should not return any error other than NlError"),
     };

@@ -30,7 +30,7 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
             .await?;
         s.add_mcast_membership(Groups::new_groups(&[id]))?;
         while let Some(Ok(msg)) = multicast.next::<u16, Genlmsghdr<u8, u16>>().await {
-            println!("{:?}", msg);
+            println!("{msg:?}");
         }
         Ok(())
     })
