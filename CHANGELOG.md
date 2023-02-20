@@ -32,7 +32,7 @@ for requests sent in parallel.
 * If you were previously using certain `new()` methods defined on structs with padding,
 all packet data structures have been migrated over to a builder pattern.
 * Flags in packets have been migrated from a custom data structure to
-[`bitflags`][https://docs.rs/bitflags].
+[`bitflags`](https://docs.rs/bitflags).
 * Because of previous errors around multicast groups, there is a new data structure
 to handle group management that allows either converting from group numbers or a
 bitmask. If you previously passed in 0 for groups, you will now use `Groups::empty()`.
