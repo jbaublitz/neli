@@ -135,6 +135,16 @@ impl NlSocketHandle {
             .enable_ext_ack(enable)
             .map_err(SocketError::from)
     }
+
+    /// If [`true`] is passed in, enable strict checking for this socket. If [`false`]
+    /// is passed in, disable strict checking for for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn enable_strict_checking(&self, enable: bool) -> Result<(), SocketError> {
+        self.socket
+            .enable_strict_checking(enable)
+            .map_err(SocketError::from)
+    }
 }
 
 impl AsRawFd for NlSocketHandle {

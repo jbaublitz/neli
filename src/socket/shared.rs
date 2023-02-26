@@ -244,6 +244,25 @@ impl NlSocket {
             _ => Err(io::Error::last_os_error()),
         }
     }
+
+    /// If [`true`] is passed in, enable strict checking for this socket. If [`false`]
+    /// is passed in, disable strict checking for for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn enable_strict_checking(&self, enable: bool) -> Result<(), io::Error> {
+        match unsafe {
+            libc::setsockopt(
+                self.fd,
+                libc::SOL_NETLINK,
+                libc::NETLINK_GET_STRICT_CHK,
+                &libc::c_int::from(enable) as *const _ as *const libc::c_void,
+                size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        } {
+            i if i == 0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
 }
 
 impl From<NlSocketHandle> for NlSocket {

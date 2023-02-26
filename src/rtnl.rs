@@ -471,6 +471,7 @@ mod test {
         setup();
 
         let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        sock.enable_strict_checking(true).unwrap();
         let recv = sock
             .send::<_, _, Rtm, Ifinfomsg>(
                 Rtm::Getlink,
@@ -503,6 +504,7 @@ mod test {
         setup();
 
         let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        sock.enable_strict_checking(true).unwrap();
         let recv = sock
             .send::<_, _, Rtm, Tcmsg>(
                 Rtm::Getqdisc,
