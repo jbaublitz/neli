@@ -233,7 +233,7 @@ impl NlSocket {
                 libc::SOL_NETLINK,
                 libc::NETLINK_EXT_ACK,
                 &i32::from(enable) as *const _ as *const libc::c_void,
-                size_of::<u32>() as libc::socklen_t,
+                size_of::<i32>() as libc::socklen_t,
             )
         } {
             i if i == 0 => Ok(()),
