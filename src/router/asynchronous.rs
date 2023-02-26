@@ -193,6 +193,16 @@ impl NlRouter {
             .map_err(RouterError::from)
     }
 
+    /// If [`true`] is passed in, enable strict checking for this socket. If [`false`]
+    /// is passed in, disable strict checking for for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn enable_strict_checking(&self, enable: bool) -> Result<(), RouterError<u16, Buffer>> {
+        self.socket
+            .enable_strict_checking(enable)
+            .map_err(RouterError::from)
+    }
+
     /// Get the PID for the current socket.
     pub fn pid(&self) -> u32 {
         self.socket.pid()

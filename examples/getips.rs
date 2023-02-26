@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let (rtnl, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty())?;
+    rtnl.enable_strict_checking(true)?;
     let ifaddrmsg = IfaddrmsgBuilder::default()
         .ifa_family(RtAddrFamily::Inet)
         .ifa_prefixlen(0)
