@@ -68,11 +68,12 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             Ok(m) => {
                                 let seq = *m.nl_seq();
                                 let lock = senders.lock();
-                                if m.nl_pid() == &0 {
+                                let seq_sender = lock.get(m.nl_seq());
+                                if m.nl_pid() == &0 || seq_sender.is_none() {
                                     if multicast_sender.send(Ok(m)).is_err() {
                                         warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
                                     }
-                                } else if let Some(sender) = lock.get(m.nl_seq()) {
+                                } else if let Some(sender) = seq_sender {
                                     if &socket.pid() == m.nl_pid() {
                                         if sender.send(Ok(m)).is_err() {
                                             error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
