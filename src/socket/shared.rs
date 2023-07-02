@@ -4,7 +4,7 @@ use std::{
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
 
-use libc::{c_int, c_void};
+use libc::{c_int, c_void, sockaddr, sockaddr_nl};
 
 use crate::{
     consts::socket::*,
@@ -192,19 +192,23 @@ impl NlSocket {
     }
 
     /// Receive message encoded as byte slice from the netlink socket.
-    pub fn recv<B>(&self, mut buf: B, flags: Msg) -> Result<libc::size_t, io::Error>
+    pub fn recv<B>(&self, mut buf: B, flags: Msg) -> Result<(libc::size_t, Groups), io::Error>
     where
         B: AsMut<[u8]>,
     {
+        let mut addr = unsafe { std::mem::zeroed::<sockaddr_nl>() };
+        let mut size: u32 = size_of::<sockaddr_nl>().try_into().unwrap_or(0);
         match unsafe {
-            libc::recv(
+            libc::recvfrom(
                 self.fd,
                 buf.as_mut() as *mut _ as *mut c_void,
                 buf.as_mut().len(),
                 flags.bits() as i32,
+                &mut addr as *mut _ as *mut sockaddr,
+                &mut size,
             )
         } {
-            i if i >= 0 => Ok(i as libc::size_t),
+            i if i >= 0 => Ok((i as libc::size_t, Groups::new_bitmask(addr.nl_groups))),
             i if i == -libc::EWOULDBLOCK as isize => {
                 Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
