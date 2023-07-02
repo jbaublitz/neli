@@ -28,7 +28,6 @@ fn parse_route_table(
 
             for attr in payload.rtattrs().iter() {
                 fn to_addr(b: &[u8]) -> Option<IpAddr> {
-                    use std::convert::TryFrom;
                     if let Ok(tup) = <&[u8; 4]>::try_from(b) {
                         Some(IpAddr::from(*tup))
                     } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
