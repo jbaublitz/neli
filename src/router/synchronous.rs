@@ -60,7 +60,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
     spawn(move || {
         while let Err(TryRecvError::Empty) = exit_receiver.try_recv() {
             match socket.recv::<u16, Buffer>() {
-                Ok(iter) => {
+                Ok((iter, group)) => {
                     for msg in iter {
                         trace!("Message received: {:?}", msg);
                         let mut seqs_to_remove = HashSet::new();
@@ -68,7 +68,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             Ok(m) => {
                                 let seq = *m.nl_seq();
                                 let lock = senders.lock();
-                                if m.nl_pid() == &0 {
+                                if group.as_bitmask() != 0 {
                                     if multicast_sender.send(Ok(m)).is_err() {
                                         warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
                                     }

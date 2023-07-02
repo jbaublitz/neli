@@ -92,18 +92,22 @@ impl NlSocketHandle {
     }
 
     /// Receive a message from the socket asynchronously.
-    pub async fn recv<T, P>(&self) -> Result<NlBufferIter<T, P, BufferPoolGuard<'_>>, SocketError>
+    pub async fn recv<T, P>(
+        &self,
+    ) -> Result<(NlBufferIter<T, P, BufferPoolGuard<'_>>, Groups), SocketError>
     where
         T: NlType,
         P: Size + FromBytesWithInput<Input = usize>,
     {
+        let groups;
         let mut buffer = self.pool.acquire().await;
         loop {
             let mut guard = self.socket.readable().await?;
             match guard.try_io(|socket| socket.get_ref().recv(buffer.as_mut_slice(), Msg::empty()))
             {
-                Ok(Ok(bytes)) => {
+                Ok(Ok((bytes, group))) => {
                     buffer.reduce_size(bytes);
+                    groups = group;
                     break;
                 }
                 Ok(Err(e)) => return Err(SocketError::from(e)),
@@ -111,7 +115,7 @@ impl NlSocketHandle {
             };
         }
         trace!("Buffer received: {:?}", buffer.as_ref());
-        Ok(NlBufferIter::new(Cursor::new(buffer)))
+        Ok((NlBufferIter::new(Cursor::new(buffer)), groups))
     }
 
     /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
@@ -122,21 +126,23 @@ impl NlSocketHandle {
     /// this method will discard any non-error
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
     /// error. For a more granular approach, use either [`NlSocketHandle::recv`].
-    pub async fn recv_all<'a, T, P>(&self) -> Result<NlBuffer<T, P>, SocketError>
+    pub async fn recv_all<'a, T, P>(&self) -> Result<(NlBuffer<T, P>, Groups), SocketError>
     where
         T: NlType + Debug,
         P: Size + FromBytesWithInput<Input = usize> + Debug,
     {
+        let groups;
         let mut buffer = self.pool.acquire().await;
         let bytes_read;
         loop {
             let mut guard = self.socket.readable().await?;
             match guard.try_io(|socket| socket.get_ref().recv(buffer.as_mut_slice(), Msg::empty()))
             {
-                Ok(Ok(bytes)) => {
+                Ok(Ok((bytes, group))) => {
                     if bytes == 0 {
-                        return Ok(NlBuffer::new());
+                        return Ok((NlBuffer::new(), Groups::empty()));
                     }
+                    groups = group;
                     bytes_read = bytes;
                     buffer.reduce_size(bytes);
                     break;
@@ -150,7 +156,7 @@ impl NlSocketHandle {
 
         debug!("Messages received: {:?}", vec);
 
-        Ok(vec)
+        Ok((vec, groups))
     }
 
     /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]

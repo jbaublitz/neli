@@ -89,16 +89,18 @@ impl NlSocketHandle {
     /// [`NlSocket::recv`][crate::socket::NlSocket::recv] call.
     ///
     /// See [`NlBufferIter`] for more detailed information.
-    pub fn recv<T, P>(&self) -> Result<NlBufferIter<T, P, BufferPoolGuard<'_>>, SocketError>
+    pub fn recv<T, P>(
+        &self,
+    ) -> Result<(NlBufferIter<T, P, BufferPoolGuard<'_>>, Groups), SocketError>
     where
         T: NlType + Debug,
         P: Size + FromBytesWithInput<Input = usize> + Debug,
     {
         let mut buffer = self.pool.acquire();
-        let mem_read = self.socket.recv(&mut buffer, Msg::empty())?;
+        let (mem_read, groups) = self.socket.recv(&mut buffer, Msg::empty())?;
         buffer.reduce_size(mem_read);
         trace!("Buffer received: {:?}", buffer.as_ref());
-        Ok(NlBufferIter::new(Cursor::new(buffer)))
+        Ok((NlBufferIter::new(Cursor::new(buffer)), groups))
     }
 
     /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
@@ -109,15 +111,15 @@ impl NlSocketHandle {
     /// this method will discard any non-error
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
     /// error. For a more granular approach, use [`NlSocketHandle::recv`].
-    pub fn recv_all<T, P>(&self) -> Result<NlBuffer<T, P>, SocketError>
+    pub fn recv_all<T, P>(&self) -> Result<(NlBuffer<T, P>, Groups), SocketError>
     where
         T: NlType + Debug,
         P: Size + FromBytesWithInput<Input = usize> + Debug,
     {
         let mut buffer = self.pool.acquire();
-        let mem_read = self.socket.recv(&mut buffer, Msg::empty())?;
+        let (mem_read, groups) = self.socket.recv(&mut buffer, Msg::empty())?;
         if mem_read == 0 {
-            return Ok(NlBuffer::new());
+            return Ok((NlBuffer::new(), Groups::empty()));
         }
         buffer.reduce_size(mem_read);
 
@@ -125,7 +127,7 @@ impl NlSocketHandle {
 
         debug!("Messages received: {:?}", vec);
 
-        Ok(vec)
+        Ok((vec, groups))
     }
 
     /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]
