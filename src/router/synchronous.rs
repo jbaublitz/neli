@@ -303,7 +303,7 @@ impl NlRouter {
         let nlhdrs = self.get_genl_family(family_name)?;
         for nlhdr in nlhdrs {
             if let NlPayload::Payload(p) = nlhdr.nl_payload() {
-                let mut handle = p.attrs().get_attr_handle();
+                let handle = p.attrs().get_attr_handle();
                 let mcast_groups = handle.get_nested_attributes::<Index>(CtrlAttr::McastGroups)?;
                 if let Some(id) = mcast_groups.iter().find_map(|item| {
                     let nested_attrs = item.get_attr_handle::<CtrlAttrMcastGrp>().ok()?;
@@ -350,7 +350,7 @@ impl NlRouter {
             let msg = res_msg?;
 
             if let NlPayload::Payload(p) = msg.nl_payload() {
-                let mut attributes = p.attrs().get_attr_handle();
+                let attributes = p.attrs().get_attr_handle();
                 let name =
                     attributes.get_attr_payload_as_with_len::<String>(CtrlAttr::FamilyName)?;
                 let groups = match attributes.get_nested_attributes::<Index>(CtrlAttr::McastGroups)

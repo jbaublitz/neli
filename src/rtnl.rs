@@ -366,7 +366,7 @@ where
 {
     /// Get the payload of an attribute as a handle for parsing
     /// nested attributes.
-    pub fn get_nested_attributes<S>(&mut self, subattr: T) -> Result<RtAttrHandle<S>, DeError>
+    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<RtAttrHandle<S>, DeError>
     where
         S: RtaType,
     {

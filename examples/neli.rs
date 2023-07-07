@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Get parsing handler for the attributes in this message where the next call
     // to either get_nested_attributes() or get_payload() will expect a u16 type
     // to be provided
-    let mut handle = nlmsg
+    let handle = nlmsg
         .get_payload()
         .ok_or_else(|| MsgError::new("No payload found"))?
         .attrs()
