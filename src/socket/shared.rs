@@ -111,7 +111,7 @@ impl NlSocket {
                     size_of::<u32>() as libc::socklen_t,
                 )
             } {
-                i if i == 0 => (),
+                0 => (),
                 _ => return Err(io::Error::last_os_error()),
             }
         }
@@ -130,7 +130,7 @@ impl NlSocket {
                     size_of::<u32>() as libc::socklen_t,
                 )
             } {
-                i if i == 0 => (),
+                0 => (),
                 _ => return Err(io::Error::last_os_error()),
             }
         }
@@ -244,7 +244,7 @@ impl NlSocket {
                 size_of::<i32>() as libc::socklen_t,
             )
         } {
-            i if i == 0 => Ok(()),
+            0 => Ok(()),
             _ => Err(io::Error::last_os_error()),
         }
     }
@@ -263,7 +263,7 @@ impl NlSocket {
                 size_of::<libc::c_int>() as libc::socklen_t,
             )
         } {
-            i if i == 0 => Ok(()),
+            0 => Ok(()),
             _ => Err(io::Error::last_os_error()),
         }
     }

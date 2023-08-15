@@ -209,10 +209,12 @@ macro_rules! impl_flags {
         $($(#[$inner:ident $($tt:tt)*])* $var:ident = $const:expr),*
         $(,)?
     }) => {
+        #[derive(Debug, Clone, Copy, Eq, PartialEq, neli_proc_macros::Size, neli_proc_macros::FromBytes, neli_proc_macros::ToBytes)]
+        $(#[$outer])*
+        $vis struct $name($bin_type);
+
         bitflags::bitflags! {
-            $(#[$outer])*
-            #[derive(neli_proc_macros::Size, neli_proc_macros::FromBytes, neli_proc_macros::ToBytes)]
-            $vis struct $name: $bin_type {
+            impl $name: $bin_type {
                 $(
                     $(#[$inner $($tt)*])*
                     #[allow(missing_docs)]
@@ -229,7 +231,7 @@ macro_rules! impl_flags {
 
         impl From<$name> for $bin_type {
             fn from(ty: $name) ->  Self {
-                ty.bits
+                ty.bits()
             }
         }
 
