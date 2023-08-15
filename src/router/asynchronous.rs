@@ -452,13 +452,17 @@ where
             Some(untyped) => match untyped {
                 Ok(u) => match u.to_typed::<TT, PP>() {
                     Ok(t) => t,
-                    Err(e) => return Some(Err(e)),
+                    Err(e) => {
+                        self.next_is_none = true;
+                        return Some(Err(e));
+                    }
                 },
                 Err(e) => {
+                    self.next_is_none = true;
                     return Some(Err(match e.to_typed() {
                         Ok(e) => e,
                         Err(e) => e,
-                    }))
+                    }));
                 }
             },
             None => {
@@ -474,12 +478,12 @@ where
                 return Some(Err(RouterError::UnexpectedAck));
             }
         } else if let Some(e) = msg.get_err() {
+            self.next_is_none = true;
             if self.next_is_ack {
-                self.next_is_none = true;
                 return Some(Err(RouterError::NoAck));
+            } else {
+                return Some(Err(RouterError::<TT, PP>::Nlmsgerr(e)));
             }
-
-            return Some(Err(RouterError::<TT, PP>::Nlmsgerr(e)));
         } else if (!msg.nl_flags().contains(NlmF::MULTI) || nl_type == Nlmsg::Done)
             && self.seq.is_some()
         {
