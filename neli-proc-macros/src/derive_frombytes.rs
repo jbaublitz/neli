@@ -132,7 +132,7 @@ pub fn impl_frombytes_struct(
 
     let from_bytes_exprs = field_types
         .into_iter()
-        .zip(field_attrs.into_iter())
+        .zip(field_attrs)
         .map(|(field_type, field_attrs)| process_attrs(field_type, field_attrs));
 
     let padding = if padded {
