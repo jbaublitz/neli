@@ -29,7 +29,7 @@ libc = "0.2.105"
 log = "0.4"
 
 [dependencies.neli-proc-macros]
-version = "0.2.0-rc1"
+version = "0.2.0-rc2"
 path = "neli-proc-macros"
 
 [dependencies.parking_lot]
