@@ -488,13 +488,15 @@ mod test {
             .unwrap();
         for msg in recv {
             let msg = msg.unwrap();
-            let handle = msg.get_payload().unwrap().rtattrs.get_attr_handle();
-            handle
-                .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
-                .unwrap();
-            // Assert length of ethernet address
-            if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
-                assert_eq!(attr.len(), 6);
+            if let Some(payload) = msg.get_payload() {
+                let handle = payload.rtattrs.get_attr_handle();
+                handle
+                    .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
+                    .unwrap();
+                // Assert length of ethernet address
+                if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
+                    assert_eq!(attr.len(), 6);
+                }
             }
         }
     }
@@ -523,8 +525,11 @@ mod test {
             .unwrap();
         for msg in recv {
             let msg = msg.unwrap();
-            assert!(matches!(msg.get_payload().unwrap(), Tcmsg { .. }));
-            assert_eq!(msg.nl_type(), &Rtm::Newqdisc);
+            assert!(matches!(msg.get_payload(), Some(Tcmsg { .. }) | None));
+            assert!(matches!(
+                msg.nl_type(),
+                Rtm::Newqdisc | Rtm::UnrecognizedConst(3)
+            ));
         }
     }
 }

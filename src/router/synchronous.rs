@@ -92,6 +92,16 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                                             }
                                         }
                                     }
+                                } else {
+                                    for (seq, sender) in lock.iter() {
+                                        if sender
+                                            .send(Err(RouterError::BadSeqOrPid(m.clone())))
+                                            .is_err()
+                                        {
+                                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                                            seqs_to_remove.insert(*seq);
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -221,11 +231,14 @@ impl NlRouter {
             .nl_seq(self.next_seq())
             .nl_payload(nl_payload)
             .build()?;
-        let flags = *msg.nl_flags();
-        let seq = *msg.nl_seq();
-        self.socket.send(&msg)?;
+
         let (sender, receiver) = channel();
+        let seq = *msg.nl_seq();
         self.senders.lock().insert(seq, sender);
+        let flags = *msg.nl_flags();
+
+        self.socket.send(&msg)?;
+
         Ok(NlRouterReceiverHandle::new(
             receiver,
             Arc::clone(&self.senders),
@@ -474,7 +487,6 @@ where
                 self.next_is_ack = true;
             } else {
                 self.next_is_none = true;
-                return None;
             }
         } else if self.next_is_ack {
             self.next_is_none = true;

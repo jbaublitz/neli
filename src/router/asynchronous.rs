@@ -236,11 +236,13 @@ impl NlRouter {
             .nl_seq(self.next_seq().await)
             .nl_payload(nl_payload)
             .build()?;
-        let flags = *msg.nl_flags();
         let seq = *msg.nl_seq();
-        self.socket.send(&msg).await?;
         let (sender, receiver) = channel(1024);
         self.senders.lock().await.insert(seq, sender);
+        let flags = *msg.nl_flags();
+
+        self.socket.send(&msg).await?;
+
         Ok(NlRouterReceiverHandle::new(
             receiver,
             Arc::clone(&self.senders),
