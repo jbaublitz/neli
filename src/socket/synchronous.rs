@@ -81,7 +81,7 @@ impl NlSocketHandle {
         Ok(())
     }
 
-    /// Convenience function to read a stream of [`Nlmsghdr`][crate::nl::Nlmsghdr]
+    /// Convenience function to read a stream of [`Nlmsghdr`]
     /// structs one by one using an iterator.
     ///
     /// Returns [`None`] when the stream of messages has been completely processed in
@@ -103,13 +103,13 @@ impl NlSocketHandle {
         Ok((NlBufferIter::new(Cursor::new(buffer)), groups))
     }
 
-    /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
+    /// Parse all [`Nlmsghdr`] structs sent in
     /// one network packet and return them all in a list.
     ///
     /// Failure to parse any packet will cause the entire operation
     /// to fail. If an error is detected at the application level,
     /// this method will discard any non-error
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
+    /// [`Nlmsghdr`] structs and only return the
     /// error. For a more granular approach, use [`NlSocketHandle::recv`].
     pub fn recv_all<T, P>(&self) -> Result<(NlBuffer<T, P>, Groups), SocketError>
     where

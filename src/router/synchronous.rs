@@ -418,7 +418,7 @@ where
     T: NlType,
     P: Size + FromBytesWithInput<Input = usize>,
 {
-    /// Imitates the [`Iterator`][Iterator] API but allows parsing differently typed
+    /// Imitates the [`Iterator`] API but allows parsing differently typed
     /// messages in a sequence of messages meant for this receiver.
     pub fn next_typed<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, RouterError<TT, PP>>>
     where

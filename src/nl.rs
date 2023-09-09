@@ -1,13 +1,13 @@
 //! This module contains the top level netlink header code. Every
 //! netlink message will be encapsulated in a top level `Nlmsghdr`.
 //!
-//! [`Nlmsghdr`][crate::nl::Nlmsghdr] is the structure representing a
+//! [`Nlmsghdr`] is the structure representing a
 //! header that all netlink protocols require to be passed to the
 //! correct destination.
 //!
 //! # Design decisions
 //!
-//! Payloads for [`Nlmsghdr`][crate::nl::Nlmsghdr] can be any type.
+//! Payloads for [`Nlmsghdr`] can be any type.
 //!
 //! The payload is wrapped in an enum to facilitate better
 //! application-level error handling.
