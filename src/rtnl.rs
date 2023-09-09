@@ -319,7 +319,7 @@ where
         Ok(())
     }
 
-    /// Return an [`AttrHandle`][crate::attr::AttrHandle] for
+    /// Return an [`AttrHandle`] for
     /// attributes nested in the given attribute payload.
     pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, DeError>
     where

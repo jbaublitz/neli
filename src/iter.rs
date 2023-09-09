@@ -29,7 +29,7 @@ where
     }
 
     /// Optional method for parsing messages of varied types in the same buffer. Models
-    /// the [`Iterator`][Iterator] API.
+    /// the [`Iterator`] API.
     pub fn next_typed<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, SocketError>>
     where
         TT: NlType,

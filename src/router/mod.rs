@@ -10,7 +10,7 @@
 //! to the request.
 //! * Errors in packet reception and parsing are broadcast to all receivers.
 //! * An [`NlRouterReceiverHandle`][crate::router::synchronous::NlRouterReceiverHandle]
-//! can be used as an iterator and will return [`None`][None] either when all
+//! can be used as an iterator and will return [`None`] either when all
 //! messages corresponding to the request have been received or there is a fatal error.
 //!
 //! ## Design decisions

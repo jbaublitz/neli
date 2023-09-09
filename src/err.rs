@@ -1,11 +1,11 @@
 //! This is the module that contains the error types used in `neli`
 //!
 //! There are five main types:
-//! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
+//! * [`Nlmsgerr`] - an application error
 //! returned from netlink as a packet.
-//! * [`RouterError`][crate::err::RouterError] - errors returned by
+//! * [`RouterError`] - errors returned by
 //! [`NlRouter`][crate::router::synchronous::NlRouter].
-//! * [`SocketError`][crate::err::SocketError] - errors returned by
+//! * [`SocketError`] - errors returned by
 //! [`NlSocketHandle`][crate::socket::synchronous::NlSocketHandle].
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
@@ -533,7 +533,7 @@ impl From<MsgError> for SocketError {
 
 impl SocketError {
     /// Create new error from a data type implementing
-    /// [`Display`][std::fmt::Display]
+    /// [`Display`]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
@@ -645,13 +645,13 @@ pub enum DeError {
     Io(ErrorKind),
     /// String UTF conversion error.
     Utf8(Utf8),
-    /// Invalid input parameter for [`FromBytesWithInput`][crate::FromBytesWithInput].
+    /// Invalid input parameter for [`FromBytesWithInput`].
     InvalidInput(usize),
 }
 
 impl DeError {
     /// Create new error from a type implementing
-    /// [`Display`][std::fmt::Display]
+    /// [`Display`]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
