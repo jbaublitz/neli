@@ -424,6 +424,8 @@ where
 mod test {
     use super::*;
 
+    use std::net::Ipv4Addr;
+
     use crate::{
         consts::{nl::NlmF, socket::NlFamily},
         nl::NlPayload,
@@ -531,5 +533,44 @@ mod test {
                 Rtm::Newqdisc | Rtm::UnrecognizedConst(3)
             ));
         }
+    }
+
+    #[test]
+    #[cfg(target_env = "gnu")]
+    fn real_test_rtmsg_search() {
+        setup();
+
+        let dstip = Ipv4Addr::new(127, 0, 0, 1);
+        let raw_dstip = u32::from(dstip).to_be();
+        let route_attr = RtattrBuilder::default()
+            .rta_type(Rta::Dst)
+            .rta_payload(raw_dstip)
+            .build()
+            .unwrap();
+
+        let mut route_payload = RtBuffer::new();
+        route_payload.push(route_attr);
+
+        let (rtnl, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+
+        let ifroutemsg = RtmsgBuilder::default()
+            .rtm_family(RtAddrFamily::Inet)
+            .rtm_dst_len(32)
+            .rtm_src_len(0)
+            .rtm_tos(0)
+            .rtm_table(RtTable::Unspec)
+            .rtm_protocol(Rtprot::Unspec)
+            .rtm_scope(RtScope::Universe)
+            .rtm_type(Rtn::Unspec)
+            .rtm_flags(RtmF::from(libc::RTM_F_LOOKUP_TABLE))
+            .rtattrs(route_payload)
+            .build()
+            .unwrap();
+
+        let recv = rtnl
+            .send::<_, _, Rtm, Rtmsg>(Rtm::Getroute, NlmF::REQUEST, NlPayload::Payload(ifroutemsg))
+            .unwrap();
+
+        assert!(recv.count() > 0);
     }
 }
