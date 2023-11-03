@@ -8,6 +8,7 @@
 
 use std::mem::size_of;
 
+#[cfg(any(feature = "sync", feature = "async"))]
 use crate::consts::MAX_NL_LENGTH;
 
 type BitArrayType = u32;
@@ -184,6 +185,7 @@ impl Groups {
 }
 
 /// Synchronous (blocking) utils.
+#[cfg(feature = "sync")]
 pub mod synchronous {
     use super::*;
 
