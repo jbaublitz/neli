@@ -37,7 +37,8 @@ jobs:
           - cargo fmt -- --check
           - cargo build
           - RUSTDOCFLAGS="-D warnings" cargo doc 
-          - cargo build --features=async
+          - cargo build --no-default-features
+          - cargo build --no-default-features --features=async
           - cargo build --all-features
           - cargo build --examples
           - cargo build --examples --all-features
@@ -89,7 +90,8 @@ jobs:
       matrix:
         task:
           - cargo build
-          - cargo build --features=async
+          - cargo build --no-default-features
+          - cargo build --no-default-features --features=async
           - cargo build --all-features
           - cargo build --examples
           - cargo build --examples --all-features

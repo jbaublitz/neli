@@ -20,6 +20,7 @@ impl<T, P, B> NlBufferIter<T, P, B>
 where
     B: AsRef<[u8]>,
 {
+    #[cfg(any(feature = "sync", feature = "async"))]
     pub(crate) fn new(buffer: Cursor<B>) -> Self {
         NlBufferIter {
             buffer,

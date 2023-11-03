@@ -23,7 +23,7 @@ use crate::{
 
 /// Tokio-enabled Netlink socket struct
 pub struct NlSocketHandle {
-    socket: AsyncFd<super::NlSocket>,
+    pub(super) socket: AsyncFd<super::NlSocket>,
     pool: BufferPool,
     pid: u32,
 }

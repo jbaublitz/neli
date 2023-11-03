@@ -6,9 +6,12 @@ use std::{
 
 use libc::{c_int, c_void, sockaddr, sockaddr_nl};
 
+#[cfg(feature = "async")]
+use crate::socket::asynchronous;
+#[cfg(feature = "sync")]
+use crate::socket::synchronous;
 use crate::{
     consts::socket::*,
-    socket::synchronous::NlSocketHandle,
     utils::{Groups, NetlinkBitArray},
 };
 
@@ -269,9 +272,17 @@ impl NlSocket {
     }
 }
 
-impl From<NlSocketHandle> for NlSocket {
-    fn from(s: NlSocketHandle) -> Self {
+#[cfg(feature = "sync")]
+impl From<synchronous::NlSocketHandle> for NlSocket {
+    fn from(s: synchronous::NlSocketHandle) -> Self {
         s.socket
+    }
+}
+
+#[cfg(feature = "async")]
+impl From<asynchronous::NlSocketHandle> for NlSocket {
+    fn from(s: asynchronous::NlSocketHandle) -> Self {
+        s.socket.into_inner()
     }
 }
 
