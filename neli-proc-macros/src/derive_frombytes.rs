@@ -2,12 +2,12 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
     parse_str, AngleBracketedGenericArguments, Attribute, Fields, GenericArgument, GenericParam,
-    Ident, ItemStruct, LifetimeDef, PathArguments, Token, TraitBound, Type, TypeParamBound,
+    Ident, ItemStruct, LifetimeParam, PathArguments, Token, TraitBound, Type, TypeParamBound,
 };
 
 use crate::shared::{process_input, process_lifetime, process_size, StructInfo};
 
-fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeDef) {
+fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeParam) {
     trt.path.segments.iter_mut().for_each(|elem| {
         if elem.ident == parse_str::<Ident>("FromBytes").unwrap()
             || elem.ident == parse_str::<Ident>("FromBytesWithInput").unwrap()
@@ -28,7 +28,11 @@ fn add_lifetime(trt: &mut TraitBound, lt: &LifetimeDef) {
     });
 }
 
-fn process_attrs(lt: &LifetimeDef, field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 {
+fn process_attrs(
+    lt: &LifetimeParam,
+    field_type: Type,
+    field_attrs: Vec<Attribute>,
+) -> TokenStream2 {
     let input = process_input(&field_attrs);
     let size = process_size(&field_attrs)
         .unwrap_or_else(|| parse_str("input").expect("input is a valid expression"));
