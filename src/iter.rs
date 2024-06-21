@@ -1,124 +1,69 @@
 //! Module for iteration over netlink responses
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{io::Cursor, marker::PhantomData};
+
+use log::debug;
 
 use crate::{
-    consts::nl::{NlType, NlmF, Nlmsg},
-    err::NlError,
-    nl::{NlPayload, Nlmsghdr},
-    socket::NlSocketHandle,
-    FromBytesWithInput,
+    consts::nl::NlType, err::SocketError, nl::Nlmsghdr, FromBytes, FromBytesWithInput, Size,
 };
 
-/// Define iteration behavior when traversing a stream of netlink
-/// messages.
-#[derive(PartialEq, Eq)]
-pub enum IterationBehavior {
-    /// End iteration of multi-part messages when a DONE message is
-    /// reached.
-    EndMultiOnDone,
-    /// Iterate indefinitely. Mostly useful for multicast
-    /// subscriptions.
-    IterIndefinitely,
+/// Iterator over a single buffer received from a [`recv`][crate::socket::NlSocket::recv]
+/// call.
+pub struct NlBufferIter<T, P, B> {
+    buffer: Cursor<B>,
+    next_is_none: bool,
+    data: PhantomData<(T, P)>,
 }
 
-/// Iterator over messages in an
-/// [`NlSocketHandle`][crate::socket::NlSocketHandle] type.
-///
-/// This iterator has two high-level options:
-/// * Iterate indefinitely over messages. This is most
-/// useful in the case of subscribing to messages in a
-/// multicast group.
-/// * Iterate until a message is returned with
-/// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is set.
-/// This is most useful in the case of request-response workflows
-/// where the iterator will parse and iterate through all of the
-/// messages with [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set
-/// until a message with
-/// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is
-/// received at which point [`None`] will be returned indicating the
-/// end of the response.
-pub struct NlMessageIter<'a, T, P> {
-    sock_ref: &'a mut NlSocketHandle,
-    next_is_none: Option<bool>,
-    type_: PhantomData<T>,
-    payload: PhantomData<P>,
-}
-
-impl<'a, T, P> NlMessageIter<'a, T, P>
+impl<T, P, B> NlBufferIter<T, P, B>
 where
-    T: NlType + Debug,
-    P: FromBytesWithInput<'a, Input = usize> + Debug,
+    B: AsRef<[u8]>,
 {
-    /// Construct a new iterator that yields
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs from the provided
-    /// buffer. `behavior` set to
-    /// [`IterationBehavior::IterIndefinitely`] will treat
-    /// messages as a never-ending stream.
-    /// [`IterationBehavior::EndMultiOnDone`] will cause
-    /// [`NlMessageIter`] to respect the netlink identifiers
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] and
-    /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done].
-    ///
-    /// If `behavior` is [`IterationBehavior::EndMultiOnDone`],
-    /// this means that [`NlMessageIter`] will iterate through
-    /// either exactly one message if
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] is not
-    /// set, or through all consecutive messages with
-    /// [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set until
-    /// a terminating message with
-    /// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is reached
-    /// at which point [`None`] will be returned by the iterator.
-    pub fn new(sock_ref: &'a mut NlSocketHandle, behavior: IterationBehavior) -> Self {
-        NlMessageIter {
-            sock_ref,
-            next_is_none: if behavior == IterationBehavior::IterIndefinitely {
-                None
-            } else {
-                Some(false)
-            },
-            type_: PhantomData,
-            payload: PhantomData,
+    #[cfg(any(feature = "sync", feature = "async"))]
+    pub(crate) fn new(buffer: Cursor<B>) -> Self {
+        NlBufferIter {
+            buffer,
+            next_is_none: false,
+            data: PhantomData,
         }
     }
 
-    fn next<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, NlError<TT, PP>>>
+    /// Optional method for parsing messages of varied types in the same buffer. Models
+    /// the [`Iterator`] API.
+    pub fn next_typed<TT, PP>(&mut self) -> Option<Result<Nlmsghdr<TT, PP>, SocketError>>
     where
-        TT: NlType + Debug,
-        PP: for<'c> FromBytesWithInput<'c, Input = usize> + Debug,
+        TT: NlType,
+        PP: Size + FromBytesWithInput<Input = usize>,
     {
-        if let Some(true) = self.next_is_none {
-            return None;
-        }
-
-        let next_res = self.sock_ref.recv::<TT, PP>();
-        let next = match next_res {
-            Ok(Some(n)) => n,
-            Ok(None) => return None,
-            Err(e) => return Some(Err(e)),
-        };
-
-        if let NlPayload::Ack(_) = next.nl_payload {
-            self.next_is_none = self.next_is_none.map(|_| true);
-        } else if (!next.nl_flags.contains(&NlmF::Multi)
-            || next.nl_type.into() == Nlmsg::Done.into())
-            && !self.sock_ref.needs_ack
+        if self.buffer.position() as usize == self.buffer.get_ref().as_ref().len()
+            || self.next_is_none
         {
-            self.next_is_none = self.next_is_none.map(|_| true);
+            None
+        } else {
+            match Nlmsghdr::from_bytes(&mut self.buffer).map_err(SocketError::from) {
+                Ok(msg) => {
+                    debug!("Message received: {:?}", msg);
+                    Some(Ok(msg))
+                }
+                Err(e) => {
+                    self.next_is_none = true;
+                    Some(Err(e))
+                }
+            }
         }
-
-        Some(Ok(next))
     }
 }
 
-impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
+impl<T, P, B> Iterator for NlBufferIter<T, P, B>
 where
-    T: NlType + Debug,
-    P: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,
+    B: AsRef<[u8]>,
+    T: NlType,
+    P: Size + FromBytesWithInput<Input = usize>,
 {
-    type Item = Result<Nlmsghdr<T, P>, NlError<T, P>>;
+    type Item = Result<Nlmsghdr<T, P>, SocketError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        NlMessageIter::next::<T, P>(self)
+        self.next_typed::<T, P>()
     }
 }

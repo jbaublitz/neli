@@ -8,287 +8,305 @@
 //! `man 7 rtnetlink` so it is mainly a series of structs organized
 //! in a style similar to the rest of the library.
 
-use crate as neli;
-
 use std::io::Cursor;
 
+use derive_builder::{Builder, UninitializedFieldError};
+use getset::Getters;
+
 use crate::{
-    attr::{AttrHandle, AttrHandleMut, Attribute},
+    self as neli,
+    attr::{AttrHandle, Attribute},
     consts::rtnl::*,
     err::{DeError, SerError},
     types::{Buffer, RtBuffer},
-    FromBytes, FromBytesWithInput, Header, Size, ToBytes,
+    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes,
 };
 
 /// Struct representing interface information messages
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ifinfomsg {
     /// Interface address family
-    pub ifi_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ifi_family: RtAddrFamily,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding: u8,
     /// Interface type
-    pub ifi_type: Arphrd,
+    #[getset(get = "pub")]
+    ifi_type: Arphrd,
     /// Interface index
-    pub ifi_index: libc::c_int,
+    #[getset(get = "pub")]
+    ifi_index: libc::c_int,
     /// Interface flags
-    pub ifi_flags: IffFlags,
+    #[getset(get = "pub")]
+    #[builder(default = "Iff::empty()")]
+    ifi_flags: Iff,
     /// Interface change mask
-    pub ifi_change: IffFlags,
+    #[getset(get = "pub")]
+    #[builder(default = "Iff::empty()")]
+    ifi_change: Iff,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Ifla, Buffer>,
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifla, Buffer>,
 }
 
-impl Ifinfomsg {
-    /// Create a fully initialized interface info struct
-    pub fn new(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        ifi_flags: IffFlags,
-        ifi_change: IffFlags,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags,
-            ifi_change,
-            rtattrs,
-        }
-    }
-
+impl IfinfomsgBuilder {
     /// Set the link with the given index up (equivalent to
     /// `ip link set dev DEV up`)
-    pub fn up(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags: IffFlags::new(&[Iff::Up]),
-            ifi_change: IffFlags::new(&[Iff::Up]),
-            rtattrs,
-        }
+    pub fn up(mut self) -> Self {
+        self.ifi_flags = Some(self.ifi_flags.unwrap_or_else(Iff::empty) | Iff::UP);
+        self.ifi_change = Some(self.ifi_change.unwrap_or_else(Iff::empty) | Iff::UP);
+        self
     }
 
     /// Set the link with the given index down (equivalent to
     /// `ip link set dev DEV down`)
-    pub fn down(
-        ifi_family: RtAddrFamily,
-        ifi_type: Arphrd,
-        ifi_index: libc::c_int,
-        rtattrs: RtBuffer<Ifla, Buffer>,
-    ) -> Self {
-        Ifinfomsg {
-            ifi_family,
-            padding: 0,
-            ifi_type,
-            ifi_index,
-            ifi_flags: IffFlags::empty(),
-            ifi_change: IffFlags::new(&[Iff::Up]),
-            rtattrs,
-        }
+    pub fn down(mut self) -> Self {
+        self.ifi_flags = Some(self.ifi_flags.unwrap_or_else(Iff::empty) & !Iff::UP);
+        self.ifi_change = Some(self.ifi_change.unwrap_or_else(Iff::empty) | Iff::UP);
+        self
     }
 }
 
 /// Struct representing interface address messages
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ifaddrmsg {
     /// Interface address family
-    pub ifa_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ifa_family: RtAddrFamily,
     /// Interface address prefix length
-    pub ifa_prefixlen: libc::c_uchar,
+    #[getset(get = "pub")]
+    ifa_prefixlen: libc::c_uchar,
     /// Interface address flags
-    pub ifa_flags: IfaFFlags,
+    #[getset(get = "pub")]
+    #[builder(default = "IfaF::empty()")]
+    ifa_flags: IfaF,
     /// Interface address scope
-    pub ifa_scope: libc::c_uchar,
+    #[getset(get = "pub")]
+    ifa_scope: RtScope,
     /// Interface address index
-    pub ifa_index: libc::c_int,
+    #[getset(get = "pub")]
+    ifa_index: libc::c_int,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Ifa, Buffer>,
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
 /// General form of address family dependent message.  Used for
 /// requesting things from rtnetlink.
-#[derive(Debug, Size, ToBytes, FromBytes)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Rtgenmsg {
     /// Address family for the request
-    pub rtgen_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    rtgen_family: RtAddrFamily,
+    /// Payload of [`Rtattr`]s
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
 /// Route message
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Rtmsg {
     /// Address family of route
-    pub rtm_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    rtm_family: RtAddrFamily,
     /// Length of destination
-    pub rtm_dst_len: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_dst_len: libc::c_uchar,
     /// Length of source
-    pub rtm_src_len: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_src_len: libc::c_uchar,
     /// TOS filter
-    pub rtm_tos: libc::c_uchar,
+    #[getset(get = "pub")]
+    rtm_tos: libc::c_uchar,
     /// Routing table ID
-    pub rtm_table: RtTable,
+    #[getset(get = "pub")]
+    rtm_table: RtTable,
     /// Routing protocol
-    pub rtm_protocol: Rtprot,
+    #[getset(get = "pub")]
+    rtm_protocol: Rtprot,
     /// Routing scope
-    pub rtm_scope: RtScope,
+    #[getset(get = "pub")]
+    rtm_scope: RtScope,
     /// Routing type
-    pub rtm_type: Rtn,
+    #[getset(get = "pub")]
+    rtm_type: Rtn,
     /// Routing flags
-    pub rtm_flags: RtmFFlags,
+    #[builder(default = "RtmF::empty()")]
+    #[getset(get = "pub")]
+    rtm_flags: RtmF,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Rta, Buffer>,
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Rta, Buffer>,
 }
 
 /// Represents an ARP (neighbor table) entry
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Ndmsg {
     /// Address family of entry
-    pub ndm_family: RtAddrFamily,
+    #[getset(get = "pub")]
+    ndm_family: RtAddrFamily,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     pad1: u8,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     pad2: u16,
     /// Index of entry
-    pub ndm_index: libc::c_int,
+    #[getset(get = "pub")]
+    ndm_index: libc::c_int,
     /// State of entry
-    pub ndm_state: NudFlags,
+    #[getset(get = "pub")]
+    ndm_state: Nud,
     /// Flags for entry
-    pub ndm_flags: NtfFlags,
+    #[getset(get = "pub")]
+    #[builder(default = "Ntf::empty()")]
+    ndm_flags: Ntf,
     /// Type of entry
-    pub ndm_type: Rtn,
+    #[getset(get = "pub")]
+    ndm_type: Rtn,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Nda, Buffer>,
-}
-
-impl Ndmsg {
-    /// Create a fully initialized neighbor table struct
-    pub fn new(
-        ndm_family: RtAddrFamily,
-        ndm_index: libc::c_int,
-        ndm_state: NudFlags,
-        ndm_flags: NtfFlags,
-        ndm_type: Rtn,
-        rtattrs: RtBuffer<Nda, Buffer>,
-    ) -> Self {
-        Ndmsg {
-            ndm_family,
-            pad1: 0,
-            pad2: 0,
-            ndm_index,
-            ndm_state,
-            ndm_flags,
-            ndm_type,
-            rtattrs,
-        }
-    }
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Nda, Buffer>,
 }
 
 /// Struct representing ARP cache info
-#[derive(Debug, Size, ToBytes, FromBytes)]
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytes)]
+#[builder(pattern = "owned")]
 pub struct NdaCacheinfo {
     /// Confirmed
-    pub ndm_confirmed: u32,
+    #[getset(get = "pub")]
+    ndm_confirmed: u32,
     /// Used
-    pub ndm_used: u32,
+    #[getset(get = "pub")]
+    ndm_used: u32,
     /// Updated
-    pub ndm_updated: u32,
+    #[getset(get = "pub")]
+    ndm_updated: u32,
     /// Reference count
-    pub ndm_refcnt: u32,
+    #[getset(get = "pub")]
+    ndm_refcnt: u32,
 }
 
 /// Message in response to queuing discipline operations
-#[derive(Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
 pub struct Tcmsg {
     /// Family
-    pub tcm_family: libc::c_uchar,
+    #[getset(get = "pub")]
+    tcm_family: libc::c_uchar,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding_char: libc::c_uchar,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
     padding_short: libc::c_ushort,
     /// Interface index
-    pub tcm_ifindex: libc::c_int,
+    #[getset(get = "pub")]
+    tcm_ifindex: libc::c_int,
     /// Queuing discipline handle
-    pub tcm_handle: u32,
+    #[getset(get = "pub")]
+    tcm_handle: u32,
     /// Parent queuing discipline
-    pub tcm_parent: u32,
+    #[getset(get = "pub")]
+    tcm_parent: u32,
     /// Info
-    pub tcm_info: u32,
+    #[getset(get = "pub")]
+    tcm_info: u32,
     /// Payload of [`Rtattr`]s
-    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?")]
-    pub rtattrs: RtBuffer<Tca, Buffer>,
-}
-
-impl Tcmsg {
-    /// Create a new [`Tcmsg`] structure handling the necessary
-    /// padding.
-    pub fn new(
-        tcm_family: libc::c_uchar,
-        tcm_ifindex: libc::c_int,
-        tcm_handle: u32,
-        tcm_parent: u32,
-        tcm_info: u32,
-        rtattrs: RtBuffer<Tca, Buffer>,
-    ) -> Self {
-        Tcmsg {
-            tcm_family,
-            padding_char: 0,
-            padding_short: 0,
-            tcm_ifindex,
-            tcm_handle,
-            tcm_parent,
-            tcm_info,
-            rtattrs,
-        }
-    }
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Tca, Buffer>,
 }
 
 /// Struct representing route netlink attributes
-#[derive(Debug, Size, ToBytes, FromBytes, Header)]
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "T: RtaType")]
 #[neli(from_bytes_bound = "P: FromBytesWithInput<Input = usize>")]
 #[neli(padding)]
+#[builder(pattern = "owned")]
+#[builder(build_fn(skip))]
 pub struct Rtattr<T, P> {
     /// Length of the attribute
-    pub rta_len: libc::c_ushort,
+    #[getset(get = "pub")]
+    #[builder(setter(skip))]
+    rta_len: libc::c_ushort,
     /// Type of the attribute
-    pub rta_type: T,
+    #[getset(get = "pub")]
+    rta_type: T,
     /// Payload of the attribute
     #[neli(
-        input = "(rta_len as usize).checked_sub(Self::header_size()).ok_or(DeError::UnexpectedEOB)?"
+        input = "(rta_len as usize).checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(rta_len as usize))?"
     )]
-    pub rta_payload: P,
+    #[getset(get = "pub")]
+    rta_payload: P,
+}
+
+impl<T, P> RtattrBuilder<T, P>
+where
+    T: Size,
+    P: Size + ToBytes,
+{
+    /// Build an [`Rtattr`].
+    pub fn build(self) -> Result<Rtattr<T, Buffer>, RtattrBuilderError> {
+        let rta_type = self
+            .rta_type
+            .ok_or_else(|| RtattrBuilderError::from(UninitializedFieldError::new("rta_type")))?;
+        let rta_payload = self
+            .rta_payload
+            .ok_or_else(|| RtattrBuilderError::from(UninitializedFieldError::new("rta_payload")))?;
+        let mut buffer = Cursor::new(vec![0; rta_payload.unpadded_size()]);
+        rta_payload.to_bytes(&mut buffer).map_err(|_| {
+            RtattrBuilderError::ValidationError(
+                "Could not convert payload to binary representation".to_string(),
+            )
+        })?;
+
+        let mut rtattr = Rtattr {
+            rta_len: 0,
+            rta_type,
+            rta_payload: Buffer::from(buffer.into_inner()),
+        };
+        rtattr.rta_len = rtattr.unpadded_size() as libc::c_ushort;
+        Ok(rtattr)
+    }
 }
 
 impl<T> Rtattr<T, Buffer>
 where
     T: RtaType,
 {
-    /// Create a new [`Rtattr`].
-    pub fn new<P>(_: Option<u16>, rta_type: T, rta_payload: P) -> Result<Self, SerError>
+    /// Builder method to add a nested attribute to the end of the payload.
+    ///
+    /// Use this to construct an attribute and nest attributes within it in one method chain.
+    pub fn nest<TT, P>(mut self, attr: &Rtattr<TT, P>) -> Result<Self, SerError>
     where
-        P: Size + ToBytes,
+        TT: RtaType,
+        P: ToBytes,
     {
-        let mut attr = Rtattr {
-            rta_len: Self::header_size() as u16,
-            rta_type,
-            rta_payload: Buffer::new(),
-        };
-        attr.set_payload(&rta_payload)?;
-        Ok(attr)
+        self.add_nested_attribute(attr)?;
+        Ok(self)
     }
 
     /// Add a nested attribute to the end of the payload.
-    pub fn add_nested_attribute<TT, P>(&mut self, attr: &Rtattr<TT, P>) -> Result<(), SerError>
+    fn add_nested_attribute<TT, P>(&mut self, attr: &Rtattr<TT, P>) -> Result<(), SerError>
     where
         TT: RtaType,
         P: ToBytes,
@@ -301,25 +319,13 @@ where
         Ok(())
     }
 
-    /// Return an [`AttrHandle`][crate::attr::AttrHandle] for
+    /// Return an [`AttrHandle`] for
     /// attributes nested in the given attribute payload.
     pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, DeError>
     where
         R: RtaType,
     {
         Ok(AttrHandle::new(RtBuffer::from_bytes_with_input(
-            &mut Cursor::new(self.rta_payload.as_ref()),
-            self.rta_payload.len(),
-        )?))
-    }
-
-    /// Return an [`AttrHandleMut`][crate::attr::AttrHandleMut] for
-    /// attributes nested in the given attribute payload.
-    pub fn get_attr_handle_mut<R>(&mut self) -> Result<RtAttrHandleMut<R>, DeError>
-    where
-        R: RtaType,
-    {
-        Ok(AttrHandleMut::new(RtBuffer::from_bytes_with_input(
             &mut Cursor::new(self.rta_payload.as_ref()),
             self.rta_payload.len(),
         )?))
@@ -351,16 +357,16 @@ where
     }
 }
 
-type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
-type RtAttrHandleMut<'a, T> = AttrHandleMut<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
+/// Represents a routing netlink attribute handle.
+pub type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
+impl<'a, T> RtAttrHandle<'a, T>
 where
     T: RtaType,
 {
     /// Get the payload of an attribute as a handle for parsing
     /// nested attributes.
-    pub fn get_nested_attributes<S>(&mut self, subattr: T) -> Result<RtAttrHandle<S>, DeError>
+    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<RtAttrHandle<S>, DeError>
     where
         S: RtaType,
     {
@@ -381,9 +387,9 @@ where
     }
 
     /// Parse binary payload as a type that implements [`FromBytes`].
-    pub fn get_attr_payload_as<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytes<'b>,
+        R: FromBytes,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as::<R>(),
@@ -392,12 +398,23 @@ where
     }
 
     /// Parse binary payload as a type that implements [`FromBytesWithInput`].
-    pub fn get_attr_payload_as_with_len<'b, R>(&'b self, attr: T) -> Result<R, DeError>
+    pub fn get_attr_payload_as_with_len<R>(&self, attr: T) -> Result<R, DeError>
     where
-        R: FromBytesWithInput<'b, Input = usize>,
+        R: FromBytesWithInput<Input = usize>,
     {
         match self.get_attribute(attr) {
             Some(a) => a.get_payload_as_with_len::<R>(),
+            _ => Err(DeError::new("Failed to find specified attribute")),
+        }
+    }
+
+    /// Parse binary payload as a type that implements [`FromBytesWithInput`].
+    pub fn get_attr_payload_as_with_len_borrowed<R>(&'a self, attr: T) -> Result<R, DeError>
+    where
+        R: FromBytesWithInputBorrowed<'a, Input = usize>,
+    {
+        match self.get_attribute(attr) {
+            Some(a) => a.get_payload_as_with_len_borrowed::<R>(),
             _ => Err(DeError::new("Failed to find specified attribute")),
         }
     }
@@ -407,14 +424,14 @@ where
 mod test {
     use super::*;
 
+    use std::net::Ipv4Addr;
+
     use crate::{
-        consts::{
-            nl::{NlmF, NlmFFlags},
-            socket::NlFamily,
-        },
-        nl::{NlPayload, Nlmsghdr},
-        socket::NlSocketHandle,
+        consts::{nl::NlmF, socket::NlFamily},
+        nl::NlPayload,
+        router::synchronous::NlRouter,
         test::setup,
+        utils::Groups,
     };
 
     #[test]
@@ -431,7 +448,7 @@ mod test {
 
         // 3 bytes is below minimum length
         let buf = &[3u8, 0, 0, 0] as &[u8];
-        assert!(Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).is_err());
+        Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap_err();
     }
 
     #[test]
@@ -446,7 +463,7 @@ mod test {
         let mut buffer = Cursor::new(Vec::new());
         let buf_res = attr.to_bytes(&mut buffer);
 
-        assert!(buf_res.is_ok());
+        buf_res.unwrap();
         // padding check
         assert_eq!(buffer.into_inner().len(), 8);
     }
@@ -455,37 +472,34 @@ mod test {
     fn real_test_ifinfomsg() {
         setup();
 
-        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(Nlmsghdr::new(
-            None,
-            Rtm::Getlink,
-            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
-            None,
-            None,
-            NlPayload::Payload(Ifinfomsg::new(
-                RtAddrFamily::Unspecified,
-                Arphrd::None,
-                0,
-                IffFlags::empty(),
-                IffFlags::empty(),
-                RtBuffer::new(),
-            )),
-        ))
-        .unwrap();
-        let msgs = sock.recv_all::<Rtm, Ifinfomsg>().unwrap();
-        for msg in msgs {
-            let handle = msg.get_payload().unwrap().rtattrs.get_attr_handle();
-            handle
-                .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
-                .unwrap();
-            // Assert length of ethernet address
-            assert_eq!(
+        let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        sock.enable_strict_checking(true).unwrap();
+        let recv = sock
+            .send::<_, _, Rtm, Ifinfomsg>(
+                Rtm::Getlink,
+                NlmF::DUMP | NlmF::ACK,
+                NlPayload::Payload(
+                    IfinfomsgBuilder::default()
+                        .ifi_family(RtAddrFamily::Unspecified)
+                        .ifi_type(Arphrd::None)
+                        .ifi_index(0)
+                        .build()
+                        .unwrap(),
+                ),
+            )
+            .unwrap();
+        for msg in recv {
+            let msg = msg.unwrap();
+            if let Some(payload) = msg.get_payload() {
+                let handle = payload.rtattrs.get_attr_handle();
                 handle
-                    .get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address)
-                    .unwrap()
-                    .len(),
-                6
-            );
+                    .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
+                    .unwrap();
+                // Assert length of ethernet address
+                if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
+                    assert_eq!(attr.len(), 6);
+                }
+            }
         }
     }
 
@@ -493,20 +507,70 @@ mod test {
     fn real_test_tcmsg() {
         setup();
 
-        let mut sock = NlSocketHandle::new(NlFamily::Route).unwrap();
-        sock.send(Nlmsghdr::new(
-            None,
-            Rtm::Getqdisc,
-            NlmFFlags::new(&[NlmF::Dump, NlmF::Request, NlmF::Ack]),
-            None,
-            None,
-            NlPayload::Payload(Tcmsg::new(0, 0, 0, 0, 0, RtBuffer::new())),
-        ))
-        .unwrap();
-        let msgs = sock.recv_all::<Rtm, Tcmsg>().unwrap();
-        for msg in msgs {
-            assert!(matches!(msg.get_payload().unwrap(), Tcmsg { .. }));
-            assert_eq!(msg.nl_type, Rtm::Newqdisc);
+        let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        sock.enable_strict_checking(true).unwrap();
+        let recv = sock
+            .send::<_, _, Rtm, Tcmsg>(
+                Rtm::Getqdisc,
+                NlmF::DUMP | NlmF::ACK,
+                NlPayload::Payload(
+                    TcmsgBuilder::default()
+                        .tcm_family(0)
+                        .tcm_ifindex(0)
+                        .tcm_handle(0)
+                        .tcm_parent(0)
+                        .tcm_info(0)
+                        .build()
+                        .unwrap(),
+                ),
+            )
+            .unwrap();
+        for msg in recv {
+            let msg = msg.unwrap();
+            assert!(matches!(msg.get_payload(), Some(Tcmsg { .. }) | None));
+            assert!(matches!(
+                msg.nl_type(),
+                Rtm::Newqdisc | Rtm::UnrecognizedConst(3)
+            ));
         }
+    }
+
+    #[test]
+    #[cfg(target_env = "gnu")]
+    fn real_test_rtmsg_search() {
+        setup();
+
+        let dstip = Ipv4Addr::new(127, 0, 0, 1);
+        let raw_dstip = u32::from(dstip).to_be();
+        let route_attr = RtattrBuilder::default()
+            .rta_type(Rta::Dst)
+            .rta_payload(raw_dstip)
+            .build()
+            .unwrap();
+
+        let mut route_payload = RtBuffer::new();
+        route_payload.push(route_attr);
+
+        let (rtnl, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+
+        let ifroutemsg = RtmsgBuilder::default()
+            .rtm_family(RtAddrFamily::Inet)
+            .rtm_dst_len(32)
+            .rtm_src_len(0)
+            .rtm_tos(0)
+            .rtm_table(RtTable::Unspec)
+            .rtm_protocol(Rtprot::Unspec)
+            .rtm_scope(RtScope::Universe)
+            .rtm_type(Rtn::Unspec)
+            .rtm_flags(RtmF::from(libc::RTM_F_LOOKUP_TABLE))
+            .rtattrs(route_payload)
+            .build()
+            .unwrap();
+
+        let recv = rtnl
+            .send::<_, _, Rtm, Rtmsg>(Rtm::Getroute, NlmF::REQUEST, NlPayload::Payload(ifroutemsg))
+            .unwrap();
+
+        assert!(recv.count() > 0);
     }
 }

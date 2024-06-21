@@ -22,10 +22,9 @@ idiomatic Rust features.
 ## Examples using `neli`
 
 Examples of working code exist in the `examples/` subdirectory on
-Github. They have a separate `Cargo.toml` file to provide easy
-testing and use.  
+Github. Run `cargo build --examples` to build the examples. 
 
-Workflows seem to usually follow a pattern of socket creation,and
+Workflows usually follow a pattern of socket creation, and
 then either sending and receiving messages in request/response
 formats:
 
@@ -34,48 +33,39 @@ use std::error::Error;
 
 use neli::{
     consts::{genl::*, nl::*, socket::*},
-    err::NlError,
-    genl::{Genlmsghdr, Nlattr},
-    nl::{Nlmsghdr, NlPayload},
-    socket::NlSocketHandle,
+    err::RouterError,
+    genl::{Genlmsghdr, GenlmsghdrBuilder, Nlattr},
+    nl::{NlmsghdrBuilder, NlPayload},
+    router::synchronous::NlRouter,
     types::{Buffer, GenlBuffer},
+    utils::Groups,
 };
 
 const GENL_VERSION: u8 = 1;
 
 fn request_response() -> Result<(), Box<dyn Error>> {
-    let mut socket = NlSocketHandle::connect(
+    let (socket, _) = NlRouter::connect(
         NlFamily::Generic,
         None,
-        &[],
+        Groups::empty(),
     )?;
 
-    let attrs: GenlBuffer<Index, Buffer> = GenlBuffer::new();
-    let genlhdr = Genlmsghdr::new(
-        CtrlCmd::Getfamily,
-        GENL_VERSION,
-        attrs,
-    );
-    let nlhdr = {
-        let len = None;
-        let nl_type = GenlId::Ctrl;
-        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
-        let seq = None;
-        let pid = None;
-        let payload = NlPayload::Payload(genlhdr);
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, payload)
-    };
-    socket.send(nlhdr)?;
+    let recv = socket.send::<_, _, NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(
+        GenlId::Ctrl,
+        NlmF::DUMP,
+        NlPayload::Payload(
+            GenlmsghdrBuilder::<_, CtrlAttr, _>::default()
+                .cmd(CtrlCmd::Getfamily)
+                .version(GENL_VERSION)
+                .build()?
+        ),
+    )?;
     
-    // Do things with multi-message response to request...
-    let mut iter = socket.iter::<NlTypeWrapper, Genlmsghdr<CtrlCmd, CtrlAttr>>(false);
-    while let Some(Ok(response)) = iter.next() {
+    for msg in recv {
+        let msg = msg?;
         // Do things with response here...
     }
     
-    // Or get single message back...
-    let msg = socket.recv::<Nlmsg, Genlmsghdr<CtrlCmd, CtrlAttr>>()?;
-
     Ok(())
 }
 ```
@@ -87,23 +77,24 @@ use std::error::Error;
 
 use neli::{
     consts::{genl::*, nl::*, socket::*},
-    err::NlError,
+    err::RouterError,
     genl::Genlmsghdr,
-    socket,
+    router::synchronous::NlRouter,
+    utils::Groups,
 };
 
 fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
-    let mut s = socket::NlSocketHandle::connect(
+    let (s, multicast) = NlRouter::connect(
         NlFamily::Generic,
         None,
-        &[],
+        Groups::empty(),
     )?;
     let id = s.resolve_nl_mcast_group(
         "my_family_name",
         "my_multicast_group_name",
     )?;
-    s.add_mcast_membership(&[id])?;
-    for next in s.iter::<NlTypeWrapper, Genlmsghdr<u8, u16>>(true) {
+    s.add_mcast_membership(Groups::new_groups(&[id]))?;
+    for next in multicast {
         // Do stuff here with parsed packets...
     
         // like printing a debug representation of them:
@@ -114,8 +105,6 @@ fn subscribe_to_mcast() -> Result<(), Box<dyn Error>> {
 }
 ```
 
-I plan to support both of these using a higher level API eventually.
-
 ## Contributing
 
 Your contribution will be licensed under neli's [license](LICENSE).
@@ -124,8 +113,8 @@ the license file prior to contributing to make sure that you feel
 comfortable with your contributions being released under the BSD
 3-Clause License.
 
-CI is awesome - please add tests for new features wherever possible.
-I may request this prior to merge if I see it is possible and missing.
+Please add tests for new features wherever possible.  I may request this
+prior to merge if I see it is possible and missing.
 
 Please document new features not just at a lower level but also with
 `//!` comments at the module for high level documentation and

@@ -7,67 +7,69 @@ use std::{
 
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
-    err::NlError,
+    err::{MsgError, RouterError},
     nl::{NlPayload, Nlmsghdr},
+    router::synchronous::NlRouter,
     rtnl::*,
-    socket::*,
-    types::RtBuffer,
+    types::Buffer,
+    utils::Groups,
 };
 
 fn parse_route_table(
     ifs: &HashMap<IpAddr, String>,
     rtm: Nlmsghdr<NlTypeWrapper, Rtmsg>,
-) -> Result<(), NlError> {
-    let payload = rtm.get_payload()?;
-    // This sample is only interested in the main table.
-    if payload.rtm_table == RtTable::Main {
-        let mut src = None;
-        let mut dst = None;
-        let mut gateway = None;
+) -> Result<(), RouterError<u16, Buffer>> {
+    if let Some(payload) = rtm.get_payload() {
+        // This sample is only interested in the main table.
+        if payload.rtm_table() == &RtTable::Main {
+            let mut src = None;
+            let mut dst = None;
+            let mut gateway = None;
 
-        for attr in payload.rtattrs.iter() {
-            fn to_addr(b: &[u8]) -> Option<IpAddr> {
-                use std::convert::TryFrom;
-                if let Ok(tup) = <&[u8; 4]>::try_from(b) {
-                    Some(IpAddr::from(*tup))
-                } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
-                    Some(IpAddr::from(*tup))
-                } else {
-                    None
+            for attr in payload.rtattrs().iter() {
+                fn to_addr(b: &[u8]) -> Option<IpAddr> {
+                    if let Ok(tup) = <&[u8; 4]>::try_from(b) {
+                        Some(IpAddr::from(*tup))
+                    } else if let Ok(tup) = <&[u8; 16]>::try_from(b) {
+                        Some(IpAddr::from(*tup))
+                    } else {
+                        None
+                    }
+                }
+
+                match attr.rta_type() {
+                    Rta::Dst => dst = to_addr(attr.rta_payload().as_ref()),
+                    Rta::Prefsrc => src = to_addr(attr.rta_payload().as_ref()),
+                    Rta::Gateway => gateway = to_addr(attr.rta_payload().as_ref()),
+                    _ => (),
                 }
             }
 
-            match attr.rta_type {
-                Rta::Dst => dst = to_addr(attr.rta_payload.as_ref()),
-                Rta::Prefsrc => src = to_addr(attr.rta_payload.as_ref()),
-                Rta::Gateway => gateway = to_addr(attr.rta_payload.as_ref()),
-                _ => (),
+            if let Some(dst) = dst {
+                print!("{}/{} ", dst, payload.rtm_dst_len());
+            } else {
+                print!("default ");
+                if let Some(gateway) = gateway {
+                    print!("via {gateway} ");
+                }
             }
-        }
 
-        if let Some(dst) = dst {
-            print!("{}/{} ", dst, payload.rtm_dst_len);
-        } else {
-            print!("default ");
-            if let Some(gateway) = gateway {
-                print!("via {} ", gateway);
+            if let Some(src) = src {
+                print!("dev {}", ifs.get(&src).expect("Should be present"));
             }
-        }
 
-        if let Some(src) = src {
-            print!("dev {}", ifs.get(&src).expect("Should be present"));
+            if payload.rtm_scope() != &RtScope::Universe {
+                print!(
+                    " proto {:?}  scope {:?} ",
+                    payload.rtm_protocol(),
+                    payload.rtm_scope()
+                )
+            }
+            if let Some(src) = src {
+                print!(" src {src} ");
+            }
+            println!();
         }
-
-        if payload.rtm_scope != RtScope::Universe {
-            print!(
-                " proto {:?}  scope {:?} ",
-                payload.rtm_protocol, payload.rtm_scope
-            )
-        }
-        if let Some(src) = src {
-            print!(" src {} ", src);
-        }
-        println!();
     }
 
     Ok(())
@@ -78,39 +80,28 @@ fn parse_route_table(
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let mut socket = NlSocketHandle::connect(NlFamily::Route, None, &[]).unwrap();
+    let (socket, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
 
-    let ifmsg = Ifaddrmsg {
-        ifa_family: RtAddrFamily::Unspecified,
-        ifa_prefixlen: 0,
-        ifa_flags: IfaFFlags::empty(),
-        ifa_scope: 0,
-        ifa_index: 0,
-        rtattrs: RtBuffer::new(),
-    };
-    let nlhdr = Nlmsghdr::new(
-        None,
+    let ifmsg = IfaddrmsgBuilder::default()
+        .ifa_family(RtAddrFamily::Unspecified)
+        .ifa_prefixlen(0)
+        .ifa_scope(RtScope::Universe)
+        .ifa_index(0)
+        .build()?;
+    let recv = socket.send::<_, _, NlTypeWrapper, _>(
         Rtm::Getaddr,
-        NlmFFlags::new(&[NlmF::Request, NlmF::Dump]),
-        None,
-        None,
+        NlmF::DUMP,
         NlPayload::Payload(ifmsg),
-    );
-    socket.send(nlhdr)?;
+    )?;
 
-    let mut ifs_v = Vec::new();
-    for msg in socket.iter::<Rtm, _>(false) {
+    let mut ifs = HashMap::new();
+    for msg in recv {
         let msg = msg?;
-        if let NlPayload::Payload(p) = msg.nl_payload {
-            ifs_v.push(p);
-        }
-    }
-    let ifs = ifs_v
-        .into_iter()
-        .try_fold(HashMap::new(), |mut hm, payload: Ifaddrmsg| {
-            let handle = payload.rtattrs.get_attr_handle();
+        if let NlPayload::<_, Ifaddrmsg>::Payload(p) = msg.nl_payload() {
+            let handle = p.rtattrs().get_attr_handle();
             let addr = {
-                if let Ok(mut ip_bytes) = handle.get_attr_payload_as_with_len::<&[u8]>(Ifa::Address)
+                if let Ok(mut ip_bytes) =
+                    handle.get_attr_payload_as_with_len_borrowed::<&[u8]>(Ifa::Address)
                 {
                     if ip_bytes.len() == 4 {
                         let mut bytes = [0u8; 4];
@@ -125,10 +116,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                             u128::from_ne_bytes(bytes).to_be(),
                         )))
                     } else {
-                        return Err(NlError::new(format!(
+                        return Err(Box::new(MsgError::new(format!(
                             "Unrecognized address length of {} found",
                             ip_bytes.len()
-                        )));
+                        ))));
                     }
                 } else {
                     None
@@ -138,37 +129,26 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .get_attr_payload_as_with_len::<String>(Ifa::Label)
                 .ok();
             if let (Some(addr), Some(name)) = (addr, name) {
-                hm.insert(addr, name);
+                ifs.insert(addr, name);
             }
-            Result::<_, NlError>::Ok(hm)
-        })?;
+        }
+    }
 
-    let rtmsg = Rtmsg {
-        rtm_family: RtAddrFamily::Inet,
-        rtm_dst_len: 0,
-        rtm_src_len: 0,
-        rtm_tos: 0,
-        rtm_table: RtTable::Unspec,
-        rtm_protocol: Rtprot::Unspec,
-        rtm_scope: RtScope::Universe,
-        rtm_type: Rtn::Unspec,
-        rtm_flags: RtmFFlags::empty(),
-        rtattrs: RtBuffer::new(),
-    };
-    let nlhdr = {
-        let len = None;
-        let nl_type = Rtm::Getroute;
-        let flags = NlmFFlags::new(&[NlmF::Request, NlmF::Dump]);
-        let seq = None;
-        let pid = None;
-        let payload = rtmsg;
-        Nlmsghdr::new(len, nl_type, flags, seq, pid, NlPayload::Payload(payload))
-    };
-    socket.send(nlhdr).unwrap();
+    let rtmsg = RtmsgBuilder::default()
+        .rtm_family(RtAddrFamily::Inet)
+        .rtm_dst_len(0)
+        .rtm_src_len(0)
+        .rtm_tos(0)
+        .rtm_table(RtTable::Unspec)
+        .rtm_protocol(Rtprot::Unspec)
+        .rtm_scope(RtScope::Universe)
+        .rtm_type(Rtn::Unspec)
+        .build()?;
+    let recv = socket.send(Rtm::Getroute, NlmF::DUMP, NlPayload::Payload(rtmsg))?;
 
-    for rtm_result in socket.iter(false) {
+    for rtm_result in recv {
         let rtm = rtm_result?;
-        if let NlTypeWrapper::Rtm(_) = rtm.nl_type {
+        if let NlTypeWrapper::Rtm(_) = rtm.nl_type() {
             parse_route_table(&ifs, rtm)?;
         }
     }

@@ -1,6 +1,6 @@
-use crate as neli;
-
 use neli_proc_macros::neli_enum;
+
+use crate as neli;
 
 /// General address families for sockets
 #[neli_enum(serialized_type = "libc::c_int")]
@@ -43,3 +43,16 @@ pub enum NlFamily {
     Rdma = libc::NETLINK_RDMA,
     Crypto = libc::NETLINK_CRYPTO,
 }
+
+impl_flags!(
+    /// Flags to be used in [NlSocket][crate::socket::NlSocket::recv] calls.
+    pub Msg: u32 {
+        CMSG_CLOEXEC = libc::MSG_CMSG_CLOEXEC as u32,
+        DONTWAIT = libc::MSG_DONTWAIT as u32,
+        ERRQUEUE = libc::MSG_ERRQUEUE as u32,
+        OOB = libc::MSG_OOB as u32,
+        PEEK = libc::MSG_PEEK as u32,
+        TRUNC = libc::MSG_TRUNC as u32,
+        WAITALL = libc::MSG_WAITALL as u32,
+    }
+);

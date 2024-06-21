@@ -1,6 +1,6 @@
-use crate as neli;
-
 use neli_proc_macros::neli_enum;
+
+use crate as neli;
 
 /// Internet address families
 #[neli_enum(serialized_type = "libc::c_uchar")]
@@ -24,20 +24,6 @@ pub enum RtAddrFamily {
     Appletalk = libc::AF_APPLETALK as u8,
     Packet = libc::AF_PACKET as u8,
     Alg = libc::AF_ALG as u8,
-}
-
-/// Interface address flags
-#[neli_enum(serialized_type = "u8")]
-pub enum IfaF {
-    Secondary = libc::IFA_F_SECONDARY as u8,
-    Temporary = libc::IFA_F_TEMPORARY as u8,
-    Nodad = libc::IFA_F_NODAD as u8,
-    Optimistic = libc::IFA_F_OPTIMISTIC as u8,
-    Dadfailed = libc::IFA_F_DADFAILED as u8,
-    Homeaddress = libc::IFA_F_HOMEADDRESS as u8,
-    Deprecated = libc::IFA_F_DEPRECATED as u8,
-    Tentative = libc::IFA_F_TENTATIVE as u8,
-    Permanent = libc::IFA_F_PERMANENT as u8,
 }
 
 /// `rtm_type`
@@ -89,49 +75,6 @@ pub enum RtTable {
     Default = libc::RT_TABLE_DEFAULT,
     Main = libc::RT_TABLE_MAIN,
     Local = libc::RT_TABLE_LOCAL,
-}
-
-/// `rtm_flags`
-/// Flags for rtnetlink messages
-#[neli_enum(serialized_type = "libc::c_uint")]
-pub enum RtmF {
-    Notify = libc::RTM_F_NOTIFY,
-    Cloned = libc::RTM_F_CLONED,
-    Equalize = libc::RTM_F_EQUALIZE,
-    Prefix = libc::RTM_F_PREFIX,
-
-    #[cfg(target_env = "gnu")]
-    LookupTable = libc::RTM_F_LOOKUP_TABLE,
-    #[cfg(target_env = "gnu")]
-    FibMatch = libc::RTM_F_FIB_MATCH,
-}
-
-/// Arp neighbor cache entry states
-#[neli_enum(serialized_type = "u16")]
-pub enum Nud {
-    None = libc::NUD_NONE,
-    Incomplete = libc::NUD_INCOMPLETE,
-    Reachable = libc::NUD_REACHABLE,
-    Stale = libc::NUD_STALE,
-    Delay = libc::NUD_DELAY,
-    Probe = libc::NUD_PROBE,
-    Failed = libc::NUD_FAILED,
-    Noarp = libc::NUD_NOARP,
-    Permanent = libc::NUD_PERMANENT,
-}
-
-/// Arp neighbor cache entry flags
-#[neli_enum(serialized_type = "u8")]
-pub enum Ntf {
-    Use = libc::NTF_USE as u8,
-    Self_ = libc::NTF_SELF as u8,
-    Master = libc::NTF_MASTER as u8,
-    Proxy = libc::NTF_PROXY as u8,
-    #[cfg(target_env = "gnu")]
-    ExtLearned = libc::NTF_EXT_LEARNED as u8,
-    #[cfg(target_env = "gnu")]
-    Offloaded = libc::NTF_OFFLOADED as u8,
-    Router = libc::NTF_ROUTER as u8,
 }
 
 impl_trait!(
@@ -227,22 +170,59 @@ pub enum IflaInfo {
     SlaveData = libc::IFLA_INFO_SLAVE_DATA,
 }
 
-/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
-/// `rta_type`.
-/// Values are interface address message attributes. Used with
-/// [`Ifaddrmsg`][crate::rtnl::Ifaddrmsg].
-#[neli_enum(serialized_type = "libc::c_ushort")]
-pub enum Ifa {
-    Unspec = libc::IFA_UNSPEC,
-    Address = libc::IFA_ADDRESS,
-    Local = libc::IFA_LOCAL,
-    Label = libc::IFA_LABEL,
-    Broadcast = libc::IFA_BROADCAST,
-    Anycast = libc::IFA_ANYCAST,
-    Cacheinfo = libc::IFA_CACHEINFO,
-    Multicast = libc::IFA_MULTICAST,
-    #[cfg(target_env = "gnu")]
-    Flags = libc::IFA_FLAGS,
+/// rtnetlink-related values for `nl_type` in
+/// [`Nlmsghdr`][crate::nl::Nlmsghdr].
+#[neli_enum(serialized_type = "u16")]
+#[allow(missing_docs)]
+pub enum Rtm {
+    Newlink = libc::RTM_NEWLINK,
+    Dellink = libc::RTM_DELLINK,
+    Getlink = libc::RTM_GETLINK,
+    Setlink = libc::RTM_SETLINK,
+    Newaddr = libc::RTM_NEWADDR,
+    Deladdr = libc::RTM_DELADDR,
+    Getaddr = libc::RTM_GETADDR,
+    Newroute = libc::RTM_NEWROUTE,
+    Delroute = libc::RTM_DELROUTE,
+    Getroute = libc::RTM_GETROUTE,
+    Newneigh = libc::RTM_NEWNEIGH,
+    Delneigh = libc::RTM_DELNEIGH,
+    Getneigh = libc::RTM_GETNEIGH,
+    Newrule = libc::RTM_NEWRULE,
+    Delrule = libc::RTM_DELRULE,
+    Getrule = libc::RTM_GETRULE,
+    Newqdisc = libc::RTM_NEWQDISC,
+    Delqdisc = libc::RTM_DELQDISC,
+    Getqdisc = libc::RTM_GETQDISC,
+    Newtclass = libc::RTM_NEWTCLASS,
+    Deltclass = libc::RTM_DELTCLASS,
+    Gettclass = libc::RTM_GETTCLASS,
+    Newtfilter = libc::RTM_NEWTFILTER,
+    Deltfilter = libc::RTM_DELTFILTER,
+    Gettfilter = libc::RTM_GETTFILTER,
+    Newaction = libc::RTM_NEWACTION,
+    Delaction = libc::RTM_DELACTION,
+    Getaction = libc::RTM_GETACTION,
+    Newprefix = libc::RTM_NEWPREFIX,
+    Getmulticast = libc::RTM_GETMULTICAST,
+    Getanycast = libc::RTM_GETANYCAST,
+    Newneightbl = libc::RTM_NEWNEIGHTBL,
+    Getneightbl = libc::RTM_GETNEIGHTBL,
+    Setneightbl = libc::RTM_SETNEIGHTBL,
+    Newnduseropt = libc::RTM_NEWNDUSEROPT,
+    Newaddrlabel = libc::RTM_NEWADDRLABEL,
+    Deladdrlabel = libc::RTM_DELADDRLABEL,
+    Getaddrlabel = libc::RTM_GETADDRLABEL,
+    Getdcb = libc::RTM_GETDCB,
+    Setdcb = libc::RTM_SETDCB,
+    Newnetconf = libc::RTM_NEWNETCONF,
+    Getnetconf = libc::RTM_GETNETCONF,
+    Newmdb = libc::RTM_NEWMDB,
+    Delmdb = libc::RTM_DELMDB,
+    Getmdb = libc::RTM_GETMDB,
+    Newnsid = libc::RTM_NEWNSID,
+    Delnsid = libc::RTM_DELNSID,
+    Getnsid = libc::RTM_GETNSID,
 }
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -354,105 +334,111 @@ pub enum Arphrd {
     None = libc::ARPHRD_NONE,
 }
 
-/// Values for `ifi_flags` in
-/// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
-#[neli_enum(serialized_type = "libc::c_uint")]
-pub enum Iff {
-    Up = libc::IFF_UP as libc::c_uint,
-    Broadcast = libc::IFF_BROADCAST as libc::c_uint,
-    Debug = libc::IFF_DEBUG as libc::c_uint,
-    Loopback = libc::IFF_LOOPBACK as libc::c_uint,
-    Pointopoint = libc::IFF_POINTOPOINT as libc::c_uint,
-    Running = libc::IFF_RUNNING as libc::c_uint,
-    Noarp = libc::IFF_NOARP as libc::c_uint,
-    Promisc = libc::IFF_PROMISC as libc::c_uint,
-    Notrailers = libc::IFF_NOTRAILERS as libc::c_uint,
-    Allmulti = libc::IFF_ALLMULTI as libc::c_uint,
-    Master = libc::IFF_MASTER as libc::c_uint,
-    Slave = libc::IFF_SLAVE as libc::c_uint,
-    Multicast = libc::IFF_MULTICAST as libc::c_uint,
-    Portsel = libc::IFF_PORTSEL as libc::c_uint,
-    Automedia = libc::IFF_AUTOMEDIA as libc::c_uint,
-    Dynamic = libc::IFF_DYNAMIC as libc::c_uint,
-    LowerUp = libc::IFF_LOWER_UP as libc::c_uint,
-    Dormant = libc::IFF_DORMANT as libc::c_uint,
-    Echo = libc::IFF_ECHO as libc::c_uint,
-    // Possibly more types here - need to look into private flags for interfaces
-}
-
-impl_flags!(
-    #[allow(missing_docs)]
-    pub IffFlags, Iff, libc::c_uint
-);
-
-impl_flags!(
-    #[allow(missing_docs)]
-    pub IfaFFlags, IfaF, libc::c_uchar
-);
-
-impl_flags!(
-    #[allow(missing_docs)]
-    pub RtmFFlags, RtmF, libc::c_uint
-);
-impl_flags!(
-    #[allow(missing_docs)]
-    pub NudFlags, Nud, u16
-);
-impl_flags!(
-    #[allow(missing_docs)]
-    pub NtfFlags, Ntf, u8
-);
-
-/// rtnetlink-related values for `nl_type` in
-/// [`Nlmsghdr`][crate::nl::Nlmsghdr].
+/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+/// `rta_type`.
+/// Values are interface address message attributes. Used with
+/// [`Ifaddrmsg`][crate::rtnl::Ifaddrmsg].
+#[allow(missing_docs)]
 #[neli_enum(serialized_type = "u16")]
-pub enum Rtm {
-    Newlink = libc::RTM_NEWLINK,
-    Dellink = libc::RTM_DELLINK,
-    Getlink = libc::RTM_GETLINK,
-    Setlink = libc::RTM_SETLINK,
-    Newaddr = libc::RTM_NEWADDR,
-    Deladdr = libc::RTM_DELADDR,
-    Getaddr = libc::RTM_GETADDR,
-    Newroute = libc::RTM_NEWROUTE,
-    Delroute = libc::RTM_DELROUTE,
-    Getroute = libc::RTM_GETROUTE,
-    Newneigh = libc::RTM_NEWNEIGH,
-    Delneigh = libc::RTM_DELNEIGH,
-    Getneigh = libc::RTM_GETNEIGH,
-    Newrule = libc::RTM_NEWRULE,
-    Delrule = libc::RTM_DELRULE,
-    Getrule = libc::RTM_GETRULE,
-    Newqdisc = libc::RTM_NEWQDISC,
-    Delqdisc = libc::RTM_DELQDISC,
-    Getqdisc = libc::RTM_GETQDISC,
-    Newtclass = libc::RTM_NEWTCLASS,
-    Deltclass = libc::RTM_DELTCLASS,
-    Gettclass = libc::RTM_GETTCLASS,
-    Newtfilter = libc::RTM_NEWTFILTER,
-    Deltfilter = libc::RTM_DELTFILTER,
-    Gettfilter = libc::RTM_GETTFILTER,
-    Newaction = libc::RTM_NEWACTION,
-    Delaction = libc::RTM_DELACTION,
-    Getaction = libc::RTM_GETACTION,
-    Newprefix = libc::RTM_NEWPREFIX,
-    Getmulticast = libc::RTM_GETMULTICAST,
-    Getanycast = libc::RTM_GETANYCAST,
-    Newneightbl = libc::RTM_NEWNEIGHTBL,
-    Getneightbl = libc::RTM_GETNEIGHTBL,
-    Setneightbl = libc::RTM_SETNEIGHTBL,
-    Newnduseropt = libc::RTM_NEWNDUSEROPT,
-    Newaddrlabel = libc::RTM_NEWADDRLABEL,
-    Deladdrlabel = libc::RTM_DELADDRLABEL,
-    Getaddrlabel = libc::RTM_GETADDRLABEL,
-    Getdcb = libc::RTM_GETDCB,
-    Setdcb = libc::RTM_SETDCB,
-    Newnetconf = libc::RTM_NEWNETCONF,
-    Getnetconf = libc::RTM_GETNETCONF,
-    Newmdb = libc::RTM_NEWMDB,
-    Delmdb = libc::RTM_DELMDB,
-    Getmdb = libc::RTM_GETMDB,
-    Newnsid = libc::RTM_NEWNSID,
-    Delnsid = libc::RTM_DELNSID,
-    Getnsid = libc::RTM_GETNSID,
+pub enum Ifa {
+    Unspec = libc::IFA_UNSPEC,
+    Address = libc::IFA_ADDRESS,
+    Local = libc::IFA_LOCAL,
+    Label = libc::IFA_LABEL,
+    Broadcast = libc::IFA_BROADCAST,
+    Anycast = libc::IFA_ANYCAST,
+    Cacheinfo = libc::IFA_CACHEINFO,
+    Multicast = libc::IFA_MULTICAST,
+    #[cfg(target_env = "gnu")]
+    Flags = libc::IFA_FLAGS,
 }
+
+impl_flags!(
+    /// Values for `ifi_flags` in
+    /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
+    pub Iff: libc::c_uint {
+        UP = libc::IFF_UP as libc::c_uint,
+        BROADCAST = libc::IFF_BROADCAST as libc::c_uint,
+        DEBUG = libc::IFF_DEBUG as libc::c_uint,
+        LOOPBACK = libc::IFF_LOOPBACK as libc::c_uint,
+        POINTOPOINT = libc::IFF_POINTOPOINT as libc::c_uint,
+        RUNNING = libc::IFF_RUNNING as libc::c_uint,
+        NOARP = libc::IFF_NOARP as libc::c_uint,
+        PROMISC = libc::IFF_PROMISC as libc::c_uint,
+        NOTRAILERS = libc::IFF_NOTRAILERS as libc::c_uint,
+        ALLMULTI = libc::IFF_ALLMULTI as libc::c_uint,
+        MASTER = libc::IFF_MASTER as libc::c_uint,
+        SLAVE = libc::IFF_SLAVE as libc::c_uint,
+        MULTICAST = libc::IFF_MULTICAST as libc::c_uint,
+        PORTSEL = libc::IFF_PORTSEL as libc::c_uint,
+        AUTOMEDIA = libc::IFF_AUTOMEDIA as libc::c_uint,
+        DYNAMIC = libc::IFF_DYNAMIC as libc::c_uint,
+        LOWERUP = libc::IFF_LOWER_UP as libc::c_uint,
+        DORMANT = libc::IFF_DORMANT as libc::c_uint,
+        ECHO = libc::IFF_ECHO as libc::c_uint,
+        // Possibly more types here - need to look into private flags for interfaces
+    }
+);
+
+impl_flags!(
+    /// Interface address flags
+    pub IfaF: u8 {
+        SECONDARY = libc::IFA_F_SECONDARY as u8,
+        TEMPORARY = libc::IFA_F_TEMPORARY as u8,
+        NODAD = libc::IFA_F_NODAD as u8,
+        OPTIMISTIC = libc::IFA_F_OPTIMISTIC as u8,
+        DADFAILED = libc::IFA_F_DADFAILED as u8,
+        HOMEADDRESS = libc::IFA_F_HOMEADDRESS as u8,
+        DEPRECATED = libc::IFA_F_DEPRECATED as u8,
+        TENTATIVE = libc::IFA_F_TENTATIVE as u8,
+        PERMANENT = libc::IFA_F_PERMANENT as u8,
+    }
+);
+
+impl_flags!(
+    /// `rtm_flags`
+    /// Flags for rtnetlink messages
+    pub RtmF: libc::c_uint {
+        NOTIFY = libc::RTM_F_NOTIFY,
+        CLONED = libc::RTM_F_CLONED,
+        EQUALIZE = libc::RTM_F_EQUALIZE,
+        PREFIX = libc::RTM_F_PREFIX,
+
+        #[cfg(target_env = "gnu")]
+        LOOKUPTABLE = libc::RTM_F_LOOKUP_TABLE,
+        #[cfg(target_env = "gnu")]
+        FIBMATCH = libc::RTM_F_FIB_MATCH,
+    }
+);
+
+impl_flags!(
+    /// Arp neighbor cache entry states
+    #[allow(missing_docs)]
+    pub Nud: u16 {
+        NONE = libc::NUD_NONE,
+        INCOMPLETE = libc::NUD_INCOMPLETE,
+        REACHABLE = libc::NUD_REACHABLE,
+        STALE = libc::NUD_STALE,
+        DELAY = libc::NUD_DELAY,
+        PROBE = libc::NUD_PROBE,
+        FAILED = libc::NUD_FAILED,
+        NOARP = libc::NUD_NOARP,
+        PERMANENT = libc::NUD_PERMANENT,
+    }
+);
+
+impl_flags!(
+    /// Arp neighbor cache entry flags
+    #[allow(missing_docs)]
+    pub Ntf: u8 {
+        USE = libc::NTF_USE,
+        SELF = libc::NTF_SELF,
+        MASTER = libc::NTF_MASTER,
+        PROXY = libc::NTF_PROXY,
+        #[cfg(target_env = "gnu")]
+        EXT_LEARNED = libc::NTF_EXT_LEARNED,
+        #[cfg(target_env = "gnu")]
+        OFFLOADED = libc::NTF_OFFLOADED,
+        ROUTER = libc::NTF_ROUTER,
+    }
+);

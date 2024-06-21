@@ -1,7 +1,7 @@
 [package]
 name = "neli"
-version = "0.6.1"
-edition = "2018"
+version = "0.7.0-rc2"
+edition = "2021"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
 license = "BSD-3-Clause"
@@ -21,17 +21,24 @@ name = "neli"
 path = "src/lib.rs"
 
 [dependencies]
-byteorder = "1.2"
-libc = "0.2.82"
+bitflags = "2.4"
+byteorder = "1.3"
+derive_builder = "0.11"
+getset = "0.1.2"
+libc = "0.2.105"
 log = "0.4"
 
 [dependencies.neli-proc-macros]
-version = "0.1"
+version = "0.2.0-rc2"
 path = "neli-proc-macros"
+
+[dependencies.parking_lot]
+version = "0.12.1"
+optional = true
 
 [dependencies.tokio]
 version = "1"
-features = ["io-util", "net"]
+features = ["io-util", "net", "sync", "rt"]
 optional = true
 
 [dev-dependencies]
@@ -43,6 +50,7 @@ version = "1"
 features = ["macros", "rt-multi-thread"]
 
 [features]
-default = []
-async = ["tokio"]
+default = ["sync"]
+sync = ["parking_lot"]
+async = ["parking_lot", "tokio"]
 netfilter = []

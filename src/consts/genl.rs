@@ -1,15 +1,15 @@
-use crate as neli;
-
 use std::{io::Cursor, mem::size_of};
 
 use neli_proc_macros::neli_enum;
 
-use crate::{Size, TypeSize};
-
 use crate::{
-    consts::netfilter::{NfLogAttr, NfLogCfg},
+    self as neli,
+    consts::{
+        netfilter::{NfLogAttr, NfLogCfg},
+        nl::NlmsgerrAttr,
+    },
     err::{DeError, SerError},
-    FromBytes, ToBytes,
+    FromBytes, Size, ToBytes, TypeSize,
 };
 
 impl_trait!(
@@ -50,7 +50,8 @@ impl_trait!(
     CtrlAttrMcastGrp,
     NfLogAttr,
     NfLogCfg,
-    Index
+    Index,
+    NlmsgerrAttr,
 );
 
 /// Values for `nla_type` in [`Nlattr`][crate::genl::Nlattr]
@@ -96,14 +97,20 @@ impl ToBytes for Index {
     }
 }
 
-impl<'lt> FromBytes<'lt> for Index {
-    fn from_bytes(buffer: &mut Cursor<&'lt [u8]>) -> Result<Self, DeError> {
+impl FromBytes for Index {
+    fn from_bytes(buffer: &mut Cursor<impl AsRef<[u8]>>) -> Result<Self, DeError> {
         Ok(Index(u16::from_bytes(buffer)?))
     }
 }
 
 impl From<Index> for u16 {
     fn from(i: Index) -> Self {
+        i.0
+    }
+}
+
+impl From<&Index> for u16 {
+    fn from(i: &Index) -> Self {
         i.0
     }
 }

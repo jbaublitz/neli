@@ -4,7 +4,6 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    parse,
     parse::Parse,
     parse_str,
     punctuated::Punctuated,
@@ -447,9 +446,28 @@ pub fn process_padding(attrs: &[Attribute]) -> bool {
 pub fn process_input(attrs: &[Attribute]) -> Option<Option<Expr>> {
     let mut exprs = process_attr(attrs, "input");
     if exprs.len() > 1 {
-        panic!("Only one input expression allowed for attribute #[neli(input = \"...\")]");
+        panic!("Only one instance of the attribute allowed for attribute #[neli(input = \"...\")]");
     } else {
         exprs.pop()
+    }
+}
+
+/// Handles the attribute `#[neli(skip_debug)]`
+/// when deriving [`FromBytes`][neli::FromBytes] implementations.
+/// This removes the restriction for the field to have [`TypeSize`][neli::TypeSize]
+/// implemented by skipping buffer trace logging for this field.
+///
+/// Returns:
+/// * [`false`] if the attribute is not present
+/// * [`true`] if the attribute is present
+pub fn process_skip_debug(attrs: &[Attribute]) -> bool {
+    let exprs = process_attr::<Expr>(attrs, "skip_debug");
+    if exprs.is_empty() {
+        false
+    } else if exprs.iter().any(|expr| expr.is_some()) {
+        panic!("No input expressions allowed for #[neli(skip_debug)]")
+    } else {
+        true
     }
 }
 
