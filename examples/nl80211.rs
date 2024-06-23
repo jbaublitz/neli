@@ -5,6 +5,7 @@ use neli::router::asynchronous::NlRouter;
 #[cfg(not(feature = "async"))]
 use neli::router::synchronous::NlRouter;
 use neli::{
+    attr::Attribute,
     consts::{
         nl::{GenlId, NlmF},
         socket::NlFamily,
@@ -27,12 +28,33 @@ pub enum Nl80211Attribute {
     Unspecified = 0,
 
     Wiphy = 1,
+    WiphyName = 2,
     /* Literally hundreds elided */
 }
 impl neli::consts::genl::NlAttrType for Nl80211Attribute {}
 
 fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
-    println!("msg={:?}", msg.nl_type());
+    // Messages with the NlmF::DUMP flag end with an empty payload message
+    // Don't parse message unless receive proper payload (non-error, non-empty, non-ack)
+    let payload = match msg.nl_payload() {
+        NlPayload::Payload(p) => p,
+        _ => return,
+    };
+
+    let attr_handle = payload.attrs().get_attr_handle();
+    for attr in attr_handle.iter() {
+        match attr.nla_type().nla_type() {
+            Nl80211Attribute::Wiphy => {
+                let wiphy = attr.get_payload_as::<u32>().unwrap();
+                println!("{:<12}{}", "Wiphy:", wiphy);
+            }
+            Nl80211Attribute::WiphyName => {
+                let wiphy_name = attr.get_payload_as_with_len::<String>().unwrap();
+                println!("{:<12}{}", "WiphyName:", wiphy_name);
+            }
+            _ => (),
+        }
+    }
 }
 
 #[cfg(feature = "async")]
