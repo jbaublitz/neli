@@ -1,14 +1,14 @@
 use std::{any::type_name, collections::HashMap};
 
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::{Span, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
     parse::Parse,
     parse_str,
     punctuated::Punctuated,
-    token::{Add, Colon2},
+    token::{PathSep, Plus},
     Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
-    ItemStruct, Lit, Meta, MetaNameValue, NestedMeta, Path, PathArguments, PathSegment, Token,
+    ItemStruct, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token,
     TraitBound, TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
 };
 
@@ -145,7 +145,7 @@ fn path_from_idents(idents: &[&str]) -> Path {
                 ident: Ident::new(ident, Span::call_site()),
                 arguments: PathArguments::None,
             })
-            .collect::<Punctuated<PathSegment, Colon2>>(),
+            .collect::<Punctuated<PathSegment, PathSep>>(),
     }
 }
 
@@ -223,17 +223,9 @@ pub fn process_impl_generics(
 pub fn remove_bad_attrs(attrs: Vec<Attribute>) -> Vec<Attribute> {
     attrs
         .into_iter()
-        .filter(|attr| {
-            if let Ok(meta) = attr.parse_meta() {
-                match meta {
-                    Meta::NameValue(MetaNameValue { path, .. }) => {
-                        !(path == parse_str::<Path>("doc").expect("doc should be valid path"))
-                    }
-                    _ => true,
-                }
-            } else {
-                panic!("Could not parse provided attribute {}", attr.tokens,)
-            }
+        .filter(|attr| match &attr.meta {
+            Meta::NameValue(MetaNameValue { path, .. }) => !path.is_ident("doc"),
+            _ => true,
         })
         .collect()
 }
@@ -277,10 +269,7 @@ where
 {
     let attrs = remove_bad_attrs(attrs)
         .into_iter()
-        .map(|attr| {
-            attr.parse_meta()
-                .unwrap_or_else(|_| panic!("Failed to parse attribute {}", attr.tokens))
-        })
+        .map(|attr| attr.meta)
         .collect::<Vec<_>>();
     let arm = generate_pat_and_expr(
         enum_name,
@@ -372,17 +361,11 @@ pub fn generate_unnamed_fields(fields: FieldsUnnamed, uses_self: bool) -> Vec<Fi
 /// Returns [`true`] if the given attribute is present in the list.
 fn attr_present(attrs: &[Attribute], attr_name: &str) -> bool {
     for attr in attrs {
-        let meta = attr
-            .parse_meta()
-            .unwrap_or_else(|_| panic!("Failed to parse attribute {}", attr.tokens));
-        if let Meta::List(list) = meta {
-            if list.path == parse_str::<Path>("neli").expect("neli is valid path") {
-                for nested in list.nested {
-                    if let NestedMeta::Meta(Meta::Path(path)) = nested {
-                        if path
-                            == parse_str::<Path>(attr_name)
-                                .unwrap_or_else(|_| panic!("{} should be valid path", attr_name))
-                        {
+        if let Meta::List(list) = &attr.meta {
+            if list.path.is_ident("neli") {
+                for token in list.tokens.clone() {
+                    if let TokenTree::Ident(ident) = token {
+                        if ident == attr_name {
                             return true;
                         }
                     }
@@ -403,37 +386,33 @@ where
 {
     let mut output = Vec::new();
     for attr in attrs {
-        let meta = attr
-            .parse_meta()
-            .unwrap_or_else(|_| panic!("Failed to parse attribute {}", attr.tokens));
-        if let Meta::List(list) = meta {
+        if let Meta::List(list) = &attr.meta {
             if list.path == parse_str::<Path>("neli").expect("neli is valid path") {
-                for nested in list.nested {
-                    if let NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                        path,
-                        lit: Lit::Str(lit),
-                        ..
-                    })) = nested
-                    {
-                        if path
-                            == parse_str::<Path>(attr_name)
-                                .unwrap_or_else(|_| panic!("{} should be valid path", attr_name))
-                        {
-                            output.push(Some(parse_str::<T>(&lit.value()).unwrap_or_else(|_| {
-                                panic!(
-                                    "{} should be valid tokens of type {}",
-                                    &lit.value(),
-                                    type_name::<T>()
-                                )
-                            })));
+                let (found_ident, found_literal) = list.tokens.clone().into_iter().fold(
+                    (false, String::new()),
+                    |(found_ident, found_literal), token| {
+                        match &token {
+                            TokenTree::Literal(literal) => {
+                                let literal_str = literal.to_string();
+                                let stripped_literal = &literal_str[1..literal_str.len() - 1]; // removes extra quotes at the ends of the string
+                                (found_ident, String::from(stripped_literal))
+                            }
+                            TokenTree::Ident(ident) if ident == attr_name => (true, found_literal),
+                            _ => (found_ident, found_literal),
                         }
-                    } else if let NestedMeta::Meta(Meta::Path(path)) = nested {
-                        if path
-                            == parse_str::<Path>(attr_name)
-                                .unwrap_or_else(|_| panic!("{} should be valid path", attr_name))
-                        {
-                            output.push(None);
-                        }
+                    },
+                );
+                if found_ident {
+                    if !found_literal.is_empty() {
+                        output.push(Some(parse_str::<T>(&found_literal).unwrap_or_else(|_| {
+                            panic!(
+                                "{} should be valid tokens of type {}",
+                                &found_literal.to_string().as_str(),
+                                type_name::<T>()
+                            )
+                        })));
+                    } else {
+                        output.push(None);
                     }
                 }
             }
@@ -535,7 +514,7 @@ pub fn process_size(attrs: &[Attribute]) -> Option<Expr> {
 /// ```
 fn override_trait_bounds_on_generics(generics: &mut Generics, trait_bound_overrides: &[TypeParam]) {
     let mut overrides = trait_bound_overrides.iter().cloned().fold(
-        HashMap::<Ident, Punctuated<TypeParamBound, Add>>::new(),
+        HashMap::<Ident, Punctuated<TypeParamBound, Plus>>::new(),
         |mut map, param| {
             if let Some(bounds) = map.get_mut(&param.ident) {
                 bounds.extend(param.bounds);

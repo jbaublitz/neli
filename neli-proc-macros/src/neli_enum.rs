@@ -10,9 +10,11 @@ use crate::shared::remove_bad_attrs;
 fn parse_type_attr(attr: Meta) -> Type {
     if let Meta::NameValue(nv) = attr {
         if nv.path == parse_str::<Path>("serialized_type").unwrap() {
-            if let Lit::Str(ls) = nv.lit {
-                return parse_str::<Type>(&ls.value())
-                    .unwrap_or_else(|_| panic!("Invalid type supplied: {}", ls.value()));
+            if let Expr::Lit(el) = nv.value {
+                if let Lit::Str(ls) = el.lit {
+                    return parse_str::<Type>(&ls.value())
+                        .unwrap_or_else(|_| panic!("Invalid type supplied: {}", ls.value()));
+                }
             }
         }
     }
