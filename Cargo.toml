@@ -22,7 +22,7 @@ path = "src/lib.rs"
 
 [dependencies]
 byteorder = "1.3"
-libc = "0.2.82"
+libc = "0.2.168"
 log = "0.4"
 
 [dependencies.neli-proc-macros]
