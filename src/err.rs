@@ -2,10 +2,10 @@
 //!
 //! There are four main types:
 //! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
-//! returned from netlink as a packet.
+//!   returned from netlink as a packet.
 //! * [`NlError`][crate::err::NlError] - a general netlink error
-//! wrapping application errors, serialization and deserialization
-//! errors, and other errors that occur in `neli`.
+//!   wrapping application errors, serialization and deserialization
+//!   errors, and other errors that occur in `neli`.
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
 //!

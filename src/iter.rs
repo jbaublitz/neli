@@ -27,17 +27,17 @@ pub enum IterationBehavior {
 ///
 /// This iterator has two high-level options:
 /// * Iterate indefinitely over messages. This is most
-/// useful in the case of subscribing to messages in a
-/// multicast group.
+///   useful in the case of subscribing to messages in a
+///   multicast group.
 /// * Iterate until a message is returned with
-/// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is set.
-/// This is most useful in the case of request-response workflows
-/// where the iterator will parse and iterate through all of the
-/// messages with [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set
-/// until a message with
-/// [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is
-/// received at which point [`None`] will be returned indicating the
-/// end of the response.
+///   [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is set.
+///   This is most useful in the case of request-response workflows
+///   where the iterator will parse and iterate through all of the
+///   messages with [`NlmF::Multi`][crate::consts::nl::NlmF::Multi] set
+///   until a message with
+///   [`Nlmsg::Done`][crate::consts::nl::Nlmsg::Done] is
+///   received at which point [`None`] will be returned indicating the
+///   end of the response.
 pub struct NlMessageIter<'a, T, P> {
     sock_ref: &'a mut NlSocketHandle,
     next_is_none: Option<bool>,
@@ -111,7 +111,7 @@ where
     }
 }
 
-impl<'a, T, P> Iterator for NlMessageIter<'a, T, P>
+impl<T, P> Iterator for NlMessageIter<'_, T, P>
 where
     T: NlType + Debug,
     P: for<'b> FromBytesWithInput<'b, Input = usize> + Debug,

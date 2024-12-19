@@ -8,26 +8,26 @@
 //!
 //! ## The project is broken down into the following modules:
 //! * `attr` - This defines a generic interface for netlink attributes
-//! (both generic and routing netlink attributes).
+//!   (both generic and routing netlink attributes).
 //! * `consts` - This is where all of the C-defined constants are
-//! wrapped into type safe enums for use in the library.
+//!   wrapped into type safe enums for use in the library.
 //! * `err` - This module contains all of the protocol and
-//! library-level errors encountered in the code.
+//!   library-level errors encountered in the code.
 //! * `genl` - This code provides parsing for the generic netlink
 //! * `iter` - This code handles iterating over received netlink
-//! packets.
+//!   packets.
 //! * `nl` - This is the top level netlink header code that handles
-//! the header that all netlink messages are encapsulated in.
+//!   the header that all netlink messages are encapsulated in.
 //! * `rtnl` - This module is for the routing netlink subsystem of the
-//! netlink protocol.
+//!   netlink protocol.
 //! * `socket` - This provides a socket structure for use in sending
-//! and receiving messages and a number of convenience functions for
-//! commonly encountered use cases.
+//!   and receiving messages and a number of convenience functions for
+//!   commonly encountered use cases.
 //! * `types` - Data types used in serialization and deserialization of
-//! packets.
+//!   packets.
 //! * `utils` - Data types that primarily serve the purpose of handling
-//! kernel data format conversions to easily usable Rust constructs
-//! for the user.
+//!   kernel data format conversions to easily usable Rust constructs
+//!   for the user.
 //!
 //! ## Design decisions
 //!
@@ -363,13 +363,13 @@ impl<'lt, T> FromBytes<'lt> for PhantomData<T> {
     }
 }
 
-impl<'a> Size for &'a str {
+impl Size for &'_ str {
     fn unpadded_size(&self) -> usize {
         self.len() + 1
     }
 }
 
-impl<'a> ToBytes for &'a str {
+impl ToBytes for &'_ str {
     fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
         buffer.write_all(self.as_bytes())?;
         buffer.write_all(&[0])?;
@@ -415,13 +415,13 @@ impl<'a> FromBytesWithInput<'a> for String {
     }
 }
 
-impl<'a> Size for &'a [u8] {
+impl Size for &'_ [u8] {
     fn unpadded_size(&self) -> usize {
         self.len()
     }
 }
 
-impl<'a> ToBytes for &'a [u8] {
+impl ToBytes for &'_ [u8] {
     fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
         buffer.write_all(self)?;
         Ok(())

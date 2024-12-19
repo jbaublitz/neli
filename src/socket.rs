@@ -3,13 +3,13 @@
 //!
 //! ## Important methods
 //! * [`NlSocket::send`] and [`NlSocket::recv`] methods are meant to
-//! be the most low level calls. They essentially do what the C
-//! system calls `send` and `recv` do with very little abstraction.
+//!   be the most low level calls. They essentially do what the C
+//!   system calls `send` and `recv` do with very little abstraction.
 //! * [`NlSocketHandle::send`] and [`NlSocketHandle::recv`] methods
-//! are meant to provide an interface that is more idiomatic for
-//! the library.
+//!   are meant to provide an interface that is more idiomatic for
+//!   the library.
 //! * [`NlSocketHandle::iter`] provides a loop based iteration
-//! through messages that are received in a stream over the socket.
+//!   through messages that are received in a stream over the socket.
 //!
 //! ## Features
 //! The `async` feature exposed by `cargo` allows the socket to use
@@ -148,7 +148,7 @@ impl NlSocket {
                     size_of::<u32>() as libc::socklen_t,
                 )
             } {
-                i if i == 0 => (),
+                0 => (),
                 _ => return Err(io::Error::last_os_error()),
             }
         }
@@ -167,7 +167,7 @@ impl NlSocket {
                     size_of::<u32>() as libc::socklen_t,
                 )
             } {
-                i if i == 0 => (),
+                0 => (),
                 _ => return Err(io::Error::last_os_error()),
             }
         }
@@ -689,7 +689,7 @@ impl FromRawFd for NlSocketHandle {
     }
 }
 
-#[cfg(all(feature = "async", not(no_std)))]
+#[cfg(feature = "async")]
 pub mod tokio {
     //! Tokio-specific features for neli
     //!

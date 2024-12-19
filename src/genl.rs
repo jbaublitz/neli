@@ -302,7 +302,7 @@ where
 type GenlAttrHandle<'a, T> = AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 type GenlAttrHandleMut<'a, T> = AttrHandleMut<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
+impl<T> AttrHandle<'_, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
 where
     T: NlAttrType,
 {

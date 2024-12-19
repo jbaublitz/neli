@@ -462,9 +462,9 @@ pub fn process_padding(attrs: &[Attribute]) -> bool {
 /// Returns:
 /// * [`None`] if the attribute is not present
 /// * [`Some(None)`] if the attribute is present and has no
-/// associated expression
+///   associated expression
 /// * [`Some(Some(_))`] if the attribute is present and
-/// has an associated expression
+///   has an associated expression
 pub fn process_input(attrs: &[Attribute]) -> Option<Option<Expr>> {
     let mut exprs = process_attr(attrs, "input");
     if exprs.len() > 1 {
@@ -479,7 +479,7 @@ pub fn process_input(attrs: &[Attribute]) -> Option<Option<Expr>> {
 ///
 /// Returns:
 /// * [`None`] if the attribute is not present
-/// associated expression
+///   associated expression
 /// * [`Some(_)`] if the attribute is present and has an associated expression
 pub fn process_size(attrs: &[Attribute]) -> Option<Expr> {
     let mut exprs = process_attr(attrs, "size");

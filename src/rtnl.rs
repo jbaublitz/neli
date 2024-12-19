@@ -354,7 +354,7 @@ where
 type RtAttrHandle<'a, T> = AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
 type RtAttrHandleMut<'a, T> = AttrHandleMut<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
+impl<T> AttrHandle<'_, RtBuffer<T, Buffer>, Rtattr<T, Buffer>>
 where
     T: RtaType,
 {
