@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.5
+### Package updates
+* Update libc
+
 ## 0.6.4
 ### Bug fixes
 * Fixed bug in error intepretation for Nlmsgerr.

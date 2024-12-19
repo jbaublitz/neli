@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+### License
+* Add license file to neli-proc-macros
+
 ## 0.1.3
 ### Documentation
 * Clean up documentation issues.
