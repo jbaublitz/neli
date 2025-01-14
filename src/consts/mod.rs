@@ -18,31 +18,31 @@
 //! # Design decisions
 //!
 //! * Macros are exported so that these conventions are extensible and
-//! usable for data types implemented by the user in the case of new
-//! netlink families (which is supported by the protocol). In this
-//! case, there is no way in which I can support every custom netlink
-//! family but my aim is to make this library as flexible as possible
-//! so that it is painless to hook your custom netlink data type into
-//! the existing library support.
+//!   usable for data types implemented by the user in the case of new
+//!   netlink families (which is supported by the protocol). In this
+//!   case, there is no way in which I can support every custom netlink
+//!   family but my aim is to make this library as flexible as possible
+//!   so that it is painless to hook your custom netlink data type into
+//!   the existing library support.
 //! * Enums are used so that:
 //!   * Values can be checked based on a finite number of inputs as
-//!   opposed to the range of whatever integer data type C defines as
-//!   the struct member type. This makes it easier to catch garbage
-//!   responses and corruption when an invalid netlink message is sent
-//!   to the kernel.
+//!     opposed to the range of whatever integer data type C defines as
+//!     the struct member type. This makes it easier to catch garbage
+//!     responses and corruption when an invalid netlink message is sent
+//!     to the kernel.
 //!   * Only the enum or an enum implementing a marker trait in the
-//!   case of type parameters can be used in the appropriate places
-//!   when constructing netlink messages. This takes guess work out of
-//!   which constants can be used where. Netlink documentation is not
-//!   always complete and sometimes takes a bit of trial and error
-//!   sending messages to the kernel to figure out if you are using
-//!   the correct constants. This setup should let you know at compile
-//!   time if you are doing something you should not be doing.
+//!     case of type parameters can be used in the appropriate places
+//!     when constructing netlink messages. This takes guess work out of
+//!     which constants can be used where. Netlink documentation is not
+//!     always complete and sometimes takes a bit of trial and error
+//!     sending messages to the kernel to figure out if you are using
+//!     the correct constants. This setup should let you know at compile
+//!     time if you are doing something you should not be doing.
 //! * `UnrecognizedVariant` is included in each enum because
-//! completeness cannot be guaranteed for every constant for every
-//! protocol. This allows you to inspect the integer value returned
-//! and if you are sure that it is correct, you can use it. If it is
-//! a garbage value, this can also be useful for error reporting.
+//!   completeness cannot be guaranteed for every constant for every
+//!   protocol. This allows you to inspect the integer value returned
+//!   and if you are sure that it is correct, you can use it. If it is
+//!   a garbage value, this can also be useful for error reporting.
 
 #[macro_use]
 mod macros;

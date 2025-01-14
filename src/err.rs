@@ -2,11 +2,11 @@
 //!
 //! There are five main types:
 //! * [`Nlmsgerr`] - an application error
-//! returned from netlink as a packet.
+//!   returned from netlink as a packet.
 //! * [`RouterError`] - errors returned by
-//! [`NlRouter`][crate::router::synchronous::NlRouter].
+//!   [`NlRouter`][crate::router::synchronous::NlRouter].
 //! * [`SocketError`] - errors returned by
-//! [`NlSocketHandle`][crate::socket::synchronous::NlSocketHandle].
+//!   [`NlSocketHandle`][crate::socket::synchronous::NlSocketHandle].
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
 //!
