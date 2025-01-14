@@ -69,7 +69,7 @@ pub fn neli_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Acceptable struct attribute is:
 /// * `#[neli(size_bound = "T: MyTrait")]` which will generate a
-/// trait bound in the impl for the specified type parameter.
+///   trait bound in the impl for the specified type parameter.
 ///
 /// Implicit type parameter bound: `Size`.
 #[proc_macro_derive(Size, attributes(neli))]
@@ -97,7 +97,7 @@ pub fn proc_macro_size(ts: TokenStream) -> TokenStream {
 ///
 /// Acceptable struct attribute is:
 /// * `#[neli(header_bound = "T: MyTrait")]` which will generate a
-/// trait bound in the impl for the specified type parameter.
+///   trait bound in the impl for the specified type parameter.
 ///
 /// While there is no implicit type parameter bound, every type
 /// parameter that does not correspond to a payload should have
@@ -115,23 +115,23 @@ pub fn proc_macro_header(ts: TokenStream) -> TokenStream {
 ///
 /// Acceptable struct attribute is:
 /// * `#[neli(from_bytes_bound = "T: MyTrait")]` which will generate
-/// a trait bound in the impl for the specified type parameter.
+///   a trait bound in the impl for the specified type parameter.
 /// * `#[neli(padding)]` which will add special handling for padding
-/// for this struct.
+///   for this struct.
 ///
 /// Acceptable field attribute forms are:
 /// * `#[neli(input = "input_expression")]` which may only be used
-/// once for a struct. The behavior of this attribute is that a
-/// bound requirement will change from the implicit `FromBytes` to
-/// an implicit `FromBytesWithInput` bound. The method in this trait
-/// will be called with `input_expression` as the input provided.
+///   once for a struct. The behavior of this attribute is that a
+///   bound requirement will change from the implicit `FromBytes` to
+///   an implicit `FromBytesWithInput` bound. The method in this trait
+///   will be called with `input_expression` as the input provided.
 /// * `#[neli(input)]` which will transparently pass the input
-/// provided in the `FromBytesWithInput` method through to the
-/// `FromBytesWithInput` method for this field unchanged according
-/// to the rules described above.
+///   provided in the `FromBytesWithInput` method through to the
+///   `FromBytesWithInput` method for this field unchanged according
+///   to the rules described above.
 /// * `#[neli(size = "size_var_name")]` which allows specifying a size of the data type
-/// that is different from the input specified by `#[neli(input)]`. Not specifying
-/// this attribute defaults to using `input` as the size as well.
+///   that is different from the input specified by `#[neli(input)]`. Not specifying
+///   this attribute defaults to using `input` as the size as well.
 ///
 /// Implicit type parameter bound: `FromBytes`.
 #[proc_macro_derive(FromBytes, attributes(neli))]
@@ -147,23 +147,23 @@ pub fn proc_macro_frombytes(ts: TokenStream) -> TokenStream {
 ///
 /// Acceptable struct attribute is:
 /// * `#[neli(from_bytes_bound = "T: MyTrait")]` which will generate
-/// a trait bound in the impl for the specified type parameter.
+///   a trait bound in the impl for the specified type parameter.
 /// * `#[neli(padding)]` which will add special handling for padding
-/// for this struct.
+///   for this struct.
 ///
 /// Acceptable field attribute forms are:
 /// * `#[neli(input = "input_expression")]` which may only be used
-/// once for a struct. The behavior of this attribute is that a
-/// bound requirement will change from the implicit `FromBytes` to
-/// an implicit `FromBytesWithInput` bound. The method in this trait
-/// will be called with `input_expression` as the input provided.
+///   once for a struct. The behavior of this attribute is that a
+///   bound requirement will change from the implicit `FromBytes` to
+///   an implicit `FromBytesWithInput` bound. The method in this trait
+///   will be called with `input_expression` as the input provided.
 /// * `#[neli(input)]` which will transparently pass the input
-/// provided in the `FromBytesWithInput` method through to the
-/// `FromBytesWithInput` method for this field unchanged according
-/// to the rules described above.
+///   provided in the `FromBytesWithInput` method through to the
+///   `FromBytesWithInput` method for this field unchanged according
+///   to the rules described above.
 /// * `#[neli(size = "size_var_name")]` which allows specifying a size of the data type
-/// that is different from the input specified by `#[neli(input)]`. Not specifying
-/// this attribute defaults to using `input` as the size as well.
+///   that is different from the input specified by `#[neli(input)]`. Not specifying
+///   this attribute defaults to using `input` as the size as well.
 ///
 /// Implicit type parameter bound: `FromBytes`.
 #[proc_macro_derive(FromBytesWithInput, attributes(neli))]
@@ -189,9 +189,9 @@ pub fn proc_macro_frombyteswithinput(ts: TokenStream) -> TokenStream {
 ///
 /// Acceptable struct attribute is:
 /// * `#[neli(to_bytes_bound = "T: MyTrait")]` which will generate a
-/// trait bound in the impl for the specified type parameter.
+///   trait bound in the impl for the specified type parameter.
 /// * `#[neli(padding)]` which will add special handling for padding
-/// for this struct.
+///   for this struct.
 ///
 /// Implicit type parameter bound: `ToBytes`.
 #[proc_macro_derive(ToBytes, attributes(neli))]

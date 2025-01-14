@@ -3,9 +3,9 @@ name: neli CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.6.x]
   pull_request:
-    branches: [main]
+    branches: [main, v0.6.x]
 
   workflow_dispatch:
 
@@ -17,7 +17,6 @@ jobs:
           - cargo clippy --all-targets --all-features -- -D warnings
           - (cd neli-proc-macros && cargo clippy --all-targets -- -D warnings)
         toolchain:
-          - nightly
           - stable
     runs-on: ubuntu-latest
     continue-on-error: true

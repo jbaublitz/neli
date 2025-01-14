@@ -1,17 +1,17 @@
 //! This module contains generic netlink parsing data structures.
-//! This is all handled by the [`Genlmsghdr`][crate::genl::Genlmsghdr]
+//! This is all handled by the [`Genlmsghdr`]
 //! header struct which contains all of the information needed for
 //! the generic netlink layer.
 //!
 //! # Design decisions
 //!
 //! The generic netlink `attrs` field has been changed to a
-//! [`GenlBuffer`][crate::types::GenlBuffer] of
-//! [`Nlattr`][crate::genl::Nlattr]s instead of the
+//! [`GenlBuffer`] of
+//! [`Nlattr`]s instead of the
 //! original [`Vec<u8>`][Vec] to allow simpler parsing at the top
-//! level when one [`Nlattr`][crate::genl::Nlattr] structure is not
+//! level when one [`Nlattr`] structure is not
 //! nested within another, a use case that is instead handled using
-//! [`AttrHandle`][crate::attr::AttrHandle].
+//! [`AttrHandle`].
 
 use crate as neli;
 
@@ -302,7 +302,7 @@ where
 type GenlAttrHandle<'a, T> = AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 type GenlAttrHandleMut<'a, T> = AttrHandleMut<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>;
 
-impl<'a, T> AttrHandle<'a, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
+impl<T> AttrHandle<'_, GenlBuffer<T, Buffer>, Nlattr<T, Buffer>>
 where
     T: NlAttrType,
 {

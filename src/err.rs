@@ -1,11 +1,11 @@
 //! This is the module that contains the error types used in `neli`
 //!
 //! There are four main types:
-//! * [`Nlmsgerr`][crate::err::Nlmsgerr] - an application error
-//! returned from netlink as a packet.
-//! * [`NlError`][crate::err::NlError] - a general netlink error
-//! wrapping application errors, serialization and deserialization
-//! errors, and other errors that occur in `neli`.
+//! * [`Nlmsgerr`] - an application error
+//!   returned from netlink as a packet.
+//! * [`NlError`] - a general netlink error
+//!   wrapping application errors, serialization and deserialization
+//!   errors, and other errors that occur in `neli`.
 //! * [`DeError`] - error while deserializing
 //! * [`SerError`] - error while serializing
 //!
@@ -18,7 +18,7 @@
 //! optional type parameters for specifying the type of the type
 //! constant and the payload. If neither of these are provided,
 //! the deserialization defaults to [`u16`] and
-//! [`Buffer`][crate::types::Buffer] respectively which work for
+//! [`Buffer`] respectively which work for
 //! all cases. See the `examples/` directory for a usage example.
 
 use crate as neli;
@@ -157,7 +157,7 @@ err_from!(
 
 impl NlError {
     /// Create new error from a data type implementing
-    /// [`Display`][std::fmt::Display]
+    /// [`Display`]
     pub fn msg<D>(s: D) -> Self
     where
         D: Display,
@@ -168,7 +168,7 @@ impl NlError {
 
 impl<T, P> NlError<T, P> {
     /// Create new error from a data type implementing
-    /// [`Display`][std::fmt::Display]
+    /// [`Display`]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
@@ -292,7 +292,7 @@ pub enum DeError {
 
 impl DeError {
     /// Create new error from a type implementing
-    /// [`Display`][std::fmt::Display]
+    /// [`Display`]
     pub fn new<D>(s: D) -> Self
     where
         D: Display,
