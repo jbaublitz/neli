@@ -210,7 +210,7 @@ impl NlSocket {
 
     /// Send message encoded as byte slice to the netlink ID
     /// specified in the netlink header
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr]
+    /// [`Nlmsghdr`].
     pub fn send<B>(&self, buf: B, flags: i32) -> Result<libc::size_t, io::Error>
     where
         B: AsRef<[u8]>,
@@ -534,7 +534,7 @@ impl NlSocketHandle {
     }
 
     /// Convenience function to read a stream of
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs one by one.
+    /// [`Nlmsghdr`] structs one by one.
     /// Use [`NlSocketHandle::iter`] instead for easy iteration over
     /// returned packets.
     ///
@@ -614,13 +614,13 @@ impl NlSocketHandle {
         Ok(Some(packet))
     }
 
-    /// Parse all [`Nlmsghdr`][crate::nl::Nlmsghdr] structs sent in
+    /// Parse all [`Nlmsghdr`] structs sent in
     /// one network packet and return them all in a list.
     ///
     /// Failure to parse any packet will cause the entire operation
     /// to fail. If an error is detected at the application level,
     /// this method will discard any non-error
-    /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
+    /// [`Nlmsghdr`] structs and only return the
     /// error. This method checks for ACKs. For a more granular
     /// approach, use either [`NlSocketHandle::recv`] or
     /// [`NlSocketHandle::iter`].

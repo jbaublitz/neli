@@ -301,7 +301,7 @@ where
         Ok(())
     }
 
-    /// Return an [`AttrHandle`][crate::attr::AttrHandle] for
+    /// Return an [`AttrHandle`] for
     /// attributes nested in the given attribute payload.
     pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, DeError>
     where
@@ -313,7 +313,7 @@ where
         )?))
     }
 
-    /// Return an [`AttrHandleMut`][crate::attr::AttrHandleMut] for
+    /// Return an [`AttrHandleMut`] for
     /// attributes nested in the given attribute payload.
     pub fn get_attr_handle_mut<R>(&mut self) -> Result<RtAttrHandleMut<R>, DeError>
     where
