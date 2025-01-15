@@ -10,6 +10,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  branch-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Does nothing
+        run: ':'
   clippy:
     strategy:
       matrix:
@@ -139,3 +144,7 @@ jobs:
       - name: Run error_packet 
         run: ./target/debug/examples/error_packet
         # nl80211 not included due to no wireless interfaces on test machines
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
