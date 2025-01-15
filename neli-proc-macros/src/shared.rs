@@ -8,8 +8,8 @@ use syn::{
     punctuated::Punctuated,
     token::{PathSep, Plus},
     Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
-    ItemStruct, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token,
-    TraitBound, TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
+    ItemStruct, LitStr, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token, TraitBound,
+    TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
 };
 
 /// Represents a field as either an identifier or an index.
@@ -386,36 +386,35 @@ where
 {
     let mut output = Vec::new();
     for attr in attrs {
-        if let Meta::List(list) = &attr.meta {
-            if list.path == parse_str::<Path>("neli").expect("neli is valid path") {
-                let (found_ident, found_literal) = list.tokens.clone().into_iter().fold(
-                    (false, String::new()),
-                    |(found_ident, found_literal), token| {
-                        match &token {
-                            TokenTree::Literal(literal) => {
-                                let literal_str = literal.to_string();
-                                let stripped_literal = &literal_str[1..literal_str.len() - 1]; // removes extra quotes at the ends of the string
-                                (found_ident, String::from(stripped_literal))
-                            }
-                            TokenTree::Ident(ident) if ident == attr_name => (true, found_literal),
-                            _ => (found_ident, found_literal),
-                        }
+        if attr.path().is_ident("neli") {
+            attr.parse_nested_meta(|meta| {
+                let literal_str = match meta.value() {
+                    Ok(value) => match value.parse::<LitStr>() {
+                        Ok(v) => Some(v.value()),
+                        Err(_) => panic!("Cannot have a bare ="),
                     },
-                );
-                if found_ident {
-                    if !found_literal.is_empty() {
-                        output.push(Some(parse_str::<T>(&found_literal).unwrap_or_else(|_| {
-                            panic!(
-                                "{} should be valid tokens of type {}",
-                                &found_literal.to_string().as_str(),
-                                type_name::<T>()
-                            )
-                        })));
-                    } else {
-                        output.push(None);
+                    Err(_) => None,
+                };
+                if meta.path.is_ident(attr_name) {
+                    match literal_str {
+                        Some(l) => {
+                            output.push(Some(parse_str::<T>(&l).unwrap_or_else(|_| {
+                                panic!("{} should be valid tokens of type {}", l, type_name::<T>())
+                            })));
+                        }
+                        None => {
+                            output.push(None);
+                        }
                     }
                 }
-            }
+                Ok(())
+            })
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{}",
+                    format!("Should be able to parse all nested attributes: {e}")
+                )
+            });
         }
     }
     output
