@@ -126,7 +126,7 @@ impl NlSocketHandle {
     /// this method will discard any non-error
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr] structs and only return the
     /// error. For a more granular approach, use either [`NlSocketHandle::recv`].
-    pub async fn recv_all<'a, T, P>(&self) -> Result<(NlBuffer<T, P>, Groups), SocketError>
+    pub async fn recv_all<T, P>(&self) -> Result<(NlBuffer<T, P>, Groups), SocketError>
     where
         T: NlType + Debug,
         P: Size + FromBytesWithInput<Input = usize> + Debug,

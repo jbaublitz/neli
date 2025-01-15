@@ -2,16 +2,16 @@
 //!
 //! ## Workflow
 //! * [`NlRouter::send`][crate::router::synchronous::NlRouter] sends a message and
-//! does automatic seq handling.
+//!   does automatic seq handling.
 //! * A thread in the background receives all messages that sent to the socket in
-//! response.
+//!   response.
 //! * Each message is sent on the channel match the sequence number to the
-//! [`NlRouterReceiverHandle`][crate::router::synchronous::NlRouterReceiverHandle] that corresponds
-//! to the request.
+//!   [`NlRouterReceiverHandle`][crate::router::synchronous::NlRouterReceiverHandle] that corresponds
+//!   to the request.
 //! * Errors in packet reception and parsing are broadcast to all receivers.
 //! * An [`NlRouterReceiverHandle`][crate::router::synchronous::NlRouterReceiverHandle]
-//! can be used as an iterator and will return [`None`] either when all
-//! messages corresponding to the request have been received or there is a fatal error.
+//!   can be used as an iterator and will return [`None`] either when all
+//!   messages corresponding to the request have been received or there is a fatal error.
 //!
 //! ## Design decisions
 //! Older users of the library might recognize some of the funtionality in

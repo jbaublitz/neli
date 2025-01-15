@@ -207,7 +207,7 @@ pub mod synchronous {
     /// incremented.
     pub struct BufferPoolGuard<'a>(&'a BufferPool, Vec<u8>);
 
-    impl<'a> Deref for BufferPoolGuard<'a> {
+    impl Deref for BufferPoolGuard<'_> {
         type Target = Vec<u8>;
 
         fn deref(&self) -> &Self::Target {
@@ -215,25 +215,25 @@ pub mod synchronous {
         }
     }
 
-    impl<'a> DerefMut for BufferPoolGuard<'a> {
+    impl DerefMut for BufferPoolGuard<'_> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.1
         }
     }
 
-    impl<'a> AsRef<[u8]> for BufferPoolGuard<'a> {
+    impl AsRef<[u8]> for BufferPoolGuard<'_> {
         fn as_ref(&self) -> &[u8] {
             self.1.as_ref()
         }
     }
 
-    impl<'a> AsMut<[u8]> for BufferPoolGuard<'a> {
+    impl AsMut<[u8]> for BufferPoolGuard<'_> {
         fn as_mut(&mut self) -> &mut [u8] {
             self.1.as_mut()
         }
     }
 
-    impl<'a> BufferPoolGuard<'a> {
+    impl BufferPoolGuard<'_> {
         /// Reduce the size of the internal buffer to the number of bytes read.
         pub fn reduce_size(&mut self, bytes_read: usize) {
             assert!(bytes_read <= self.1.len());
@@ -251,7 +251,7 @@ pub mod synchronous {
         }
     }
 
-    impl<'a> Drop for BufferPoolGuard<'a> {
+    impl Drop for BufferPoolGuard<'_> {
         fn drop(&mut self) {
             {
                 let mut vec = Vec::new();
@@ -399,9 +399,10 @@ pub mod asynchronous {
 
     /// Guard indicating that a buffer has been acquired and the semaphore has been
     /// incremented.
+    #[allow(dead_code)]
     pub struct BufferPoolGuard<'a>(&'a BufferPool, SemaphorePermit<'a>, Vec<u8>);
 
-    impl<'a> Deref for BufferPoolGuard<'a> {
+    impl Deref for BufferPoolGuard<'_> {
         type Target = Vec<u8>;
 
         fn deref(&self) -> &Self::Target {
@@ -409,25 +410,25 @@ pub mod asynchronous {
         }
     }
 
-    impl<'a> DerefMut for BufferPoolGuard<'a> {
+    impl DerefMut for BufferPoolGuard<'_> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.2
         }
     }
 
-    impl<'a> AsRef<[u8]> for BufferPoolGuard<'a> {
+    impl AsRef<[u8]> for BufferPoolGuard<'_> {
         fn as_ref(&self) -> &[u8] {
             self.2.as_ref()
         }
     }
 
-    impl<'a> AsMut<[u8]> for BufferPoolGuard<'a> {
+    impl AsMut<[u8]> for BufferPoolGuard<'_> {
         fn as_mut(&mut self) -> &mut [u8] {
             self.2.as_mut()
         }
     }
 
-    impl<'a> BufferPoolGuard<'a> {
+    impl BufferPoolGuard<'_> {
         /// Reduce the size of the internal buffer to the number of bytes read.
         pub fn reduce_size(&mut self, bytes_read: usize) {
             assert!(bytes_read <= self.2.len());
@@ -445,7 +446,7 @@ pub mod asynchronous {
         }
     }
 
-    impl<'a> Drop for BufferPoolGuard<'a> {
+    impl Drop for BufferPoolGuard<'_> {
         fn drop(&mut self) {
             {
                 let mut vec = Vec::new();

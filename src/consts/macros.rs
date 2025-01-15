@@ -39,10 +39,10 @@
 /// * One enum called `MyFamilyEnum`.
 /// * Another called `MyOtherFamilyEnum`.
 /// * A marker trait called `MyMarkerTrait`. This can be used to
-/// constain type parameter so that only `MyFamilyEnum` and
-/// `MyOtherFamilyEnum` variants can be passed in as a value.
+///   constain type parameter so that only `MyFamilyEnum` and
+///   `MyOtherFamilyEnum` variants can be passed in as a value.
 /// * A wrapper enum called `MyFamilyWrapperType`. The definition is
-/// as follows:
+///   as follows:
 /// ```
 /// enum MyFamilyEnum {
 ///     One,

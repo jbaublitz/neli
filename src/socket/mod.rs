@@ -3,13 +3,13 @@
 //!
 //! ## Important methods
 //! * [`NlSocket::send`][crate::socket::NlSocket::send] and
-//! [`NlSocket::recv`][crate::socket::NlSocket::recv] methods are meant to
-//! be the most low level calls. They essentially do what the C
-//! system calls `send` and `recv` do with very little abstraction.
+//!   [`NlSocket::recv`][crate::socket::NlSocket::recv] methods are meant to
+//!   be the most low level calls. They essentially do what the C
+//!   system calls `send` and `recv` do with very little abstraction.
 //! * [`NlSocketHandle::send`][crate::socket::NlSocket::send] and
-//! [`NlSocketHandle::recv`][crate::socket::NlSocket::recv] methods
-//! are meant to provide an interface that is more idiomatic for
-//! the library.
+//!   [`NlSocketHandle::recv`][crate::socket::NlSocket::recv] methods
+//!   are meant to provide an interface that is more idiomatic for
+//!   the library.
 //!
 //! ## Features
 //! The `async` feature exposed by `cargo` allows the socket to use
@@ -32,9 +32,9 @@
 //! parallel message receive operations. Memory usage can be tuned using the following
 //! environment variables at compile time:
 //! * `NELI_AUTO_BUFFER_LEN`: This configures how many bytes are allocated for each
-//! buffer in the buffer pool.
+//!   buffer in the buffer pool.
 //! * `NELI_MAX_PARALLEL_READ_OPS`: This configures how many buffers of size
-//! `NELI_AUTO_BUFFER_LEN` are allocated for parallel receive operations.
+//!   `NELI_AUTO_BUFFER_LEN` are allocated for parallel receive operations.
 
 /// Asynchronous socket operations
 #[cfg(feature = "async")]
