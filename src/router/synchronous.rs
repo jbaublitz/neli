@@ -536,17 +536,17 @@ mod test {
 
         let ids = match (notify_id_result, config_id_result) {
             (Ok(ni), Ok(ci)) => {
-                sock.add_mcast_membership(Groups::new_groups(&[ni, ci]))
+                sock.add_mcast_membership(Groups::new_groups(&[ni, ci]).unwrap())
                     .unwrap();
                 vec![ni, ci]
             }
             (Ok(ni), Err(RouterError::Nlmsgerr(_))) => {
-                sock.add_mcast_membership(Groups::new_groups(&[ni]))
+                sock.add_mcast_membership(Groups::new_groups(&[ni]).unwrap())
                     .unwrap();
                 vec![ni]
             }
             (Err(RouterError::Nlmsgerr(_)), Ok(ci)) => {
-                sock.add_mcast_membership(Groups::new_groups(&[ci]))
+                sock.add_mcast_membership(Groups::new_groups(&[ci]).unwrap())
                     .unwrap();
                 vec![ci]
             }
@@ -562,7 +562,7 @@ mod test {
             assert!(groups.is_set(*id as usize));
         }
 
-        sock.drop_mcast_membership(Groups::new_groups(ids.as_slice()))
+        sock.drop_mcast_membership(Groups::new_groups(ids.as_slice()).unwrap())
             .unwrap();
         let groups = sock.list_mcast_membership().unwrap();
 

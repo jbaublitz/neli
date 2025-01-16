@@ -10,6 +10,7 @@ use std::mem::size_of;
 
 #[cfg(any(feature = "sync", feature = "async"))]
 use crate::consts::MAX_NL_LENGTH;
+use crate::err::MsgError;
 
 type BitArrayType = u32;
 
@@ -114,12 +115,16 @@ impl NetlinkBitArray {
     }
 }
 
-fn slice_to_mask(groups: &[u32]) -> u32 {
-    groups.iter().fold(0, |mask, next| {
+fn slice_to_mask(groups: &[u32]) -> Result<u32, MsgError> {
+    groups.iter().try_fold(0, |mask, next| {
         if *next == 0 {
-            mask
+            Ok(mask)
+        } else if next - 1 > 31 {
+            Err(MsgError::new(format!(
+                "Group {next} cannot be represented with a bit width of 32"
+            )))
         } else {
-            mask | (1 << (*next - 1))
+            Ok(mask | (1 << (*next - 1)))
         }
     })
 }
@@ -159,22 +164,24 @@ impl Groups {
     /// Create a new set of groups from a list of numerical groups values. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn new_groups(groups: &[u32]) -> Self {
-        Groups(slice_to_mask(groups))
+    pub fn new_groups(groups: &[u32]) -> Result<Self, MsgError> {
+        Ok(Groups(slice_to_mask(groups)?))
     }
 
     /// Add a list of numerical groups values to the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn add_groups(&mut self, groups: &[u32]) {
-        self.add_bitmask(slice_to_mask(groups));
+    pub fn add_groups(&mut self, groups: &[u32]) -> Result<(), MsgError> {
+        self.add_bitmask(slice_to_mask(groups)?);
+        Ok(())
     }
 
     /// Remove a list of numerical groups values from the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn remove_groups(&mut self, groups: &[u32]) {
-        self.remove_bitmask(slice_to_mask(groups));
+    pub fn remove_groups(&mut self, groups: &[u32]) -> Result<(), MsgError> {
+        self.remove_bitmask(slice_to_mask(groups)?);
+        Ok(())
     }
 
     /// Return the set of groups as a bitmask. The representation of a bitmask is u32.
@@ -580,6 +587,11 @@ mod test {
     fn test_groups() {
         setup();
 
-        Groups::new_groups(&[0, 0, 0, 0]);
+        Groups::new_groups(&[0, 0, 0, 0]).unwrap();
+
+        assert!(Groups::new_groups(&[100]).is_err());
+        assert!(Groups::new_groups(&[31]).is_ok());
+        assert!(Groups::new_groups(&[32]).is_ok());
+        assert!(Groups::new_groups(&[33]).is_err());
     }
 }
