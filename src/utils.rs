@@ -115,9 +115,13 @@ impl NetlinkBitArray {
 }
 
 fn slice_to_mask(groups: &[u32]) -> u32 {
-    groups
-        .iter()
-        .fold(0, |mask, next| mask | (1 << (*next - 1)))
+    groups.iter().fold(0, |mask, next| {
+        if *next == 0 {
+            mask
+        } else {
+            mask | (1 << (*next - 1))
+        }
+    })
 }
 
 fn mask_to_vec(mask: u32) -> Vec<u32> {
@@ -570,5 +574,12 @@ mod test {
 
         let bit_array = NetlinkBitArray(vec![8, 8, 8]);
         assert_eq!(bit_array.to_vec(), vec![4, 36, 68]);
+    }
+
+    #[test]
+    fn test_groups() {
+        setup();
+
+        Groups::new_groups(&[0, 0, 0, 0]);
     }
 }
