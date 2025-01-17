@@ -90,7 +90,7 @@ pub struct Ifaddrmsg {
     ifa_scope: RtScope,
     /// Interface address index
     #[getset(get = "pub")]
-    ifa_index: libc::c_int,
+    ifa_index: libc::c_uint,
     /// Payload of [`Rtattr`]s
     #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
     #[getset(get = "pub")]
