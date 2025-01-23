@@ -428,6 +428,7 @@ mod test {
 
     use crate::{
         consts::{nl::NlmF, socket::NlFamily},
+        err::RouterError,
         nl::NlPayload,
         router::synchronous::NlRouter,
         test::setup,
@@ -474,7 +475,7 @@ mod test {
 
         let (sock, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty()).unwrap();
         sock.enable_strict_checking(true).unwrap();
-        let recv = sock
+        let mut recv = sock
             .send::<_, _, Rtm, Ifinfomsg>(
                 Rtm::Getlink,
                 NlmF::DUMP | NlmF::ACK,
@@ -488,17 +489,29 @@ mod test {
                 ),
             )
             .unwrap();
-        for msg in recv {
-            let msg = msg.unwrap();
-            if let Some(payload) = msg.get_payload() {
-                let handle = payload.rtattrs.get_attr_handle();
-                handle
-                    .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
-                    .unwrap();
-                // Assert length of ethernet address
-                if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
-                    assert_eq!(attr.len(), 6);
-                }
+        let all_msgs = recv
+            .try_fold(Vec::new(), |mut v, m| {
+                v.push(m?);
+                Result::<_, RouterError<Rtm, Ifinfomsg>>::Ok(v)
+            })
+            .unwrap();
+        let non_err_payloads = all_msgs.iter().fold(Vec::new(), |mut v, m| {
+            if let Some(p) = m.get_payload() {
+                v.push(p);
+            }
+            v
+        });
+        if non_err_payloads.is_empty() {
+            panic!("Only received done message and no additional information");
+        }
+        for payload in non_err_payloads {
+            let handle = payload.rtattrs.get_attr_handle();
+            handle
+                .get_attr_payload_as_with_len::<String>(Ifla::Ifname)
+                .unwrap();
+            // Assert length of ethernet address
+            if let Ok(attr) = handle.get_attr_payload_as_with_len::<Vec<u8>>(Ifla::Address) {
+                assert_eq!(attr.len(), 6);
             }
         }
     }
