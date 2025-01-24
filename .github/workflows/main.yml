@@ -88,6 +88,8 @@ jobs:
         run: ./target/debug/examples/route-list
       - name: Run error_packet 
         run: ./target/debug/examples/error_packet
+      - name: Run getlink
+        run: ./target/debug/examples/getlink
         # nl80211 not included due to no wireless interfaces on test machines
   musl-checks:
     strategy:
@@ -143,6 +145,8 @@ jobs:
         run: ./target/debug/examples/route-list
       - name: Run error_packet 
         run: ./target/debug/examples/error_packet
+      - name: Run getlink
+        run: ./target/debug/examples/getlink
         # nl80211 not included due to no wireless interfaces on test machines
 
 concurrency:
