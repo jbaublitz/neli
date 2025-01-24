@@ -112,7 +112,7 @@
 //!         "my_family_name",
 //!         "my_multicast_group_name",
 //!     )?;
-//!     s.add_mcast_membership(Groups::new_groups(&[id])?)?;
+//!     s.add_mcast_membership(Groups::new_groups(&[id]))?;
 //!     for next in multicast {
 //!         // Do stuff here with parsed packets...
 //!     

@@ -64,7 +64,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             Ok(m) => {
                                 let seq = *m.nl_seq();
                                 let lock = senders.lock().await;
-                                if group.as_bitmask() != 0 {
+                                if !group.is_empty() {
                                     if multicast_sender.send(Ok(m)).await.is_err() {
                                         warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
                                     }

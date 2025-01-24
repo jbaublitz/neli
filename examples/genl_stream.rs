@@ -28,7 +28,7 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
         let id = s
             .resolve_nl_mcast_group(&family_name, &mc_group_name)
             .await?;
-        s.add_mcast_membership(Groups::new_groups(&[id])?)?;
+        s.add_mcast_membership(Groups::new_groups(&[id]))?;
         while let Some(Ok(msg)) = multicast.next::<u16, Genlmsghdr<u8, u16>>().await {
             println!("{msg:?}");
         }
@@ -53,7 +53,7 @@ fn debug_stream() -> Result<(), Box<dyn Error>> {
     };
     let (s, mc_recv) = NlRouter::connect(NlFamily::Generic, None, Groups::empty())?;
     let id = s.resolve_nl_mcast_group(&family_name, &mc_group_name)?;
-    s.add_mcast_membership(Groups::new_groups(&[id])?)?;
+    s.add_mcast_membership(Groups::new_groups(&[id]))?;
     for next in mc_recv {
         println!("{:?}", next?);
     }

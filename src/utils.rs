@@ -137,61 +137,84 @@ fn mask_to_vec(mask: u32) -> Vec<u32> {
 
 /// Struct implementing handling of groups both as numerical values and as
 /// bitmasks.
-pub struct Groups(u32);
+pub struct Groups(Vec<u32>);
 
 impl Groups {
     /// Create an empty set of netlink multicast groups
     pub fn empty() -> Self {
-        Groups(0)
+        Groups(vec![])
     }
 
     /// Create a new set of groups with a bitmask. Each bit represents a group.
     pub fn new_bitmask(mask: u32) -> Self {
-        Groups(mask)
+        Groups(mask_to_vec(mask))
     }
 
     /// Add a new bitmask to the existing group set. Each bit represents a group.
     pub fn add_bitmask(&mut self, mask: u32) {
-        self.0 |= mask
+        for group in mask_to_vec(mask) {
+            if !self.0.contains(&group) {
+                self.0.push(group);
+            }
+        }
     }
 
     /// Remove a bitmask from the existing group set. Each bit represents a group
     /// and each bit set to 1 will be removed.
     pub fn remove_bitmask(&mut self, mask: u32) {
-        self.0 &= !mask
+        let remove_items = mask_to_vec(mask);
+        self.0 = self
+            .0
+            .drain(..)
+            .filter(|g| !remove_items.contains(g))
+            .collect::<Vec<_>>();
     }
 
     /// Create a new set of groups from a list of numerical groups values. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn new_groups(groups: &[u32]) -> Result<Self, MsgError> {
-        Ok(Groups(slice_to_mask(groups)?))
+    pub fn new_groups(groups: &[u32]) -> Self {
+        let mut vec = groups.to_owned();
+        vec.retain(|g| g != &0);
+        Groups(vec)
     }
 
     /// Add a list of numerical groups values to the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn add_groups(&mut self, groups: &[u32]) -> Result<(), MsgError> {
-        self.add_bitmask(slice_to_mask(groups)?);
-        Ok(())
+    pub fn add_groups(&mut self, groups: &[u32]) {
+        for group in groups {
+            if *group != 0 && !self.0.contains(group) {
+                self.0.push(*group)
+            }
+        }
     }
 
     /// Remove a list of numerical groups values from the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
-    pub fn remove_groups(&mut self, groups: &[u32]) -> Result<(), MsgError> {
-        self.remove_bitmask(slice_to_mask(groups)?);
-        Ok(())
+    pub fn remove_groups(&mut self, groups: &[u32]) {
+        self.0.retain(|g| !groups.contains(g));
     }
 
     /// Return the set of groups as a bitmask. The representation of a bitmask is u32.
-    pub fn as_bitmask(&self) -> u32 {
-        self.0
+    pub fn as_bitmask(&self) -> Result<u32, MsgError> {
+        slice_to_mask(&self.0)
     }
 
     /// Return the set of groups as a vector of group values.
     pub fn as_groups(&self) -> Vec<u32> {
-        mask_to_vec(self.0)
+        self.0.clone()
+    }
+
+    /// Return the set of groups as a vector of group values.
+    pub fn into_groups(self) -> Vec<u32> {
+        self.0
+    }
+
+    /// Returns true if no group is set.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -587,11 +610,8 @@ mod test {
     fn test_groups() {
         setup();
 
-        Groups::new_groups(&[0, 0, 0, 0]).unwrap();
-
-        assert!(Groups::new_groups(&[100]).is_err());
-        assert!(Groups::new_groups(&[31]).is_ok());
-        assert!(Groups::new_groups(&[32]).is_ok());
-        assert!(Groups::new_groups(&[33]).is_err());
+        assert_eq!(Groups::new_groups(&[0, 0, 0, 0]).as_bitmask().unwrap(), 0);
+        let groups = Groups::new_groups(&[0, 0, 0, 0]).as_groups();
+        assert!(groups.is_empty());
     }
 }
