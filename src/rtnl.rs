@@ -34,9 +34,11 @@ pub struct Ifinfomsg {
     padding: u8,
     /// Interface type
     #[getset(get = "pub")]
+    #[builder(default = "Arphrd::from(0)")]
     ifi_type: Arphrd,
     /// Interface index
     #[getset(get = "pub")]
+    #[builder(default = "0")]
     ifi_index: libc::c_int,
     /// Interface flags
     #[getset(get = "pub")]
@@ -482,8 +484,6 @@ mod test {
                 NlPayload::Payload(
                     IfinfomsgBuilder::default()
                         .ifi_family(RtAddrFamily::Unspecified)
-                        .ifi_type(Arphrd::None)
-                        .ifi_index(0)
                         .build()
                         .unwrap(),
                 ),

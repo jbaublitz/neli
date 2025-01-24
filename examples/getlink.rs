@@ -1,7 +1,7 @@
 use neli::{
     consts::{
         nl::NlmF,
-        rtnl::{Arphrd, Ifla, RtAddrFamily, Rtm},
+        rtnl::{Ifla, RtAddrFamily, Rtm},
         socket::NlFamily,
     },
     nl::NlPayload,
@@ -18,8 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     rtnl.enable_strict_checking(true)?;
     let ifinfomsg = IfinfomsgBuilder::default()
         .ifi_family(RtAddrFamily::Inet)
-        .ifi_type(Arphrd::None)
-        .ifi_index(0)
         .build()?;
 
     let recv = rtnl.send::<_, _, Rtm, Ifinfomsg>(
