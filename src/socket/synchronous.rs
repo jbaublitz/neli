@@ -76,6 +76,7 @@ impl NlSocketHandle {
 
         let mut buffer = Cursor::new(vec![0; msg.padded_size()]);
         msg.to_bytes(&mut buffer)?;
+        trace!("Buffer sent: {:?}", buffer.get_ref());
         self.socket.send(buffer.get_ref(), Msg::empty())?;
 
         Ok(())
