@@ -13,12 +13,14 @@ cargo fmt -- --check \
     && ./target/debug/examples/ctrl-list \
     && ./target/debug/examples/error_packet \
     && ./target/debug/examples/nl80211 \
+    && ./target/debug/examples/getlink \
     && cargo build --examples --features=async \
     && ./target/debug/examples/getips \
     && ./target/debug/examples/route-list \
     && ./target/debug/examples/ctrl-list \
     && ./target/debug/examples/error_packet \
     && ./target/debug/examples/nl80211 \
+    && ./target/debug/examples/getlink \
     && cargo test \
     && cargo test --all-targets --all-features \
     || exit 1
