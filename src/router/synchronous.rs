@@ -68,7 +68,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             Ok(m) => {
                                 let seq = *m.nl_seq();
                                 let lock = senders.lock();
-                                if group.as_bitmask() != 0 {
+                                if !group.is_empty() {
                                     if multicast_sender.send(Ok(m)).is_err() {
                                         warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
                                     }
@@ -529,7 +529,8 @@ mod test {
     fn real_test_mcast_groups() {
         setup();
 
-        let (sock, _) = NlRouter::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
+        let (sock, _multicast) =
+            NlRouter::connect(NlFamily::Generic, None, Groups::empty()).unwrap();
         sock.enable_strict_checking(true).unwrap();
         let notify_id_result = sock.resolve_nl_mcast_group("nlctrl", "notify");
         let config_id_result = sock.resolve_nl_mcast_group("devlink", "config");

@@ -88,7 +88,6 @@ impl NlSocket {
         let mut nladdr = unsafe { zeroed::<libc::sockaddr_nl>() };
         nladdr.nl_family = c_int::from(AddrFamily::Netlink) as u16;
         nladdr.nl_pid = pid.unwrap_or(0);
-        nladdr.nl_groups = groups.as_bitmask();
         match unsafe {
             libc::bind(
                 self.fd,
@@ -99,6 +98,7 @@ impl NlSocket {
             i if i >= 0 => (),
             _ => return Err(io::Error::last_os_error()),
         };
+        self.add_mcast_membership(groups)?;
         Ok(())
     }
 

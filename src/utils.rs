@@ -10,6 +10,7 @@ use std::mem::size_of;
 
 #[cfg(any(feature = "sync", feature = "async"))]
 use crate::consts::MAX_NL_LENGTH;
+use crate::err::MsgError;
 
 type BitArrayType = u32;
 
@@ -114,10 +115,18 @@ impl NetlinkBitArray {
     }
 }
 
-fn slice_to_mask(groups: &[u32]) -> u32 {
-    groups
-        .iter()
-        .fold(0, |mask, next| mask | (1 << (*next - 1)))
+fn slice_to_mask(groups: &[u32]) -> Result<u32, MsgError> {
+    groups.iter().try_fold(0, |mask, next| {
+        if *next == 0 {
+            Ok(mask)
+        } else if next - 1 > 31 {
+            Err(MsgError::new(format!(
+                "Group {next} cannot be represented with a bit width of 32"
+            )))
+        } else {
+            Ok(mask | (1 << (*next - 1)))
+        }
+    })
 }
 
 fn mask_to_vec(mask: u32) -> Vec<u32> {
@@ -128,59 +137,84 @@ fn mask_to_vec(mask: u32) -> Vec<u32> {
 
 /// Struct implementing handling of groups both as numerical values and as
 /// bitmasks.
-pub struct Groups(u32);
+pub struct Groups(Vec<u32>);
 
 impl Groups {
     /// Create an empty set of netlink multicast groups
     pub fn empty() -> Self {
-        Groups(0)
+        Groups(vec![])
     }
 
     /// Create a new set of groups with a bitmask. Each bit represents a group.
     pub fn new_bitmask(mask: u32) -> Self {
-        Groups(mask)
+        Groups(mask_to_vec(mask))
     }
 
     /// Add a new bitmask to the existing group set. Each bit represents a group.
     pub fn add_bitmask(&mut self, mask: u32) {
-        self.0 |= mask
+        for group in mask_to_vec(mask) {
+            if !self.0.contains(&group) {
+                self.0.push(group);
+            }
+        }
     }
 
     /// Remove a bitmask from the existing group set. Each bit represents a group
     /// and each bit set to 1 will be removed.
     pub fn remove_bitmask(&mut self, mask: u32) {
-        self.0 &= !mask
+        let remove_items = mask_to_vec(mask);
+        self.0 = self
+            .0
+            .drain(..)
+            .filter(|g| !remove_items.contains(g))
+            .collect::<Vec<_>>();
     }
 
     /// Create a new set of groups from a list of numerical groups values. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
     pub fn new_groups(groups: &[u32]) -> Self {
-        Groups(slice_to_mask(groups))
+        let mut vec = groups.to_owned();
+        vec.retain(|g| g != &0);
+        Groups(vec)
     }
 
     /// Add a list of numerical groups values to the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
     pub fn add_groups(&mut self, groups: &[u32]) {
-        self.add_bitmask(slice_to_mask(groups));
+        for group in groups {
+            if *group != 0 && !self.0.contains(group) {
+                self.0.push(*group)
+            }
+        }
     }
 
     /// Remove a list of numerical groups values from the set of groups. This differs
     /// from the bitmask representation where the value 3 represents group 3 in this
     /// format as opposed to 0x4 in the bitmask format.
     pub fn remove_groups(&mut self, groups: &[u32]) {
-        self.remove_bitmask(slice_to_mask(groups));
+        self.0.retain(|g| !groups.contains(g));
     }
 
     /// Return the set of groups as a bitmask. The representation of a bitmask is u32.
-    pub fn as_bitmask(&self) -> u32 {
-        self.0
+    pub fn as_bitmask(&self) -> Result<u32, MsgError> {
+        slice_to_mask(&self.0)
     }
 
     /// Return the set of groups as a vector of group values.
     pub fn as_groups(&self) -> Vec<u32> {
-        mask_to_vec(self.0)
+        self.0.clone()
+    }
+
+    /// Return the set of groups as a vector of group values.
+    pub fn into_groups(self) -> Vec<u32> {
+        self.0
+    }
+
+    /// Returns true if no group is set.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -570,5 +604,14 @@ mod test {
 
         let bit_array = NetlinkBitArray(vec![8, 8, 8]);
         assert_eq!(bit_array.to_vec(), vec![4, 36, 68]);
+    }
+
+    #[test]
+    fn test_groups() {
+        setup();
+
+        assert_eq!(Groups::new_groups(&[0, 0, 0, 0]).as_bitmask().unwrap(), 0);
+        let groups = Groups::new_groups(&[0, 0, 0, 0]).as_groups();
+        assert!(groups.is_empty());
     }
 }
