@@ -53,26 +53,36 @@ impl NetlinkBitArray {
         );
     }
 
-    /// Returns true if the `n`th bit is set.
+    /// Returns true if the `n`th bit is set. Not zero indexed.
     pub fn is_set(&self, n: usize) -> bool {
         if n == 0 {
             return false;
         }
         let n_1 = n - 1;
         let bit_segment = self.0[n_1 / Self::BIT_SIZE];
-        let bit_shifted_n = 1 << (n_1 % Self::BIT_SIZE);
-        bit_segment & bit_shifted_n == bit_shifted_n
+        if let Some(bit_shifted_n) = u32::try_from(n_1 % Self::BIT_SIZE)
+            .ok()
+            .and_then(|rem| 1u32.checked_shl(rem))
+        {
+            bit_segment & bit_shifted_n == bit_shifted_n
+        } else {
+            false
+        }
     }
 
-    /// Set the `n`th bit.
+    /// Set the `n`th bit. Not zero indexed.
     pub fn set(&mut self, n: usize) {
         if n == 0 {
             return;
         }
         let n_1 = n - 1;
         let bit_segment = self.0[n_1 / Self::BIT_SIZE];
-        let bit_shifted_n = 1 << (n_1 % Self::BIT_SIZE);
-        self.0[n_1 / Self::BIT_SIZE] = bit_segment | bit_shifted_n;
+        if let Some(bit_shifted_n) = u32::try_from(n_1 % Self::BIT_SIZE)
+            .ok()
+            .and_then(|rem| 1u32.checked_shl(rem))
+        {
+            self.0[n_1 / Self::BIT_SIZE] = bit_segment | bit_shifted_n;
+        }
     }
 
     /// Get a vector representation of all of the bit positions set
