@@ -270,6 +270,26 @@ impl NlSocket {
             _ => Err(io::Error::last_os_error()),
         }
     }
+
+    /// Return [`true`] if strict checking is enabled for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn get_strict_checking_enabled(&self) -> Result<bool, io::Error> {
+        let mut sock_len = size_of::<libc::c_int>() as libc::socklen_t;
+        let mut sock_val: MaybeUninit<libc::c_int> = MaybeUninit::uninit();
+        match unsafe {
+            libc::getsockopt(
+                self.fd,
+                libc::SOL_NETLINK,
+                libc::NETLINK_GET_STRICT_CHK,
+                &mut sock_val as *mut _ as *mut libc::c_void,
+                &mut sock_len as *mut _ as *mut libc::socklen_t,
+            )
+        } {
+            0 => Ok(unsafe { sock_val.assume_init() } != 0),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
 }
 
 #[cfg(feature = "sync")]
@@ -328,5 +348,15 @@ mod test {
 
         let s = NlSocket::connect(NlFamily::Generic, Some(5555), Groups::empty()).unwrap();
         assert_eq!(s.pid().unwrap(), 5555);
+    }
+
+    #[test]
+    fn real_strict_checking() {
+        setup();
+
+        let s = NlSocket::connect(NlFamily::Route, None, Groups::empty()).unwrap();
+        assert!(!s.get_strict_checking_enabled().unwrap());
+        s.enable_strict_checking(true).unwrap();
+        assert!(s.get_strict_checking_enabled().unwrap());
     }
 }

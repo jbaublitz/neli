@@ -148,6 +148,15 @@ impl NlSocketHandle {
             .enable_strict_checking(enable)
             .map_err(SocketError::from)
     }
+
+    /// Return [`true`] if strict checking is enabled for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn get_strict_checking_enabled(&self) -> Result<bool, SocketError> {
+        self.socket
+            .get_strict_checking_enabled()
+            .map_err(SocketError::from)
+    }
 }
 
 impl AsRawFd for NlSocketHandle {
