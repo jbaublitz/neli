@@ -188,6 +188,11 @@ impl NlRouter {
             .map_err(RouterError::from)
     }
 
+    /// Return [`true`] if an extended ACK is enabled for this socket.
+    pub fn get_ext_ack_enabled(&self) -> Result<bool, RouterError<u16, Buffer>> {
+        self.socket.get_ext_ack_enabled().map_err(RouterError::from)
+    }
+
     /// If [`true`] is passed in, enable strict checking for this socket. If [`false`]
     /// is passed in, disable strict checking for for this socket.
     /// Only supported by `NlFamily::Route` sockets.
