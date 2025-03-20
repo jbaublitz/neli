@@ -441,7 +441,7 @@ mod test {
     fn test_rta_deserialize() {
         setup();
 
-        let buf = &[4u8, 0, 0, 0] as &[u8];
+        let buf = &4u32.to_ne_bytes() as &[u8];
         Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap();
     }
 
@@ -450,7 +450,7 @@ mod test {
         setup();
 
         // 3 bytes is below minimum length
-        let buf = &[3u8, 0, 0, 0] as &[u8];
+        let buf = &3u32.to_ne_bytes() as &[u8];
         Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap_err();
     }
 
