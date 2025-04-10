@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use tokio::{
     spawn,
     sync::{
@@ -501,7 +501,7 @@ where
             return Some(Err(RouterError::NoAck));
         }
 
-        debug!("Router received message: {:?}", msg);
+        trace!("Router received message: {:?}", msg);
 
         Some(Ok(msg))
     }

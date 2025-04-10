@@ -4,7 +4,7 @@ use std::{
     os::unix::io::{AsRawFd, IntoRawFd, RawFd},
 };
 
-use log::{debug, trace};
+use log::trace;
 
 use crate::{
     consts::{nl::*, socket::*},
@@ -72,7 +72,7 @@ impl NlSocketHandle {
         T: NlType + Debug,
         P: Size + ToBytes + Debug,
     {
-        debug!("Message sent:\n{:?}", msg);
+        trace!("Message sent:\n{:?}", msg);
 
         let mut buffer = Cursor::new(vec![0; msg.padded_size()]);
         msg.to_bytes(&mut buffer)?;
@@ -126,7 +126,7 @@ impl NlSocketHandle {
 
         let vec = NlBuffer::from_bytes_with_input(&mut Cursor::new(buffer), mem_read)?;
 
-        debug!("Messages received: {:?}", vec);
+        trace!("Messages received: {:?}", vec);
 
         Ok((vec, groups))
     }

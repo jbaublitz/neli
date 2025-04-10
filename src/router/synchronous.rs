@@ -9,7 +9,7 @@ use std::{
     thread::spawn,
 };
 
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use parking_lot::Mutex;
 
 use crate::{
@@ -493,7 +493,7 @@ where
             return Some(Err(RouterError::NoAck));
         }
 
-        debug!("Router received message: {:?}", msg);
+        trace!("Router received message: {:?}", msg);
 
         Some(Ok(msg))
     }
