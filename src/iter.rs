@@ -2,7 +2,7 @@
 
 use std::{io::Cursor, marker::PhantomData};
 
-use log::debug;
+use log::trace;
 
 use crate::{
     consts::nl::NlType, err::SocketError, nl::Nlmsghdr, FromBytes, FromBytesWithInput, Size,
@@ -43,7 +43,7 @@ where
         } else {
             match Nlmsghdr::from_bytes(&mut self.buffer).map_err(SocketError::from) {
                 Ok(msg) => {
-                    debug!("Message received: {:?}", msg);
+                    trace!("Message received: {:?}", msg);
                     Some(Ok(msg))
                 }
                 Err(e) => {

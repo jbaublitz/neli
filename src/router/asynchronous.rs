@@ -501,7 +501,7 @@ where
             return Some(Err(RouterError::NoAck));
         }
 
-        debug!("Router received message: {:?}", msg);
+        trace!("Router received message: {:?}", msg);
 
         Some(Ok(msg))
     }
