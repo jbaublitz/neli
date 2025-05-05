@@ -4,7 +4,7 @@ use std::{
     os::unix::io::{AsRawFd, IntoRawFd, RawFd},
 };
 
-use log::{debug, trace};
+use log::trace;
 use tokio::io::unix::AsyncFd;
 
 use crate::{
@@ -154,7 +154,7 @@ impl NlSocketHandle {
 
         let vec = NlBuffer::from_bytes_with_input(&mut Cursor::new(buffer), bytes_read)?;
 
-        debug!("Messages received: {:?}", vec);
+        trace!("Messages received: {:?}", vec);
 
         Ok((vec, groups))
     }
