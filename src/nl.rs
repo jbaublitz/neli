@@ -14,7 +14,7 @@
 
 use std::{
     any::type_name,
-    io::{Cursor, Read},
+    io::Cursor,
     mem::{size_of, swap},
 };
 
@@ -37,6 +37,9 @@ use crate::{
 pub enum NlPayload<T, P> {
     /// Represents an ACK returned by netlink.
     Ack(Nlmsgerr<NlmsghdrAck<T>>),
+    /// Represents an ACK extracted from the DONE packet returned by netlink
+    /// on a DUMP.
+    DumpExtAck(Nlmsgerr<()>),
     /// Represents an application level error returned by netlink.
     Err(Nlmsgerr<NlmsghdrErr<T, P>>),
     /// Represents the requested payload.
@@ -62,11 +65,17 @@ where
             trace!("Deserializing data type {}", type_name::<Self>());
             let ty_const: u16 = input_type.into();
             if ty_const == Nlmsg::Done.into() {
-                trace!("Received empty payload");
-                let mut bytes = Vec::new();
-                buffer.read_to_end(&mut bytes)?;
-                trace!("Padding: {:?}", bytes);
-                Ok(NlPayload::Empty)
+                if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
+                    Ok(NlPayload::Empty)
+                } else {
+                    trace!(
+                        "Deserializing field type {}",
+                        std::any::type_name::<Nlmsgerr<()>>(),
+                    );
+                    trace!("Input: {:?}", input_size);
+                    let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
+                    Ok(NlPayload::DumpExtAck(ext))
+                }
             } else if ty_const == Nlmsg::Error.into() {
                 trace!(
                     "Deserializing field type {}",
@@ -233,6 +242,7 @@ impl NlPayload<u16, Buffer> {
         match self {
             NlPayload::Ack(a) => Ok(NlPayload::Ack(a.to_typed()?)),
             NlPayload::Err(e) => Ok(NlPayload::Err(e.to_typed()?)),
+            NlPayload::DumpExtAck(a) => Ok(NlPayload::DumpExtAck(a)),
             NlPayload::Payload(p) => Ok(NlPayload::Payload(P::from_bytes_with_input(
                 &mut Cursor::new(p),
                 payload_size,

@@ -139,6 +139,11 @@ impl NlSocketHandle {
             .map_err(SocketError::from)
     }
 
+    /// Return [`true`] if an extended ACK is enabled for this socket.
+    pub fn get_ext_ack_enabled(&self) -> Result<bool, SocketError> {
+        self.socket.get_ext_ack_enabled().map_err(SocketError::from)
+    }
+
     /// If [`true`] is passed in, enable strict checking for this socket. If [`false`]
     /// is passed in, disable strict checking for for this socket.
     /// Only supported by `NlFamily::Route` sockets.
@@ -146,6 +151,15 @@ impl NlSocketHandle {
     pub fn enable_strict_checking(&self, enable: bool) -> Result<(), SocketError> {
         self.socket
             .enable_strict_checking(enable)
+            .map_err(SocketError::from)
+    }
+
+    /// Return [`true`] if strict checking is enabled for this socket.
+    /// Only supported by `NlFamily::Route` sockets.
+    /// Requires Linux >= 4.20.
+    pub fn get_strict_checking_enabled(&self) -> Result<bool, SocketError> {
+        self.socket
+            .get_strict_checking_enabled()
             .map_err(SocketError::from)
     }
 }

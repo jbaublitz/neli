@@ -57,6 +57,8 @@ impl_flags!(
         EXCL = libc::NLM_F_EXCL as u16,
         CREATE = libc::NLM_F_CREATE as u16,
         APPEND = libc::NLM_F_APPEND as u16,
+        CAPPED = libc::NLM_F_CAPPED as u16,
+        ACK_TLVS = libc::NLM_F_ACK_TLVS as u16,
     }
 );
 
