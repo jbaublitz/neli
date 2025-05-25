@@ -145,6 +145,7 @@ pub mod rtnl;
 pub mod socket;
 pub mod types;
 pub mod utils;
+pub mod connector;
 
 use std::{
     fmt::Debug,
