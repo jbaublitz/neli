@@ -135,6 +135,7 @@
 #![deny(missing_docs)]
 
 pub mod attr;
+pub mod connector;
 pub mod consts;
 pub mod err;
 pub mod genl;
@@ -145,7 +146,6 @@ pub mod rtnl;
 pub mod socket;
 pub mod types;
 pub mod utils;
-pub mod connector;
 
 use std::{
     fmt::Debug,
@@ -445,6 +445,12 @@ impl FromBytesWithInput for String {
 impl Size for &'_ [u8] {
     fn unpadded_size(&self) -> usize {
         self.len()
+    }
+}
+
+impl<const N: usize> Size for [u8; N] {
+    fn unpadded_size(&self) -> usize {
+        N
     }
 }
 

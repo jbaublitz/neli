@@ -63,67 +63,67 @@ where
 
         let mut processing = || {
             trace!("Deserializing data type {}", type_name::<Self>());
-            let ty_const: u16 = input_type.into();
-            if ty_const == Nlmsg::Done.into() {
-                if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
-                    Ok(NlPayload::Empty)
-                } else {
-                    trace!(
-                        "Deserializing field type {}",
-                        std::any::type_name::<Nlmsgerr<()>>(),
-                    );
-                    trace!("Input: {:?}", input_size);
-                    let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
-                    Ok(NlPayload::DumpExtAck(ext))
-                }
-            } else if ty_const == Nlmsg::Error.into() {
-                trace!(
-                    "Deserializing field type {}",
-                    std::any::type_name::<libc::c_int>()
-                );
-                let code = libc::c_int::from_bytes(buffer)?;
-                trace!("Field deserialized: {:?}", code);
-                if code == 0 {
-                    trace!(
-                        "Deserializing field type {}",
-                        std::any::type_name::<NlmsghdrErr<T, ()>>()
-                    );
-                    trace!("Input: {:?}", input_size);
-                    let nlmsg = NlmsghdrAck::<T>::from_bytes(buffer)?;
-                    trace!("Field deserialized: {:?}", nlmsg);
-                    Ok(NlPayload::Ack(
-                        NlmsgerrBuilder::default().nlmsg(nlmsg).build()?,
-                    ))
-                } else {
-                    trace!(
-                        "Deserializing field type {}",
-                        std::any::type_name::<NlmsghdrErr<T, ()>>()
-                    );
-                    let nlmsg = NlmsghdrErr::<T, P>::from_bytes(buffer)?;
-                    trace!("Field deserialized: {:?}", nlmsg);
-
-                    trace!(
-                        "Deserializing field type {}",
-                        std::any::type_name::<GenlBuffer<u16, Buffer>>()
-                    );
-                    let input = input_size - size_of::<libc::c_int>() - nlmsg.padded_size();
-                    trace!("Input: {:?}", input);
-                    let ext_ack = GenlBuffer::from_bytes_with_input(buffer, input)?;
-                    trace!("Field deserialized: {:?}", ext_ack);
-
-                    Ok(NlPayload::Err(
-                        NlmsgerrBuilder::default()
-                            .error(code)
-                            .nlmsg(nlmsg)
-                            .ext_ack(ext_ack)
-                            .build()?,
-                    ))
-                }
-            } else {
+            // let ty_const: u16 = input_type.into();
+            // if ty_const == Nlmsg::Done.into() {
+            //     if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
+            //         Ok(NlPayload::Empty)
+            //     } else {
+            //         trace!(
+            //             "Deserializing field type {}",
+            //             std::any::type_name::<Nlmsgerr<()>>(),
+            //         );
+            //         trace!("Input: {:?}", input_size);
+            //         let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
+            //         Ok(NlPayload::DumpExtAck(ext))
+            //     }
+            // } else if ty_const == Nlmsg::Error.into() {
+            //     trace!(
+            //         "Deserializing field type {}",
+            //         std::any::type_name::<libc::c_int>()
+            //     );
+            //     let code = libc::c_int::from_bytes(buffer)?;
+            //     trace!("Field deserialized: {:?}", code);
+            //     if code == 0 {
+            //         trace!(
+            //             "Deserializing field type {}",
+            //             std::any::type_name::<NlmsghdrErr<T, ()>>()
+            //         );
+            //         trace!("Input: {:?}", input_size);
+            //         let nlmsg = NlmsghdrAck::<T>::from_bytes(buffer)?;
+            //         trace!("Field deserialized: {:?}", nlmsg);
+            //         Ok(NlPayload::Ack(
+            //             NlmsgerrBuilder::default().nlmsg(nlmsg).build()?,
+            //         ))
+            //     } else {
+            //         trace!(
+            //             "Deserializing field type {}",
+            //             std::any::type_name::<NlmsghdrErr<T, ()>>()
+            //         );
+            //         let nlmsg = NlmsghdrErr::<T, P>::from_bytes(buffer)?;
+            //         trace!("Field deserialized: {:?}", nlmsg);
+            //
+            //         trace!(
+            //             "Deserializing field type {}",
+            //             std::any::type_name::<GenlBuffer<u16, Buffer>>()
+            //         );
+            //         let input = input_size - size_of::<libc::c_int>() - nlmsg.padded_size();
+            //         trace!("Input: {:?}", input);
+            //         let ext_ack = GenlBuffer::from_bytes_with_input(buffer, input)?;
+            //         trace!("Field deserialized: {:?}", ext_ack);
+            //
+            //         Ok(NlPayload::Err(
+            //             NlmsgerrBuilder::default()
+            //                 .error(code)
+            //                 .nlmsg(nlmsg)
+            //                 .ext_ack(ext_ack)
+            //                 .build()?,
+            //         ))
+            //     }
+            // } else {
                 Ok(NlPayload::Payload(P::from_bytes_with_input(
                     buffer, input_size,
                 )?))
-            }
+            // }
         };
 
         match processing() {
