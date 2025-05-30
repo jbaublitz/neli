@@ -171,7 +171,7 @@ pub trait Size {
     /// strings or byte buffers.
     fn unpadded_size(&self) -> usize;
 
-    /// Get the size of of the payload and align it to
+    /// Get the size of the payload and align it to
     /// the required netlink byte alignment.
     fn padded_size(&self) -> usize {
         alignto(self.unpadded_size())

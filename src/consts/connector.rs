@@ -1,14 +1,13 @@
 use crate as neli;
-use neli_proc_macros::neli_enum;
 
-/// Values for `cmd` in [`Genlmsghdr`][crate::genl::Genlmsghdr].
-#[neli_enum(serialized_type = "u32")]
+/// Values for `idx` in [`CnMsg`][crate::connector::CnMsg].
+#[neli::neli_enum(serialized_type = "u32")]
 pub enum CnMsgIdx {
     Proc = libc::CN_IDX_PROC,
 }
 
-/// Values for `cmd` in [`Genlmsghdr`][crate::genl::Genlmsghdr].
-#[neli_enum(serialized_type = "u32")]
+/// Values for `val` in [`CnMsg`][crate::connector::CnMsg].
+#[neli::neli_enum(serialized_type = "u32")]
 pub enum CnMsgVal {
     Proc = libc::CN_VAL_PROC,
 }

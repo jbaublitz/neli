@@ -24,7 +24,7 @@ impl CnMsgPayload for ProcEventHeader {}
 )]
 #[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize> + CnMsgPayload")]
 #[builder(pattern = "owned")]
-pub struct CnMsg<P: CnMsgPayload> {
+pub struct CnMsg<P: CnMsgPayload + Size> {
     /// Index of the connector (idx)
     #[getset(get = "pub")]
     idx: CnMsgIdx,
@@ -40,7 +40,7 @@ pub struct CnMsg<P: CnMsgPayload> {
     #[getset(get = "pub")]
     ack: u32,
     /// Length of the payload
-    #[builder(setter(skip), field(build = "std::mem::size_of::<P>() as _"))]
+    #[builder(setter(skip), default = "self.payload.as_ref().unwrap().unpadded_size() as _")]
     #[getset(get = "pub")]
     len: u16,
     /// Flags
@@ -184,7 +184,7 @@ impl FromBytesWithInput for ProcEventHeader {
             input
         );
 
-        // Minimum size for header (16) + smallest event (ack: 4) is 20. Header alone is 16.
+        // Minimum size for header (16) + smallest event (ack: 4) is 20.
         if input < 16 || bytes.len() < start + input {
             return Err(DeError::InvalidInput(input));
         }
@@ -278,6 +278,9 @@ impl FromBytesWithInput for ProcEventHeader {
                 ))));
             }
         };
+        
+        // consume the entire len, because the kernel can pad the event data with zeros
+        buffer.set_position(start as u64 + input as u64);
 
         Ok(ProcEventHeader {
             cpu,
