@@ -1,14 +1,18 @@
 //! Connector module for netlink messages.
 
-use crate::FromBytesWithInput;
-use crate::{Header, Size, ToBytes};
+use crate::{
+    self as neli,
+    consts::connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp, ProcEventType},
+    err::{DeError, MsgError},
+    FromBytesWithInput, Header, Size, ToBytes,
+};
 use byteorder::{NativeEndian, ReadBytesExt};
 use derive_builder::Builder;
 use getset::Getters;
-use std::io::Read;
+use log::trace;
+use std::{io::Cursor, io::Read};
 
-use crate as neli;
-
+/// A trait for types that can be used as payloads in netlink connector messages.
 pub trait CnMsgPayload {}
 
 impl CnMsgPayload for ProcCnMcastOp {}
@@ -50,77 +54,119 @@ pub struct CnMsg<P: CnMsgPayload> {
     pub(crate) payload: P,
 }
 
-/// Ergonomic enum for process event data.
-#[derive(Debug, Size, Copy, Clone)]
-pub enum ProcEvent {
-    Ack {
-        err: u32,
-    },
-    Fork {
-        parent_pid: i32,
-        parent_tgid: i32,
-        child_pid: i32,
-        child_tgid: i32,
-    },
-    Exec {
-        process_pid: i32,
-        process_tgid: i32,
-    },
-    Uid {
-        process_pid: i32,
-        process_tgid: i32,
-        ruid: u32,
-        euid: u32,
-    },
-    Gid {
-        process_pid: i32,
-        process_tgid: i32,
-        rgid: u32,
-        egid: u32,
-    },
-    Sid {
-        process_pid: i32,
-        process_tgid: i32,
-    },
-    Ptrace {
-        process_pid: i32,
-        process_tgid: i32,
-        tracer_pid: i32,
-        tracer_tgid: i32,
-    },
-    Comm {
-        process_pid: i32,
-        process_tgid: i32,
-        comm: [u8; 16],
-    },
-    Coredump {
-        process_pid: i32,
-        process_tgid: i32,
-        parent_pid: i32,
-        parent_tgid: i32,
-    },
-    Exit {
-        process_pid: i32,
-        process_tgid: i32,
-        exit_code: u32,
-        exit_signal: u32,
-        parent_pid: i32,
-        parent_tgid: i32,
-    },
-}
-
 /// Header for process event messages.
 #[derive(Debug, Size)]
 pub struct ProcEventHeader {
+    /// The CPU on which the event occurred.
     pub cpu: u32,
+    /// Nanosecond timestamp of the event.
     pub timestamp_ns: u64,
+    /// The process event data.
     pub event: ProcEvent,
 }
 
-use crate::consts::connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp, ProcEventType};
-use crate::err::{DeError, MsgError};
-use log::trace;
-use std::io::Cursor;
+/// Ergonomic enum for process event data.
+#[derive(Debug, Size, Copy, Clone)]
+pub enum ProcEvent {
+    /// Acknowledgement event, typically for PROC_EVENT_NONE.
+    Ack {
+        /// Error code (0 for success).
+        err: u32,
+    },
+    /// Fork event, triggered when a process forks.
+    Fork {
+        /// Parent process PID.
+        parent_pid: i32,
+        /// Parent process TGID (thread group ID).
+        parent_tgid: i32,
+        /// Child process PID.
+        child_pid: i32,
+        /// Child process TGID.
+        child_tgid: i32,
+    },
+    /// Exec event, triggered when a process calls exec().
+    Exec {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+    },
+    /// UID change event, triggered when a process changes its UID.
+    Uid {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Real UID.
+        ruid: u32,
+        /// Effective UID.
+        euid: u32,
+    },
+    /// GID change event, triggered when a process changes its GID.
+    Gid {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Real GID.
+        rgid: u32,
+        /// Effective GID.
+        egid: u32,
+    },
+    /// SID change event, triggered when a process changes its session ID.
+    Sid {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+    },
+    /// Ptrace event, triggered when a process is traced.
+    Ptrace {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Tracer process PID.
+        tracer_pid: i32,
+        /// Tracer process TGID.
+        tracer_tgid: i32,
+    },
+    /// Comm event, triggered when a process changes its command name.
+    Comm {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Command name (null-terminated, max 16 bytes).
+        comm: [u8; 16],
+    },
+    /// Coredump event, triggered when a process dumps core.
+    Coredump {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Parent process PID.
+        parent_pid: i32,
+        /// Parent process TGID.
+        parent_tgid: i32,
+    },
+    /// Exit event, triggered when a process exits.
+    Exit {
+        /// Process PID.
+        process_pid: i32,
+        /// Process TGID.
+        process_tgid: i32,
+        /// Exit code.
+        exit_code: u32,
+        /// Exit signal.
+        exit_signal: u32,
+        /// Parent process PID.
+        parent_pid: i32,
+        /// Parent process TGID.
+        parent_tgid: i32,
+    },
+}
 
 impl FromBytesWithInput for ProcEventHeader {
     type Input = usize;
@@ -151,71 +197,50 @@ impl FromBytesWithInput for ProcEventHeader {
 
         let event = match what {
             ProcEventType::None => {
-                let err = buffer.read_u32::<NativeEndian>()?;
-                ProcEvent::Ack { err }
+                ProcEvent::Ack { err: buffer.read_u32::<NativeEndian>()? }
             }
             ProcEventType::Fork => {
-                let parent_pid = buffer.read_i32::<NativeEndian>()?;
-                let parent_tgid = buffer.read_i32::<NativeEndian>()?;
-                let child_pid = buffer.read_i32::<NativeEndian>()?;
-                let child_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Fork {
-                    parent_pid,
-                    parent_tgid,
-                    child_pid,
-                    child_tgid,
+                    parent_pid: buffer.read_i32::<NativeEndian>()?,
+                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
+                    child_pid: buffer.read_i32::<NativeEndian>()?,
+                    child_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Exec => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Exec {
-                    process_pid,
-                    process_tgid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Uid => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let ruid = buffer.read_u32::<NativeEndian>()?;
-                let euid = buffer.read_u32::<NativeEndian>()?;
                 ProcEvent::Uid {
-                    process_pid,
-                    process_tgid,
-                    ruid,
-                    euid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
+                    ruid: buffer.read_u32::<NativeEndian>()?,
+                    euid: buffer.read_u32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Gid => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let rgid = buffer.read_u32::<NativeEndian>()?;
-                let egid = buffer.read_u32::<NativeEndian>()?;
                 ProcEvent::Gid {
-                    process_pid,
-                    process_tgid,
-                    rgid,
-                    egid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
+                    rgid: buffer.read_u32::<NativeEndian>()?,
+                    egid: buffer.read_u32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Sid => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Sid {
-                    process_pid,
-                    process_tgid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Ptrace => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let tracer_pid = buffer.read_i32::<NativeEndian>()?;
-                let tracer_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Ptrace {
-                    process_pid,
-                    process_tgid,
-                    tracer_pid,
-                    tracer_tgid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
+                    tracer_pid: buffer.read_i32::<NativeEndian>()?,
+                    tracer_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Comm => {
@@ -230,31 +255,21 @@ impl FromBytesWithInput for ProcEventHeader {
                 }
             }
             ProcEventType::Coredump => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let parent_pid = buffer.read_i32::<NativeEndian>()?;
-                let parent_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Coredump {
-                    process_pid,
-                    process_tgid,
-                    parent_pid,
-                    parent_tgid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
+                    parent_pid: buffer.read_i32::<NativeEndian>()?,
+                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::Exit | ProcEventType::NonzeroExit => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let exit_code = buffer.read_u32::<NativeEndian>()?;
-                let exit_signal = buffer.read_u32::<NativeEndian>()?;
-                let parent_pid = buffer.read_i32::<NativeEndian>()?;
-                let parent_tgid = buffer.read_i32::<NativeEndian>()?;
                 ProcEvent::Exit {
-                    process_pid,
-                    process_tgid,
-                    exit_code,
-                    exit_signal,
-                    parent_pid,
-                    parent_tgid,
+                    process_pid: buffer.read_i32::<NativeEndian>()?,
+                    process_tgid: buffer.read_i32::<NativeEndian>()?,
+                    exit_code: buffer.read_u32::<NativeEndian>()?,
+                    exit_signal: buffer.read_u32::<NativeEndian>()?,
+                    parent_pid: buffer.read_i32::<NativeEndian>()?,
+                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
                 }
             }
             ProcEventType::UnrecognizedConst(i) => {
