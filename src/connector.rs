@@ -1,95 +1,53 @@
 //! Connector module for netlink messages.
 
-use crate::nl::NlmsghdrBuilderError;
+use crate::FromBytesWithInput;
 use crate::{Header, Size, ToBytes};
-use derive_builder::{Builder, UninitializedFieldError};
+use byteorder::{NativeEndian, ReadBytesExt};
+use derive_builder::Builder;
 use getset::Getters;
+use std::io::Read;
 
 use crate as neli;
+
+pub trait CnMsgPayload {}
+
+impl CnMsgPayload for ProcCnMcastOp {}
+impl CnMsgPayload for ProcEventHeader {}
 
 /// Netlink connector message header and payload.
 #[derive(
     Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header,
 )]
-#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
-#[builder(build_fn(skip))]
+#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize> + CnMsgPayload")]
 #[builder(pattern = "owned")]
-pub struct CnMsg<P> {
+pub struct CnMsg<P: CnMsgPayload> {
     /// Index of the connector (idx)
     #[getset(get = "pub")]
-    idx: u32,
+    idx: CnMsgIdx,
     /// Value (val)
     #[getset(get = "pub")]
-    val: u32,
+    val: CnMsgVal,
     /// Sequence number
+    #[builder(default)]
     #[getset(get = "pub")]
     seq: u32,
     /// Acknowledgement number
+    #[builder(default)]
     #[getset(get = "pub")]
     ack: u32,
     /// Length of the payload
-    #[builder(setter(skip))]
+    #[builder(setter(skip), field(build = "std::mem::size_of::<P>() as _"))]
     #[getset(get = "pub")]
     len: u16,
     /// Flags
+    #[builder(default)]
     #[getset(get = "pub")]
     flags: u16,
-    /// Payload of netlink message
+    /// Payload of the netlink message
     #[neli(size = "len as usize")]
     #[neli(input = "(len as usize)")]
     #[getset(get = "pub")]
     pub(crate) payload: P,
-}
-
-use std::mem::size_of;
-
-impl<P: Size> CnMsgBuilder<P> {
-    /// Build [`CnMsg`].
-    pub fn build(self) -> Result<CnMsg<P>, NlmsghdrBuilderError> {
-        let idx = self
-            .idx
-            .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("idx")))?;
-        let val = self
-            .val
-            .ok_or_else(|| NlmsghdrBuilderError::from(UninitializedFieldError::new("val")))?;
-        let seq = self.seq.unwrap_or(0);
-        let ack = self.ack.unwrap_or(0);
-        let flags = self.flags.unwrap_or(0);
-        let payload = self.payload.ok_or_else(|| {
-            NlmsghdrBuilderError::from(UninitializedFieldError::new("payload"))
-        })?;
-
-        let cn_msg = CnMsg {
-            idx,
-            val,
-            seq,
-            ack,
-            len: size_of::<P>() as u16,
-            flags,
-            payload,
-        };
-        Ok(cn_msg)
-    }
-}
-
-use crate::FromBytesWithInput;
-use byteorder::{NativeEndian, ReadBytesExt};
-use std::io::Read;
-
-/// Process event type as reported by the kernel connector.
-#[neli::neli_enum(serialized_type = "u32")]
-pub enum ProcEventType {
-    None = 0x00000000,
-    Fork = 0x00000001,
-    Exec = 0x00000002,
-    Uid = 0x00000004,
-    Gid = 0x00000040,
-    Sid = 0x00000080,
-    Ptrace = 0x00000100,
-    Comm = 0x00000200,
-    NonzeroExit = 0x20000000,
-    Coredump = 0x40000000,
-    Exit = 0x80000000,
 }
 
 /// Ergonomic enum for process event data.
@@ -154,12 +112,12 @@ pub enum ProcEvent {
 /// Header for process event messages.
 #[derive(Debug, Size)]
 pub struct ProcEventHeader {
-    pub what: ProcEventType,
     pub cpu: u32,
     pub timestamp_ns: u64,
     pub event: ProcEvent,
 }
 
+use crate::consts::connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp, ProcEventType};
 use crate::err::{DeError, MsgError};
 use log::trace;
 use std::io::Cursor;
@@ -307,7 +265,6 @@ impl FromBytesWithInput for ProcEventHeader {
         };
 
         Ok(ProcEventHeader {
-            what,
             cpu,
             timestamp_ns,
             event,
