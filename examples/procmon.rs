@@ -1,7 +1,7 @@
 //! A small process monitor example using netlink connector messages.
 //!
 //! You must run this example with root privileges, in the root pid namespace
-//! 
+//!
 //! See this blog post for more details:
 //! https://nick-black.com/dankwiki/index.php/The_Proc_Connector_and_Socket_Filters
 

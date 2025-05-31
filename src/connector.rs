@@ -2,7 +2,7 @@
 
 use crate::{
     self as neli,
-    consts::connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp, ProcEventType},
+    consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
     err::{DeError, MsgError},
     FromBytesWithInput, Header, Size, ToBytes,
 };
@@ -12,19 +12,13 @@ use getset::Getters;
 use log::trace;
 use std::{io::Cursor, io::Read};
 
-/// A trait for types that can be used as payloads in netlink connector messages.
-pub trait CnMsgPayload {}
-
-impl CnMsgPayload for ProcCnMcastOp {}
-impl CnMsgPayload for ProcEventHeader {}
-
 /// Netlink connector message header and payload.
 #[derive(
     Builder, Getters, Clone, Debug, PartialEq, Eq, Size, ToBytes, FromBytesWithInput, Header,
 )]
-#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize> + CnMsgPayload")]
+#[neli(from_bytes_bound = "P: Size + FromBytesWithInput<Input = usize>")]
 #[builder(pattern = "owned")]
-pub struct CnMsg<P: CnMsgPayload + Size> {
+pub struct CnMsg<P: Size> {
     /// Index of the connector (idx)
     #[getset(get = "pub")]
     idx: CnMsgIdx,
@@ -40,7 +34,10 @@ pub struct CnMsg<P: CnMsgPayload + Size> {
     #[getset(get = "pub")]
     ack: u32,
     /// Length of the payload
-    #[builder(setter(skip), default = "self.payload.as_ref().unwrap().unpadded_size() as _")]
+    #[builder(
+        setter(skip),
+        default = "self.payload.as_ref().unwrap().unpadded_size() as _"
+    )]
     #[getset(get = "pub")]
     len: u16,
     /// Flags
@@ -48,6 +45,9 @@ pub struct CnMsg<P: CnMsgPayload + Size> {
     #[getset(get = "pub")]
     flags: u16,
     /// Payload of the netlink message
+    ///
+    /// You can either use predefined types like `ProcCnMcastOp` or `ProcEventHeader`,
+    /// a custom type that implements `CnMsgPayload` or ``Vec<u8>` for raw payload.
     #[neli(size = "len as usize")]
     #[neli(input = "(len as usize)")]
     #[getset(get = "pub")]
@@ -196,53 +196,41 @@ impl FromBytesWithInput for ProcEventHeader {
         let timestamp_ns = buffer.read_u64::<NativeEndian>()?;
 
         let event = match what {
-            ProcEventType::None => {
-                ProcEvent::Ack { err: buffer.read_u32::<NativeEndian>()? }
-            }
-            ProcEventType::Fork => {
-                ProcEvent::Fork {
-                    parent_pid: buffer.read_i32::<NativeEndian>()?,
-                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
-                    child_pid: buffer.read_i32::<NativeEndian>()?,
-                    child_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Exec => {
-                ProcEvent::Exec {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Uid => {
-                ProcEvent::Uid {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                    ruid: buffer.read_u32::<NativeEndian>()?,
-                    euid: buffer.read_u32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Gid => {
-                ProcEvent::Gid {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                    rgid: buffer.read_u32::<NativeEndian>()?,
-                    egid: buffer.read_u32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Sid => {
-                ProcEvent::Sid {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Ptrace => {
-                ProcEvent::Ptrace {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                    tracer_pid: buffer.read_i32::<NativeEndian>()?,
-                    tracer_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
+            ProcEventType::None => ProcEvent::Ack {
+                err: buffer.read_u32::<NativeEndian>()?,
+            },
+            ProcEventType::Fork => ProcEvent::Fork {
+                parent_pid: buffer.read_i32::<NativeEndian>()?,
+                parent_tgid: buffer.read_i32::<NativeEndian>()?,
+                child_pid: buffer.read_i32::<NativeEndian>()?,
+                child_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
+            ProcEventType::Exec => ProcEvent::Exec {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
+            ProcEventType::Uid => ProcEvent::Uid {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+                ruid: buffer.read_u32::<NativeEndian>()?,
+                euid: buffer.read_u32::<NativeEndian>()?,
+            },
+            ProcEventType::Gid => ProcEvent::Gid {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+                rgid: buffer.read_u32::<NativeEndian>()?,
+                egid: buffer.read_u32::<NativeEndian>()?,
+            },
+            ProcEventType::Sid => ProcEvent::Sid {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
+            ProcEventType::Ptrace => ProcEvent::Ptrace {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+                tracer_pid: buffer.read_i32::<NativeEndian>()?,
+                tracer_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
             ProcEventType::Comm => {
                 let process_pid = buffer.read_i32::<NativeEndian>()?;
                 let process_tgid = buffer.read_i32::<NativeEndian>()?;
@@ -254,31 +242,27 @@ impl FromBytesWithInput for ProcEventHeader {
                     comm,
                 }
             }
-            ProcEventType::Coredump => {
-                ProcEvent::Coredump {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                    parent_pid: buffer.read_i32::<NativeEndian>()?,
-                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
-            ProcEventType::Exit | ProcEventType::NonzeroExit => {
-                ProcEvent::Exit {
-                    process_pid: buffer.read_i32::<NativeEndian>()?,
-                    process_tgid: buffer.read_i32::<NativeEndian>()?,
-                    exit_code: buffer.read_u32::<NativeEndian>()?,
-                    exit_signal: buffer.read_u32::<NativeEndian>()?,
-                    parent_pid: buffer.read_i32::<NativeEndian>()?,
-                    parent_tgid: buffer.read_i32::<NativeEndian>()?,
-                }
-            }
+            ProcEventType::Coredump => ProcEvent::Coredump {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+                parent_pid: buffer.read_i32::<NativeEndian>()?,
+                parent_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
+            ProcEventType::Exit | ProcEventType::NonzeroExit => ProcEvent::Exit {
+                process_pid: buffer.read_i32::<NativeEndian>()?,
+                process_tgid: buffer.read_i32::<NativeEndian>()?,
+                exit_code: buffer.read_u32::<NativeEndian>()?,
+                exit_signal: buffer.read_u32::<NativeEndian>()?,
+                parent_pid: buffer.read_i32::<NativeEndian>()?,
+                parent_tgid: buffer.read_i32::<NativeEndian>()?,
+            },
             ProcEventType::UnrecognizedConst(i) => {
                 return Err(DeError::Msg(MsgError::new(format!(
                     "Unrecognized Proc event type: {i} (raw value: {what_val})"
                 ))));
             }
         };
-        
+
         // consume the entire len, because the kernel can pad the event data with zeros
         buffer.set_position(start as u64 + input as u64);
 
