@@ -1,5 +1,22 @@
-//! Connector module for netlink messages.
-
+//! Connector module for Linux Netlink connector messages.
+//!
+//! This module provides support for the Linux Netlink connector subsystem,
+//! which creates a communication channel between userspace programs and the kernel.
+//! It allows applications to receive notifications about various kernel events.
+//!
+//! This module currently provides full support for the Linux proc connector protocol,
+//! enabling the reception and handling of process lifecycle events such as creation,
+//! termination, exec, UID/GID/sid changes, tracing, name changes, and core dumps.
+//!
+//! ## Supported protocols
+//! At this time, only the proc connector (`PROC_CN`) protocol is fully implemented.
+//!
+//! ## Extensibility
+//! The implementation can be extended in two ways:
+//! 1. By defining additional types and logic in your own crate and using them with this module.
+//! 2. By using a `Vec<u8>` as a payload and manually parsing protocol messages to suit other connector protocols.
+//!
+//! This design allows both high-level ergonomic handling of proc events and low-level manual parsing for custom needs.
 use crate::{
     self as neli,
     consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
@@ -47,12 +64,14 @@ pub struct CnMsg<P: Size> {
     /// Payload of the netlink message
     ///
     /// You can either use predefined types like `ProcCnMcastOp` or `ProcEventHeader`,
-    /// a custom type that implements `CnMsgPayload` or ``Vec<u8>` for raw payload.
+    /// a custom type defined by you or `Vec<u8>` for raw payload.
     #[neli(size = "len as usize")]
     #[neli(input = "(len as usize)")]
     #[getset(get = "pub")]
     pub(crate) payload: P,
 }
+
+// -- proc connector structs --
 
 /// Header for process event messages.
 #[derive(Debug, Size)]
@@ -271,5 +290,51 @@ impl FromBytesWithInput for ProcEventHeader {
             timestamp_ns,
             event,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static RAW_RESPONSE: &[u8] = &[
+        1, 0, 0, 0, 1, 0, 0, 0, 122, 2, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 184,
+        52, 84, 25, 71, 2, 0, 0, 127, 22, 0, 0, 127, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0,
+    ];
+
+    #[test]
+    fn parse_static_proc_header() {
+        let mut cursor = Cursor::new(&RAW_RESPONSE);
+
+        let msg: CnMsg<ProcEventHeader> =
+            CnMsg::from_bytes_with_input(&mut cursor, RAW_RESPONSE.len()).unwrap();
+
+        assert_eq!(msg.idx(), &CnMsgIdx::Proc);
+        assert_eq!(msg.val(), &CnMsgVal::Proc);
+        assert_eq!(msg.payload.cpu, 1);
+        assert_eq!(msg.payload.timestamp_ns, 2504390882488);
+        match &msg.payload.event {
+            ProcEvent::Exec {
+                process_pid,
+                process_tgid,
+            } => {
+                assert_eq!(*process_pid, 5759);
+                assert_eq!(*process_tgid, 5759);
+            }
+            _ => panic!("Expected Exec event"),
+        }
+    }
+
+    #[test]
+    fn parse_static_raw_data() {
+        let mut cursor = Cursor::new(&RAW_RESPONSE);
+
+        let msg: CnMsg<Vec<u8>> =
+            CnMsg::from_bytes_with_input(&mut cursor, RAW_RESPONSE.len()).unwrap();
+
+        assert_eq!(msg.idx(), &CnMsgIdx::Proc);
+        assert_eq!(msg.val(), &CnMsgVal::Proc);
+        assert_eq!(msg.payload, RAW_RESPONSE[CnMsg::<Vec<u8>>::header_size()..]);
     }
 }
