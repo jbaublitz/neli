@@ -428,6 +428,8 @@ mod test {
 
     use std::net::Ipv4Addr;
 
+    use byteorder::{NativeEndian, WriteBytesExt};
+
     use crate::{
         consts::{nl::NlmF, socket::NlFamily},
         err::RouterError,
@@ -441,8 +443,11 @@ mod test {
     fn test_rta_deserialize() {
         setup();
 
-        let buf = &4u32.to_ne_bytes() as &[u8];
-        Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap();
+        let mut buf = Cursor::new(vec![]);
+        buf.write_u16::<NativeEndian>(4).unwrap();
+        buf.write_u16::<NativeEndian>(0).unwrap();
+        buf.set_position(0);
+        Rtattr::<Rta, Buffer>::from_bytes(&mut buf).unwrap();
     }
 
     #[test]
@@ -450,8 +455,11 @@ mod test {
         setup();
 
         // 3 bytes is below minimum length
-        let buf = &3u32.to_ne_bytes() as &[u8];
-        Rtattr::<Rta, Buffer>::from_bytes(&mut Cursor::new(buf)).unwrap_err();
+        let mut buf = Cursor::new(vec![]);
+        buf.write_u16::<NativeEndian>(3).unwrap();
+        buf.write_u16::<NativeEndian>(0).unwrap();
+        buf.set_position(0);
+        Rtattr::<Rta, Buffer>::from_bytes(&mut buf).unwrap_err();
     }
 
     #[test]
