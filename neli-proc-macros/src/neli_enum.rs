@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
-    parse, parse_str, Arm, Attribute, Expr, Ident, ItemEnum, Lit, Meta, Path, Token, Type, Variant,
+    Arm, Attribute, Expr, Ident, ItemEnum, Lit, Meta, Path, Token, Type, Variant, parse, parse_str,
 };
 
 use crate::shared::remove_bad_attrs;

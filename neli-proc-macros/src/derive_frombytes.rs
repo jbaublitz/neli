@@ -1,8 +1,8 @@
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{parse_str, Attribute, Fields, Ident, ItemStruct, Type};
+use syn::{Attribute, Fields, Ident, ItemStruct, Type, parse_str};
 
-use crate::shared::{process_input, process_size, process_skip_debug, StructInfo};
+use crate::shared::{StructInfo, process_input, process_size, process_skip_debug};
 
 fn process_attrs(field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 {
     let input = process_input(&field_attrs);
@@ -106,7 +106,7 @@ pub fn impl_frombytes_struct(
 
     if field_names.is_empty() {
         return quote! {
-            impl#generics neli::#trt for #struct_name#generics_without_bounds {
+            impl #generics neli::#trt for #struct_name #generics_without_bounds {
                 #input_type
 
                 fn #method_name(buffer: &mut std::io::Cursor<impl AsRef<[u8]>> #input) -> Result<Self, neli::err::DeError> {
@@ -137,14 +137,14 @@ pub fn impl_frombytes_struct(
 
     let padding = if padded {
         quote! {
-            <#struct_name#generics_without_bounds as neli::FromBytes>::strip(buffer)?;
+            <#struct_name #generics_without_bounds as neli::FromBytes>::strip(buffer)?;
         }
     } else {
         TokenStream2::new()
     };
 
     quote! {
-        impl#generics neli::#trt for #struct_name#generics_without_bounds {
+        impl #generics neli::#trt for #struct_name #generics_without_bounds {
             #input_type
 
             fn #method_name(buffer: &mut std::io::Cursor<impl AsRef<[u8]>> #input) -> Result<Self, neli::err::DeError> {

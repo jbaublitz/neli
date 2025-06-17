@@ -18,12 +18,12 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
-    self as neli,
+    self as neli, FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes,
+    TypeSize,
     attr::{AttrHandle, Attribute},
     consts::genl::{Cmd, NlAttrType},
     err::{DeError, SerError},
     types::{Buffer, GenlBuffer},
-    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes, TypeSize,
 };
 
 /// Struct indicating that no user header is in the generic netlink packet.

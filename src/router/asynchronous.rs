@@ -9,12 +9,13 @@ use log::{error, trace, warn};
 use tokio::{
     spawn,
     sync::{
-        mpsc::{channel, error::TryRecvError, Receiver, Sender},
         Mutex,
+        mpsc::{Receiver, Sender, channel, error::TryRecvError},
     },
 };
 
 use crate::{
+    FromBytesWithInput, Size, ToBytes,
     consts::{
         genl::{CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, Index},
         nl::{GenlId, NlType, NlmF, Nlmsg},
@@ -26,7 +27,6 @@ use crate::{
     socket::asynchronous::NlSocketHandle,
     types::{Buffer, GenlBuffer, NlBuffer},
     utils::{Groups, NetlinkBitArray},
-    FromBytesWithInput, Size, ToBytes,
 };
 
 type GenlFamily = Result<

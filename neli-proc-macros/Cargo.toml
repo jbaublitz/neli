@@ -2,7 +2,7 @@
 name = "neli-proc-macros"
 version = "0.2.0"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
-edition = "2018"
+edition = "2024"
 description = "Procedural macros for neli"
 license = "BSD-3-Clause"
 repository = "https://github.com/jbaublitz/neli"
