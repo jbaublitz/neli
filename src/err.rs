@@ -21,6 +21,7 @@ use std::{
     io::{self, Cursor, ErrorKind},
     str::Utf8Error,
     string::FromUtf8Error,
+    sync::Arc,
 };
 
 use derive_builder::{Builder, UninitializedFieldError};
@@ -495,7 +496,7 @@ pub enum SocketError {
     /// A deserialization error.
     De(DeError),
     /// IO error.
-    Io(ErrorKind),
+    Io(Arc<io::Error>),
 }
 
 impl From<SerError> for SocketError {
@@ -512,7 +513,7 @@ impl From<DeError> for SocketError {
 
 impl From<io::Error> for SocketError {
     fn from(err: io::Error) -> Self {
-        SocketError::Io(err.kind())
+        SocketError::Io(Arc::new(err))
     }
 }
 
