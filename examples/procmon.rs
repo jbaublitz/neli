@@ -15,6 +15,8 @@ use neli::utils::Groups;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
     let pid = std::process::id();
     let socket = NlSocketHandle::connect(
         NlFamily::Connector,

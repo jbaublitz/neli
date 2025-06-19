@@ -17,6 +17,7 @@ use std::{
     mem::{size_of, swap},
 };
 
+use byteorder::{NativeEndian, ReadBytesExt as _};
 use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 use log::trace;
@@ -67,9 +68,25 @@ where
                 if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
                     Ok(NlPayload::Empty)
                 } else {
-                    Ok(NlPayload::Payload(P::from_bytes_with_input(
-                        buffer, input_size,
-                    )?))
+                    // we set back the buffer to get the flags
+                    // 10 = u16 + 2 * u32
+                    buffer.set_position(pos - 10);
+                    let flags: NlmF = buffer.read_u16::<NativeEndian>()?.into();
+                    buffer.set_position(pos);
+
+                    if flags.contains(NlmF::MULTI) {
+                        trace!(
+                            "Deserializing field type {}",
+                            std::any::type_name::<Nlmsgerr<()>>(),
+                        );
+                        trace!("Input: {:?}", input_size);
+                        let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
+                        Ok(NlPayload::DumpExtAck(ext))
+                    } else {
+                        Ok(NlPayload::Payload(P::from_bytes_with_input(
+                            buffer, input_size,
+                        )?))
+                    }
                 }
             } else if ty_const == Nlmsg::Error.into() {
                 trace!(
