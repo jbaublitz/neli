@@ -5,13 +5,17 @@
 //! See this blog post for more details:
 //! https://nick-black.com/dankwiki/index.php/The_Proc_Connector_and_Socket_Filters
 
-use neli::connector::{CnMsg, ProcEvent, ProcEventHeader};
-use neli::consts::connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp};
-use neli::consts::nl::{NlmF, Nlmsg};
-use neli::consts::socket::NlFamily;
-use neli::nl::{NlPayload, NlmsghdrBuilder};
-use neli::socket::synchronous::NlSocketHandle;
-use neli::utils::Groups;
+use neli::{
+    connector::{CnMsg, ProcEvent, ProcEventHeader},
+    consts::{
+        connector::{CnMsgIdx, CnMsgVal, ProcCnMcastOp},
+        nl::{NlmF, Nlmsg},
+        socket::NlFamily,
+    },
+    nl::{NlPayload, NlmsghdrBuilder},
+    socket::synchronous::NlSocketHandle,
+    utils::Groups,
+};
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
