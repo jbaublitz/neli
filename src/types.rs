@@ -8,6 +8,7 @@
 
 use std::{
     fmt::{self, Debug},
+    io::{Read, Write},
     iter::FromIterator,
     slice::{Iter, IterMut},
 };
@@ -24,8 +25,34 @@ use crate::{
 };
 
 /// A buffer of bytes.
-#[derive(Clone, PartialEq, Eq, Size, FromBytesWithInput, ToBytes)]
-pub struct Buffer(#[neli(input)] Vec<u8>);
+#[derive(Clone, PartialEq, Eq, Size)]
+pub struct Buffer(Vec<u8>);
+
+impl FromBytesWithInput for Buffer {
+    type Input = usize;
+
+    fn from_bytes_with_input(
+        buffer: &mut std::io::Cursor<impl AsRef<[u8]>>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        if buffer.position() as usize + input > buffer.get_ref().as_ref().len() {
+            return Err(DeError::InvalidInput(input));
+        }
+
+        let mut vec = vec![0u8; input];
+
+        buffer.read_exact(&mut vec)?;
+
+        Ok(Self::from(vec))
+    }
+}
+
+impl ToBytes for Buffer {
+    fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), crate::err::SerError> {
+        buffer.write_all(self.0.as_slice())?;
+        Ok(())
+    }
+}
 
 impl Debug for Buffer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -54,6 +81,12 @@ impl<'a> From<&'a [u8]> for Buffer {
 impl From<Vec<u8>> for Buffer {
     fn from(vec: Vec<u8>) -> Self {
         Buffer(vec)
+    }
+}
+
+impl From<Buffer> for Vec<u8> {
+    fn from(buf: Buffer) -> Self {
+        buf.0
     }
 }
 
