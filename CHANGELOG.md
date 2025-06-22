@@ -11,6 +11,7 @@ support the use case of borrowing payloads from attributes as `&str` or `&[u8]`.
 it's corresponding synchronous API.
 * All `new()` methods and public fields on data structures used to construct packets
 have been replaced by the builder pattern.
+* The IO error variant is now the full IO error wrapped in an `Arc`.
 
 ### New Cargo features
 * `sync` has been added as a Cargo feature. If a user is only interested in asynchronous
@@ -23,6 +24,10 @@ information in error cases.
 * New router infrastructure allowing ACK handling, seq management, and PID validation
 for requests sent in parallel.
 * Builder pattern defined for all data structures used to construct netlink packets.
+
+## Bug fixes
+* Fixed a mismatch between `libc::socklen_t` and `usize` in the list memberships call.
+This was causing failures on s390x in the tests.
 
 ### Dependency version updates
 * syn
