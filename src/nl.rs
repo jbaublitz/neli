@@ -53,11 +53,11 @@ where
     P: Size + FromBytesWithInput<Input = usize>,
     T: NlType,
 {
-    type Input = (usize, T);
+    type Input = (usize, T, NlmF);
 
     fn from_bytes_with_input(
         buffer: &mut Cursor<impl AsRef<[u8]>>,
-        (input_size, input_type): (usize, T),
+        (input_size, input_type, flags): (usize, T, NlmF),
     ) -> Result<Self, DeError> {
         let pos = buffer.position();
 
@@ -67,7 +67,7 @@ where
             if ty_const == Nlmsg::Done.into() {
                 if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
                     Ok(NlPayload::Empty)
-                } else {
+                } else if flags.contains(NlmF::MULTI) {
                     trace!(
                         "Deserializing field type {}",
                         std::any::type_name::<Nlmsgerr<()>>(),
@@ -75,6 +75,12 @@ where
                     trace!("Input: {:?}", input_size);
                     let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
                     Ok(NlPayload::DumpExtAck(ext))
+                } else {
+                    // This is specifically targeting the connector protocol.
+                    // As more protocols are added, this may need to be changed.
+                    Ok(NlPayload::Payload(P::from_bytes_with_input(
+                        buffer, input_size,
+                    )?))
                 }
             } else if ty_const == Nlmsg::Error.into() {
                 trace!(
@@ -163,7 +169,7 @@ pub struct Nlmsghdr<T, P> {
     #[getset(get = "pub")]
     nl_pid: u32,
     /// Payload of netlink message
-    #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type)")]
+    #[neli(input = "(nl_len as usize - Self::header_size() as usize, nl_type, nl_flags)")]
     #[neli(size = "nl_len as usize - Self::header_size() as usize")]
     #[getset(get = "pub")]
     pub(crate) nl_payload: NlPayload<T, P>,
