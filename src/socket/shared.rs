@@ -143,7 +143,7 @@ impl NlSocket {
     /// List joined groups for a socket.
     pub fn list_mcast_membership(&self) -> Result<NetlinkBitArray, io::Error> {
         let mut bit_array = NetlinkBitArray::new(4);
-        let mut len = bit_array.len();
+        let mut len: libc::socklen_t = bit_array.len() as libc::socklen_t;
         if unsafe {
             libc::getsockopt(
                 self.fd,
@@ -156,8 +156,8 @@ impl NlSocket {
         {
             return Err(io::Error::last_os_error());
         }
-        if len > bit_array.len() {
-            bit_array.resize(len);
+        if len > bit_array.len() as libc::socklen_t {
+            bit_array.resize(len as usize);
             if unsafe {
                 libc::getsockopt(
                     self.fd,
