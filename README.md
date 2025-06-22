@@ -148,7 +148,3 @@ release - this will look like `v[NEXT_VERSION]-dev`
 file
 * Once a PR has been reviewed and approved, please rebase onto the
 target branch
-  * For those less familiar with git, it should look something like
-this
-    * `git rebase [TARGET_BRANCH] [YOUR_BRANCH]`
-    * _This is a destructive operation so make sure you check carefully before doing this_: `git push -f origin [YOUR_BRANCH]`
