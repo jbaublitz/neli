@@ -3,8 +3,8 @@ use std::{
     iter::once,
     marker::PhantomData,
     sync::{
-        mpsc::{channel, Receiver, Sender, TryRecvError},
         Arc,
+        mpsc::{Receiver, Sender, TryRecvError, channel},
     },
     thread::spawn,
 };
@@ -13,6 +13,7 @@ use log::{error, trace, warn};
 use parking_lot::Mutex;
 
 use crate::{
+    FromBytesWithInput, Size, ToBytes,
     consts::{
         genl::{CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, Index},
         nl::{GenlId, NlType, NlmF, Nlmsg},
@@ -24,7 +25,6 @@ use crate::{
     socket::synchronous::NlSocketHandle,
     types::{Buffer, GenlBuffer, NlBuffer},
     utils::{Groups, NetlinkBitArray},
-    FromBytesWithInput, Size, ToBytes,
 };
 
 type GenlFamily = Result<
