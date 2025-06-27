@@ -70,7 +70,7 @@ where
                         "Deserializing field type {}",
                         std::any::type_name::<Nlmsgerr<()>>(),
                     );
-                    trace!("Input: {:?}", input_size);
+                    trace!("Input: {input_size:?}");
                     let ext = Nlmsgerr::from_bytes_with_input(buffer, input_size)?;
                     Ok(NlPayload::DumpExtAck(ext))
                 } else {
@@ -86,15 +86,15 @@ where
                     std::any::type_name::<libc::c_int>()
                 );
                 let code = libc::c_int::from_bytes(buffer)?;
-                trace!("Field deserialized: {:?}", code);
+                trace!("Field deserialized: {code:?}");
                 if code == 0 {
                     trace!(
                         "Deserializing field type {}",
                         std::any::type_name::<NlmsghdrErr<T, ()>>()
                     );
-                    trace!("Input: {:?}", input_size);
+                    trace!("Input: {input_size:?}");
                     let nlmsg = NlmsghdrAck::<T>::from_bytes(buffer)?;
-                    trace!("Field deserialized: {:?}", nlmsg);
+                    trace!("Field deserialized: {nlmsg:?}");
                     Ok(NlPayload::Ack(
                         NlmsgerrBuilder::default().nlmsg(nlmsg).build()?,
                     ))
@@ -104,16 +104,16 @@ where
                         std::any::type_name::<NlmsghdrErr<T, ()>>()
                     );
                     let nlmsg = NlmsghdrErr::<T, P>::from_bytes(buffer)?;
-                    trace!("Field deserialized: {:?}", nlmsg);
+                    trace!("Field deserialized: {nlmsg:?}");
 
                     trace!(
                         "Deserializing field type {}",
                         std::any::type_name::<GenlBuffer<u16, Buffer>>()
                     );
                     let input = input_size - size_of::<libc::c_int>() - nlmsg.padded_size();
-                    trace!("Input: {:?}", input);
+                    trace!("Input: {input:?}");
                     let ext_ack = GenlBuffer::from_bytes_with_input(buffer, input)?;
-                    trace!("Field deserialized: {:?}", ext_ack);
+                    trace!("Field deserialized: {ext_ack:?}");
 
                     Ok(NlPayload::Err(
                         NlmsgerrBuilder::default()

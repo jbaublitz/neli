@@ -18,10 +18,9 @@
 //!
 //! This design allows both high-level ergonomic handling of proc events and low-level manual parsing for custom needs.
 use crate::{
-    self as neli,
+    self as neli, FromBytesWithInput, Header, Size, ToBytes,
     consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
     err::{DeError, MsgError},
-    FromBytesWithInput, Header, Size, ToBytes,
 };
 use byteorder::{NativeEndian, ReadBytesExt};
 use derive_builder::Builder;
@@ -197,11 +196,7 @@ impl FromBytesWithInput for ProcEventHeader {
         let start = buffer.position() as usize;
         let bytes = buffer.get_ref().as_ref();
 
-        trace!(
-            "Parsing ProcEventHeader at position {} with input size {}",
-            start,
-            input
-        );
+        trace!("Parsing ProcEventHeader at position {start} with input size {input}");
 
         // Minimum size for header (16) + smallest event (ack: 4) is 20.
         if input < 16 || bytes.len() < start + input {

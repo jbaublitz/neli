@@ -43,7 +43,7 @@ where
         } else {
             match Nlmsghdr::from_bytes(&mut self.buffer).map_err(SocketError::from) {
                 Ok(msg) => {
-                    trace!("Message received: {:?}", msg);
+                    trace!("Message received: {msg:?}");
                     Some(Ok(msg))
                 }
                 Err(e) => {
