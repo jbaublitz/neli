@@ -47,6 +47,8 @@
 #[macro_use]
 mod macros;
 
+/// Constants related to netlink connector interface
+pub mod connector;
 /// Constants related to generic netlink
 pub mod genl;
 /// Constants related to netfilter netlink integration

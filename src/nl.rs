@@ -13,7 +13,6 @@
 //! application-level error handling.
 
 use std::{
-    any::type_name,
     io::Cursor,
     mem::{size_of, swap},
 };
@@ -61,7 +60,7 @@ where
         let pos = buffer.position();
 
         let mut processing = || {
-            trace!("Deserializing data type {}", type_name::<Self>());
+            trace!("Deserializing data type {}", std::any::type_name::<Self>());
             let ty_const: u16 = input_type.into();
             if ty_const == Nlmsg::Done.into() {
                 if buffer.position() == buffer.get_ref().as_ref().len() as u64 {
