@@ -135,6 +135,7 @@
 #![deny(missing_docs)]
 
 pub mod attr;
+pub mod connector;
 pub mod consts;
 pub mod err;
 pub mod genl;
@@ -170,7 +171,7 @@ pub trait Size {
     /// strings or byte buffers.
     fn unpadded_size(&self) -> usize;
 
-    /// Get the size of of the payload and align it to
+    /// Get the size of the payload and align it to
     /// the required netlink byte alignment.
     fn padded_size(&self) -> usize {
         alignto(self.unpadded_size())
@@ -444,6 +445,12 @@ impl FromBytesWithInput for String {
 impl Size for &'_ [u8] {
     fn unpadded_size(&self) -> usize {
         self.len()
+    }
+}
+
+impl<const N: usize> Size for [u8; N] {
+    fn unpadded_size(&self) -> usize {
+        N
     }
 }
 
