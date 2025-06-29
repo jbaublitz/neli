@@ -58,7 +58,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
             match socket.recv::<u16, Buffer>().await {
                 Ok((iter, group)) => {
                     for msg in iter {
-                        trace!("Message received: {:?}", msg);
+                        trace!("Message received: {msg:?}");
                         let mut seqs_to_remove = HashSet::new();
                         match msg {
                             Ok(m) => {
@@ -515,7 +515,7 @@ where
             return Some(Err(RouterError::NoAck));
         }
 
-        trace!("Router received message: {:?}", msg);
+        trace!("Router received message: {msg:?}");
 
         Some(Ok(msg))
     }

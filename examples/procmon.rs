@@ -54,14 +54,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             };
 
-            let exe = fs::read_link(format!("/proc/{}/exe", process_pid))
+            let exe = fs::read_link(format!("/proc/{process_pid}/exe"))
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| "unknown".to_string());
             let cmdline = cmdline_to_string(process_pid).unwrap_or_else(|_| "unknown".to_string());
-            println!(
-                "Process created: PID: {}, Exe: {}, Cmdline: {}",
-                process_pid, exe, cmdline
-            );
+            println!("Process created: PID: {process_pid}, Exe: {exe}, Cmdline: {cmdline}");
         }
     }
 }

@@ -154,7 +154,7 @@ impl NlSocketHandle {
 
         let vec = NlBuffer::from_bytes_with_input(&mut Cursor::new(buffer), bytes_read)?;
 
-        trace!("Messages received: {:?}", vec);
+        trace!("Messages received: {vec:?}");
 
         Ok((vec, groups))
     }
