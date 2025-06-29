@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     for response in recv {
         if let NlPayload::DumpExtAck(ack) = response?.nl_payload() {
-            println!("{:?}", ack);
+            println!("{ack:?}");
             println!(
                 "MSG: {}",
                 ack.ext_ack()

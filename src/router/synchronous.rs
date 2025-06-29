@@ -568,8 +568,8 @@ mod test {
             (Err(RouterError::Nlmsgerr(_)), Err(RouterError::Nlmsgerr(_))) => {
                 return;
             }
-            (Err(e), _) => panic!("Unexpected result from resolve_nl_mcast_group: {:?}", e),
-            (_, Err(e)) => panic!("Unexpected result from resolve_nl_mcast_group: {:?}", e),
+            (Err(e), _) => panic!("Unexpected result from resolve_nl_mcast_group: {e:?}"),
+            (_, Err(e)) => panic!("Unexpected result from resolve_nl_mcast_group: {e:?}"),
         };
 
         let groups = sock.list_mcast_membership().unwrap();
