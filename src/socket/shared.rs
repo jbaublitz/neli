@@ -102,6 +102,35 @@ impl NlSocket {
         Ok(())
     }
 
+    /// Set the size of the receive buffer for the socket.
+    ///
+    /// This can be useful when communicating with a service that sends a high volume of
+    /// messages (especially multicast), and your application cannot process them fast enough,
+    /// leading to the kernel dropping messages. A larger buffer may help mitigate this.
+    ///
+    /// The value passed is a hint to the kernel to set the size of the receive buffer.
+    /// The kernel will double the value provided to account for bookkeeping overhead.
+    /// The doubled value is capped by the value in `/proc/sys/net/core/rmem_max`.
+    ///
+    /// The default value is `/proc/sys/net/core/rmem_default`
+    ///
+    /// See `socket(7)` documentation for `SO_RCVBUF` for more information.
+    pub fn set_recv_buffer_size(&self, size: usize) -> Result<(), io::Error> {
+        let size = size as c_int;
+        match unsafe {
+            libc::setsockopt(
+                self.fd,
+                libc::SOL_SOCKET,
+                libc::SO_RCVBUF,
+                &size as *const _ as *const c_void,
+                size_of::<c_int>() as libc::socklen_t,
+            )
+        } {
+            0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
     /// Join multicast groups for a socket.
     pub fn add_mcast_membership(&self, groups: Groups) -> Result<(), io::Error> {
         for group in groups.as_groups() {

@@ -131,6 +131,25 @@ impl NlSocketHandle {
         Ok((vec, groups))
     }
 
+    /// Set the size of the receive buffer for the socket.
+    ///
+    /// This can be useful when communicating with a service that sends a high volume of
+    /// messages (especially multicast), and your application cannot process them fast enough,
+    /// leading to the kernel dropping messages. A larger buffer may help mitigate this.
+    ///
+    /// The value passed is a hint to the kernel to set the size of the receive buffer.
+    /// The kernel will double the value provided to account for bookkeeping overhead.
+    /// The doubled value is capped by the value in `/proc/sys/net/core/rmem_max`.
+    ///
+    /// The default value is `/proc/sys/net/core/rmem_default`
+    ///
+    /// See `socket(7)` documentation for `SO_RCVBUF` for more information.
+    pub fn set_recv_buffer_size(&self, size: usize) -> Result<(), SocketError> {
+        self.socket
+            .set_recv_buffer_size(size)
+            .map_err(SocketError::from)
+    }
+
     /// If [`true`] is passed in, enable extended ACKs for this socket. If [`false`]
     /// is passed in, disable extended ACKs for this socket.
     pub fn enable_ext_ack(&self, enable: bool) -> Result<(), SocketError> {
