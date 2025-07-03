@@ -442,6 +442,14 @@ impl FromBytesWithInput for String {
     }
 }
 
+impl<const N: usize> FromBytes for [u8; N] {
+    fn from_bytes(buffer: &mut Cursor<impl AsRef<[u8]>>) -> Result<Self, DeError> {
+        let mut arr = [0u8; N];
+        buffer.read_exact(&mut arr)?;
+        Ok(arr)
+    }
+}
+
 impl Size for &'_ [u8] {
     fn unpadded_size(&self) -> usize {
         self.len()
@@ -455,6 +463,13 @@ impl<const N: usize> Size for [u8; N] {
 }
 
 impl ToBytes for &'_ [u8] {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        buffer.write_all(self)?;
+        Ok(())
+    }
+}
+
+impl<const N: usize> ToBytes for [u8; N] {
     fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
         buffer.write_all(self)?;
         Ok(())
