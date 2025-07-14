@@ -90,7 +90,9 @@ impl_trait!(
     Rta,
     Tca,
     Nda,
-    IflaInfo
+    IflaInfo,
+    IflaVlan,
+    IflaVlanQos,
 );
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -168,6 +170,30 @@ pub enum IflaInfo {
     Xstats = libc::IFLA_INFO_XSTATS,
     SlaveKind = libc::IFLA_INFO_SLAVE_KIND,
     SlaveData = libc::IFLA_INFO_SLAVE_DATA,
+}
+
+/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+/// `rta_type`.
+/// Values are interface information message attributes. Used with
+/// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
+#[neli_enum(serialized_type = "libc::c_ushort")]
+pub enum IflaVlan {
+    Unspec = 0,
+    Id = 1,
+    Flags = 2,
+    EgressQos = 3,
+    IngressQos = 4,
+    Protocol = 5,
+}
+
+/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
+/// `rta_type`.
+/// Values are interface information message attributes. Used with
+/// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
+#[neli_enum(serialized_type = "libc::c_ushort")]
+pub enum IflaVlanQos {
+    Unspec = 0,
+    Mapping = 1,
 }
 
 /// rtnetlink-related values for `nl_type` in
@@ -440,5 +466,17 @@ impl_flags!(
         #[cfg(target_env = "gnu")]
         OFFLOADED = libc::NTF_OFFLOADED,
         ROUTER = libc::NTF_ROUTER,
+    }
+);
+
+impl_flags!(
+    /// Vlan flags
+    #[allow(missing_docs)]
+    pub VlanFlags: u8 {
+        REORDER_HDR = 0x1,
+        GVRP = 0x2,
+        LOOSE_BINDING = 0x4,
+        MVRP = 0x8,
+        BRIDGE_BINDING = 0x10,
     }
 );
