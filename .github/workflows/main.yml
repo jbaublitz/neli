@@ -34,11 +34,28 @@ jobs:
           override: true
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
-  glibc-checks:
+  formatting:
     strategy:
       matrix:
         task:
           - cargo fmt -- --check
+          - (cd neli-proc-macros && cargo fmt -- --check)
+        toolchain:
+          - stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
+        run: ${{ matrix.task }}
+  glibc-checks:
+    strategy:
+      matrix:
+        task:
           - cargo build
           - RUSTDOCFLAGS="-D warnings" cargo doc 
           - cargo build --no-default-features
@@ -47,7 +64,6 @@ jobs:
           - cargo build --examples
           - cargo build --examples --all-features
           - cargo test --all-features
-          - (cd neli-proc-macros && cargo fmt -- --check)
           - (cd neli-proc-macros && RUSTDOCFLAGS="-D warnings" cargo doc)
           - (cd neli-proc-macros && cargo build)
           - (cd neli-proc-macros && cargo test)
