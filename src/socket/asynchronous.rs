@@ -91,6 +91,30 @@ impl NlSocketHandle {
         Ok(())
     }
 
+    /// Send multiple messages on the socket asynchronously.
+    pub async fn send_batch<T, P>(&self, msgs: &[Nlmsghdr<T, P>]) -> Result<(), SocketError>
+    where
+        T: NlType,
+        P: Size + ToBytes,
+    {
+        let size = msgs.iter().map(|msg| msg.padded_size()).sum();
+
+        let mut buffer = Cursor::new(vec![0; size]);
+        msgs.iter().try_for_each(|msg| msg.to_bytes(&mut buffer))?;
+
+        loop {
+            let mut guard = self.socket.writable().await?;
+            match guard.try_io(|socket| socket.get_ref().send(buffer.get_ref(), Msg::empty())) {
+                Ok(Ok(_)) => {
+                    break;
+                }
+                Ok(Err(e)) => return Err(SocketError::from(e)),
+                Err(_) => (),
+            };
+        }
+        Ok(())
+    }
+
     /// Receive a message from the socket asynchronously.
     pub async fn recv<T, P>(
         &self,
