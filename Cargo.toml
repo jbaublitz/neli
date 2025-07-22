@@ -49,6 +49,9 @@ lazy_static = "1.4.0"
 version = "1"
 features = ["macros", "rt-multi-thread"]
 
+[build-dependencies]
+bindgen = "0.72.0"
+
 [features]
 default = ["sync"]
 sync = ["parking_lot"]
