@@ -57,7 +57,7 @@ jobs:
       matrix:
         task:
           - cargo build
-          - RUSTDOCFLAGS="-D warnings" cargo doc 
+          - RUSTDOCFLAGS="-D warnings" cargo doc
           - cargo build --no-default-features
           - cargo build --no-default-features --features=async
           - cargo build --all-features
@@ -78,6 +78,10 @@ jobs:
           components: rustfmt
           toolchain: ${{ matrix.toolchain }}
           override: true
+      - name: Update apt
+        run: sudo apt-get update
+      - name: Install clang
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y clang
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
   glibc-examples:
@@ -94,6 +98,10 @@ jobs:
           components: cargo
           toolchain: ${{ matrix.toolchain }}
           override: true
+      - name: Update apt
+        run: sudo apt-get update
+      - name: Install clang
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y clang
       - name: Build examples
         run: cargo build --examples
       - name: Run getips
@@ -102,7 +110,7 @@ jobs:
         run: ./target/debug/examples/ctrl-list
       - name: Run route-list
         run: ./target/debug/examples/route-list
-      - name: Run error_packet 
+      - name: Run error_packet
         run: ./target/debug/examples/error_packet
       - name: Run getlink
         run: ./target/debug/examples/getlink
@@ -118,39 +126,21 @@ jobs:
           - cargo build --examples
           - cargo build --examples --all-features
           - cargo test --all-features
-        toolchain:
-          - nightly
-          - stable
     runs-on: ubuntu-latest
     container: alpine
     steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
-        run: apk add --no-cache gcc libc6-compat musl-dev
-      - uses: actions-rs/toolchain@v1
-        with:
-          components: cargo
-          toolchain: ${{ matrix.toolchain }}
-          override: true
+        run: apk add --no-cache cargo rust gcc libc6-compat musl-dev clang-dev linux-headers
       - name: Test ${{ matrix.task }} on ${{ matrix.toolchain }} toolchain
         run: ${{ matrix.task }}
   musl-examples:
-    strategy:
-      matrix:
-        toolchain:
-          - nightly
-          - stable
     runs-on: ubuntu-latest
     container: alpine
     steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
-        run: apk add --no-cache gcc libc6-compat musl-dev
-      - uses: actions-rs/toolchain@v1
-        with:
-          components: cargo
-          toolchain: ${{ matrix.toolchain }}
-          override: true
+        run: apk add --no-cache cargo rust gcc libc6-compat musl-dev clang-dev linux-headers
       - name: Build examples
         run: cargo build --examples
       - name: Run getips
@@ -159,7 +149,7 @@ jobs:
         run: ./target/debug/examples/ctrl-list
       - name: Run route-list
         run: ./target/debug/examples/route-list
-      - name: Run error_packet 
+      - name: Run error_packet
         run: ./target/debug/examples/error_packet
       - name: Run getlink
         run: ./target/debug/examples/getlink
