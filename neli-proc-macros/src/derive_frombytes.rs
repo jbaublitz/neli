@@ -18,10 +18,12 @@ fn process_attrs(field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 
                     std::any::type_name::<#field_type>(),
                 );
                 let position = buffer.position() as usize;
-                log::trace!(
-                    "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref().as_ref()[position..position + #size],
-                );
+                let slice = buffer.get_ref().as_ref().get(position..position + #size);
+                if let Some(buf) = slice {
+                    log::trace!(
+                        "Buffer to be deserialized: {buf:?}",
+                    );
+                }
                 let ok = <#field_type as neli::FromBytesWithInput>::from_bytes_with_input(
                     buffer,
                     input,
@@ -37,10 +39,12 @@ fn process_attrs(field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 
                     std::any::type_name::<#field_type>(),
                 );
                 let position = buffer.position() as usize;
-                log::trace!(
-                    "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref().as_ref()[position..position + #size],
-                );
+                let slice = buffer.get_ref().as_ref().get(position..position + #size);
+                if let Some(buf) = slice {
+                    log::trace!(
+                        "Buffer to be deserialized: {buf:?}",
+                    );
+                }
                 let ok = <#field_type as neli::FromBytesWithInput>::from_bytes_with_input(
                     buffer,
                     input,
@@ -68,10 +72,14 @@ fn process_attrs(field_type: Type, field_attrs: Vec<Attribute>) -> TokenStream2 
                     std::any::type_name::<#field_type>(),
                 );
                 let position = buffer.position() as usize;
-                log::trace!(
-                    "Buffer to be deserialized: {:?}",
-                    &buffer.get_ref().as_ref()[position..position + <#field_type as neli::TypeSize>::type_size()],
-                );
+                let slice = buffer.get_ref()
+                    .as_ref()
+                    .get(position..position + <#field_type as neli::TypeSize>::type_size());
+                if let Some(buf) = slice {
+                    log::trace!(
+                        "Buffer to be deserialized: {buf:?}",
+                    );
+                }
                 let ok = <#field_type as neli::FromBytes>::from_bytes(buffer)?;
                 log::trace!("Field deserialized: {:?}", ok);
                 ok
