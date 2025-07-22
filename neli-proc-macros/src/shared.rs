@@ -1,15 +1,15 @@
 use std::{any::type_name, collections::HashMap};
 
 use proc_macro2::{Span, TokenStream as TokenStream2, TokenTree};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{
+    Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
+    ItemStruct, LitStr, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token, TraitBound,
+    TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
     parse::Parse,
     parse_str,
     punctuated::Punctuated,
     token::{PathSep, Plus},
-    Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
-    ItemStruct, LitStr, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token, TraitBound,
-    TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
 };
 
 /// Represents a field as either an identifier or an index.
