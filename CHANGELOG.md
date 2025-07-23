@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1
+### Features
+* Support `FromBytes` and `ToBytes` for statically sized arrays
+* Allow setting recv buffer size in socket
+* Support for the connector protocol
+
+### Maintenance
+* Clippy fixes
+* Update to Rust 2024 edition
+
 ## 0.7.0
 ### Breaking changes
 * `FromBytes` and `FromBytesWithInput` have had the lifetime parameter removed. This

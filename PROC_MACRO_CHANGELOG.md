@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+### Bug fixes
+* Change slice output for deserialized slices to a non-panicking variant.
+
 ## 0.2.0
 ### Breaking changes
 * Adapt to trait breaking changes introduced in neli v0.7.0. See info in
