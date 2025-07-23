@@ -236,6 +236,30 @@ pub struct Tcmsg {
     rtattrs: RtBuffer<Tca, Buffer>,
 }
 
+/// Struct representing VLAN Flags
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytes)]
+#[builder(pattern = "owned")]
+pub struct IflaVlanFlags {
+    /// Flags
+    #[getset(get = "pub")]
+    flags: VlanFlags,
+    /// Mask
+    #[getset(get = "pub")]
+    mask: VlanFlags,
+}
+
+/// Struct representing VLAN QoS mapping
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytes)]
+#[builder(pattern = "owned")]
+pub struct IflaVlanQosMapping {
+    /// From
+    #[getset(get = "pub")]
+    from: u32,
+    /// To
+    #[getset(get = "pub")]
+    to: u32,
+}
+
 /// Struct representing route netlink attributes
 #[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytes, Header)]
 #[neli(header_bound = "T: RtaType")]
