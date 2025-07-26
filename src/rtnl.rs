@@ -89,7 +89,7 @@ pub struct Ifaddrmsg {
     /// Interface address scope
     #[getset(get = "pub")]
     ifa_scope: RtScope,
-    /// Interface address index
+    /// Index of the interface that the address is associated with
     #[getset(get = "pub")]
     ifa_index: libc::c_uint,
     /// Payload of [`Rtattr`]s
