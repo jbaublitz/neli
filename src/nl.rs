@@ -209,7 +209,7 @@ impl<T, P> Nlmsghdr<T, P>
 where
     T: NlType,
 {
-    /// Get the payload if there is one or return an error.
+    /// Get the payload if there is one.
     pub fn get_payload(&self) -> Option<&P> {
         match self.nl_payload {
             NlPayload::Payload(ref p) => Some(p),
