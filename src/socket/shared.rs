@@ -203,6 +203,43 @@ impl NlSocket {
         Ok(bit_array)
     }
 
+    /// set whether credentials of the sending process are sent in an ancillary message
+    /// See `socket(7)` documentation for `SO_PASSCRED` for more information.
+    pub fn set_passcred(&self, passcred: bool) -> Result<(), io::Error> {
+        let passcred = passcred as c_int;
+        match unsafe {
+            libc::setsockopt(
+                self.fd,
+                libc::SOL_SOCKET,
+                libc::SO_PASSCRED,
+                &passcred as *const _ as *const c_void,
+                size_of::<c_int>() as _,
+            )
+        } {
+            0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
+    /// credentials of the sending process are sent in an ancillary message
+    /// See `socket(7)` documentation for `SO_PASSCRED` for more information.
+    pub fn passcred(&self) -> Result<bool, io::Error> {
+        let mut sock_len = size_of::<libc::c_int>() as libc::socklen_t;
+        let mut sock_val: MaybeUninit<libc::c_int> = MaybeUninit::uninit();
+        match unsafe {
+            libc::getsockopt(
+                self.fd,
+                libc::SOL_SOCKET,
+                libc::SO_PASSCRED,
+                &mut sock_val as *mut _ as *mut libc::c_void,
+                &mut sock_len as *mut _ as *mut libc::socklen_t,
+            )
+        } {
+            0 => Ok(unsafe { sock_val.assume_init() } != 0),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
     /// Send message encoded as byte slice to the netlink ID
     /// specified in the netlink header
     /// [`Nlmsghdr`][crate::nl::Nlmsghdr]
