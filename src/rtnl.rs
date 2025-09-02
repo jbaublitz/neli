@@ -99,6 +99,35 @@ pub struct Ifaddrmsg {
     rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
+/// Struct representing interface information messages
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
+pub struct Ifstatsmsg {
+    /// Interface address family
+    #[getset(get = "pub")]
+    family: RtAddrFamily,
+    /// Padding
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad1: u8,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad2: u16,
+    /// Interface index
+    #[getset(get = "pub")]
+    #[builder(default = "0")]
+    ifindex: libc::c_int,
+    /// Interface flags
+    #[getset(get = "pub")]
+    #[builder(default = "IflaStats::empty()")]
+    filter_mask: IflaStats,
+    /// Payload of [`Rtattr`]s
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifla, Buffer>,
+}
+
 /// General form of address family dependent message.  Used for
 /// requesting things from rtnetlink.
 #[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]

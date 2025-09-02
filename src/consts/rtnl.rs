@@ -408,6 +408,22 @@ impl_flags!(
     }
 );
 
+
+impl_flags!(
+    /// Values for `ifi_flags` in
+    /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
+    pub IflaStats: libc::c_uint {
+        UNSPEC = 0 as libc::c_uint,
+        LINK_64 = 1 as libc::c_uint,
+        LINK_XSTATS = 2 as libc::c_uint,
+        LINK_XSTATS_SLAVE = 3 as libc::c_uint,
+        LINK_OFFLOAD_XSTATS = 4 as libc::c_uint,
+        LINK_AF_SPEC = 5 as libc::c_uint,
+        MAX = 6 as libc::c_uint,
+        // Possibly more types here - need to look into private flags for interfaces
+    }
+);
+
 impl_flags!(
     /// Interface address flags
     pub IfaF: u8 {
