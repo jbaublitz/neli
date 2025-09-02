@@ -28,15 +28,9 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
-    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
-    consts::nl::{NlType, NlmF, NlmsgerrAttr},
-    genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
-    nl::{Nlmsghdr, NlmsghdrBuilderError},
-    rtnl::{
-        IfaddrmsgBuilderError, IfinfomsgBuilderError, NdaCacheinfoBuilderError, NdmsgBuilderError,
-        RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError,
-    },
-    types::{Buffer, GenlBuffer},
+    self as neli, consts::nl::{NlType, NlmF, NlmsgerrAttr}, genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError}, nl::{Nlmsghdr, NlmsghdrBuilderError}, rtnl::{
+        IfaddrmsgBuilderError, IfinfomsgBuilderError, IfstatsmsgBuilderError, NdaCacheinfoBuilderError, NdmsgBuilderError, RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError
+    }, types::{Buffer, GenlBuffer}, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize
 };
 
 /// A special struct that represents the contents of an ACK
@@ -250,6 +244,8 @@ pub enum BuilderError {
     Rtattr(RtattrBuilderError),
     #[allow(missing_docs)]
     NlmsghdrAck(NlmsghdrAckBuilderError),
+    #[allow(missing_docs)]
+    Ifstatsmsg(IfstatsmsgBuilderError),
 }
 
 impl Error for BuilderError {}
@@ -272,6 +268,7 @@ impl Display for BuilderError {
             BuilderError::Tcmsg(err) => write!(f, "{err}"),
             BuilderError::Rtattr(err) => write!(f, "{err}"),
             BuilderError::NlmsghdrAck(err) => write!(f, "{err}"),
+            BuilderError::Ifstatsmsg(err) => write!(f, "{err}"),
         }
     }
 }
