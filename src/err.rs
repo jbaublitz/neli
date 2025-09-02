@@ -363,6 +363,12 @@ impl From<NlmsghdrAckBuilderError> for BuilderError {
     }
 }
 
+impl From<IfstatsmsgBuilderError> for BuilderError {
+    fn from(e: IfstatsmsgBuilderError) -> Self {
+        BuilderError::Ifstatsmsg(e)
+    }
+}
+
 /// Sendable, clonable error that can be sent across channels in the router infrastructure
 /// to provide typed errors to all receivers indicating what went wrong.
 #[derive(Clone, Debug)]
