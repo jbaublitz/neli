@@ -32,6 +32,7 @@ use crate::{
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::{Nlmsghdr, NlmsghdrBuilderError},
+    rtnl::IfstatsmsgBuilderError,
     rtnl::{
         IfaddrmsgBuilderError,
         IfinfomsgBuilderError,
