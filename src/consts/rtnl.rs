@@ -249,6 +249,8 @@ pub enum Rtm {
     Newnsid = libc::RTM_NEWNSID,
     Delnsid = libc::RTM_DELNSID,
     Getnsid = libc::RTM_GETNSID,
+    Newstats = libc::RTM_NEWSTATS,
+    Getstats = libc::RTM_GETSTATS,
 }
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
