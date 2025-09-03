@@ -157,6 +157,21 @@ pub enum Ifla {
     AltIfname = libc::IFLA_ALT_IFNAME,
     PermAddress = libc::IFLA_PERM_ADDRESS,
     ProtoDownReason = libc::IFLA_PROTO_DOWN_REASON,
+    IflaParentDevName = libc::IFLA_PARENT_DEV_NAME,
+    IflaParentDevBusName = libc::IFLA_PARENT_DEV_BUS_NAME,
+    IflaGroMaxSize = libc::IFLA_GRO_MAX_SIZE,
+    IflaTsoMaxSize = libc::IFLA_TSO_MAX_SIZE,
+    IflaTsoMaxSegs = libc::IFLA_TSO_MAX_SEGS,
+    IflaAllmulti = libc::IFLA_ALLMULTI, /* Allmulti count: > 0 means acts ALLMULTI */
+
+    // Hardcoding because libc doesn't have these constants
+    IflaDevlinkPort = 62,
+
+    IflaGsoIpv4MaxSize = 63,
+    IflaGroIpv4MaxSize = 64,
+    IflaDpllPin = 65,
+    IflaMaxPacingOffloadHorizon = 66,
+    IflaNetnsImmutable = 67,
 }
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -407,7 +422,6 @@ impl_flags!(
         // Possibly more types here - need to look into private flags for interfaces
     }
 );
-
 
 impl_flags!(
     /// Values for `ifi_flags` in
