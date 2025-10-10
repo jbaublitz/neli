@@ -212,7 +212,7 @@ where
 impl<T> GenlBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
     /// underlying [`Nlattr`]s.
-    pub fn get_attr_handle(&self) -> AttrHandle<Self, Nlattr<T, Buffer>> {
+    pub fn get_attr_handle(&self) -> AttrHandle<'_, Self, Nlattr<T, Buffer>> {
         AttrHandle::new_borrowed(self.0.as_ref())
     }
 }
@@ -220,7 +220,7 @@ impl<T> GenlBuffer<T, Buffer> {
 impl GenlBuffer<u16, Buffer> {
     /// Convert a [`GenlBuffer`] that can represent all types to a buffer that
     /// is of a particular type.
-    pub fn get_typed_attr_handle<T>(&self) -> Result<GenlAttrHandle<T>, DeError>
+    pub fn get_typed_attr_handle<T>(&self) -> Result<GenlAttrHandle<'_, T>, DeError>
     where
         T: NlAttrType,
     {
@@ -339,7 +339,7 @@ where
 impl<T> RtBuffer<T, Buffer> {
     /// Get a data structure with an immutable reference to the
     /// underlying [`Rtattr`]s.
-    pub fn get_attr_handle(&self) -> RtAttrHandle<T> {
+    pub fn get_attr_handle(&self) -> RtAttrHandle<'_, T> {
         AttrHandle::new_borrowed(self.0.as_ref())
     }
 }

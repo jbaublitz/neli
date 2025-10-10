@@ -296,7 +296,7 @@ where
     }
 
     /// Return an `AttrHandle` for attributes nested in the given attribute payload
-    pub fn get_attr_handle<R>(&self) -> Result<GenlAttrHandle<R>, DeError>
+    pub fn get_attr_handle<R>(&self) -> Result<GenlAttrHandle<'_, R>, DeError>
     where
         R: NlAttrType,
     {
@@ -341,7 +341,7 @@ where
 {
     /// Get the payload of an attribute as a handle for parsing
     /// nested attributes
-    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<GenlAttrHandle<S>, DeError>
+    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<GenlAttrHandle<'_, S>, DeError>
     where
         S: NlAttrType,
     {
