@@ -432,12 +432,15 @@ impl FromBytesWithInput for String {
         buffer: &mut Cursor<impl AsRef<[u8]>>,
         input: usize,
     ) -> Result<Self, DeError> {
-        let s = String::from_utf8(
-            buffer.get_ref().as_ref()
-                [buffer.position() as usize..buffer.position() as usize + input - 1]
-                .to_vec(),
-        )?;
-        buffer.set_position(buffer.position() + input as u64);
+        let start = buffer.position() as usize;
+        let end = (start + input).saturating_sub(1);
+
+        let Some(slice) = buffer.get_ref().as_ref().get(start..end) else {
+            return Err(DeError::InvalidInput(start));
+        };
+
+        let s = std::str::from_utf8(slice)?.to_string();
+        buffer.set_position(end as u64 + 1);
         Ok(s)
     }
 }
@@ -722,5 +725,15 @@ mod test {
         let de_s = "AAAAA".to_string();
         let de = String::from_bytes_with_input(&mut Cursor::new(desired_s.as_bytes()), 6).unwrap();
         assert_eq!(de_s, de)
+    }
+
+    #[test]
+    fn test_nl_string_empty() {
+        setup();
+
+        assert_eq!(
+            String::new(),
+            String::from_bytes_with_input(&mut Cursor::new(String::new()), 0).unwrap(),
+        );
     }
 }
