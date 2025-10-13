@@ -79,12 +79,12 @@
 //!                 .build()?
 //!         ),
 //!     )?;
-//!     
+//!
 //!     for msg in recv {
 //!         let msg = msg?;
 //!         // Do things with response here...
 //!     }
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -115,7 +115,7 @@
 //!     s.add_mcast_membership(Groups::new_groups(&[id]))?;
 //!     for next in multicast {
 //!         // Do stuff here with parsed packets...
-//!     
+//!
 //!         // like printing a debug representation of them:
 //!         println!("{:?}", next?);
 //!     }
@@ -356,7 +356,7 @@ impl FromBytesWithInput for () {
 
     fn from_bytes_with_input(
         _: &mut Cursor<impl AsRef<[u8]>>,
-        input: usize,
+        input: Self::Input,
     ) -> Result<Self, DeError> {
         assert_eq!(input, 0);
         Ok(())
@@ -569,7 +569,7 @@ impl BeU64 {
 
 impl ToBytes for BeU64 {
     fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
-        buffer.write_all(&self.0.to_be_bytes() as &[u8])?;
+        buffer.write_all(&self.0.to_be_bytes())?;
         Ok(())
     }
 }
