@@ -408,17 +408,10 @@ impl<'a> FromBytesWithInputBorrowed<'a> for &'a str {
         buffer: &mut Cursor<&'a [u8]>,
         input: Self::Input,
     ) -> Result<Self, DeError> {
-        let start = buffer.position() as usize;
-        let end = start + input;
-
-        let Some(slice) = buffer.get_ref().get(start..end) else {
-            return Err(DeError::InvalidInput(input));
-        };
-
+        let slice: &[u8] = FromBytesWithInputBorrowed::from_bytes_with_input(buffer, input)?;
         let Ok(cstr) = std::ffi::CStr::from_bytes_with_nul(slice) else {
             return Err(DeError::InvalidInput(input));
         };
-
         Ok(cstr.to_str()?)
     }
 }
@@ -488,9 +481,16 @@ impl<const N: usize> ToBytes for [u8; N] {
 impl<'a> FromBytesWithInputBorrowed<'a> for &'a [u8] {
     type Input = usize;
 
-    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
-        let position = buffer.position() as usize;
-        Ok(&buffer.get_ref()[position..position + input])
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'a [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        let start = buffer.position() as usize;
+        let end = start + input;
+        match buffer.get_ref().get(start..end) {
+            Some(buf) => Ok(buf),
+            None => Err(DeError::InvalidInput(input)),
+        }
     }
 }
 
@@ -717,6 +717,19 @@ mod test {
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
         let de = Vec::<u8>::from_bytes_with_input(&mut Cursor::new(v), 9).unwrap();
         assert_eq!(vec, de.as_slice());
+    }
+
+    #[test]
+    fn test_nl_slice() {
+        setup();
+
+        let slice = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let ser_buffer = serialize(slice).unwrap();
+        assert_eq!(slice, ser_buffer.as_slice());
+
+        let de: &[u8] =
+            FromBytesWithInputBorrowed::from_bytes_with_input(&mut Cursor::new(slice), 9).unwrap();
+        assert_eq!(slice, de);
     }
 
     #[test]
