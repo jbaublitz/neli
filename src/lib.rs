@@ -404,11 +404,22 @@ impl ToBytes for &'_ str {
 impl<'a> FromBytesWithInputBorrowed<'a> for &'a str {
     type Input = usize;
 
-    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
-        let position = buffer.position() as usize;
-        Ok(str::from_utf8(
-            &buffer.get_ref()[position..position + input],
-        )?)
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'a [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        let start = buffer.position() as usize;
+        let end = start + input;
+
+        let Some(slice) = buffer.get_ref().get(start..end) else {
+            return Err(DeError::InvalidInput(input));
+        };
+
+        let Ok(cstr) = std::ffi::CStr::from_bytes_with_nul(slice) else {
+            return Err(DeError::InvalidInput(input));
+        };
+
+        Ok(cstr.to_str()?)
     }
 }
 
@@ -430,13 +441,11 @@ impl FromBytesWithInput for String {
 
     fn from_bytes_with_input(
         buffer: &mut Cursor<impl AsRef<[u8]>>,
-        input: usize,
+        input: Self::Input,
     ) -> Result<Self, DeError> {
-        let s = String::from_utf8(
-            buffer.get_ref().as_ref()
-                [buffer.position() as usize..buffer.position() as usize + input - 1]
-                .to_vec(),
-        )?;
+        let mut buffer = Cursor::new(buffer.get_ref().as_ref());
+        let s: &str = FromBytesWithInputBorrowed::from_bytes_with_input(&mut buffer, input)?;
+        let s = s.to_string();
         buffer.set_position(buffer.position() + input as u64);
         Ok(s)
     }
@@ -721,6 +730,24 @@ mod test {
 
         let de_s = "AAAAA".to_string();
         let de = String::from_bytes_with_input(&mut Cursor::new(desired_s.as_bytes()), 6).unwrap();
+        assert_eq!(de_s, de)
+    }
+
+    #[test]
+    fn test_nl_str() {
+        setup();
+
+        let s = "AAAAA";
+        let desired_s = "AAAAA\0";
+        let ser_buffer = serialize(&s).unwrap();
+        assert_eq!(desired_s.as_bytes(), ser_buffer.as_slice());
+
+        let de_s = "AAAAA";
+        let de: &str = FromBytesWithInputBorrowed::from_bytes_with_input(
+            &mut Cursor::new(desired_s.as_bytes()),
+            6,
+        )
+        .unwrap();
         assert_eq!(de_s, de)
     }
 }
