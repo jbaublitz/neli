@@ -526,26 +526,24 @@ where
         buffer: &mut Cursor<impl AsRef<[u8]>>,
         input: Self::Input,
     ) -> Result<Self, DeError> {
-        if buffer.position() as usize + input > buffer.get_ref().as_ref().len() {
+        let start = buffer.position() as usize;
+        let end = start + input;
+
+        if end > buffer.get_ref().as_ref().len() {
             return Err(DeError::InvalidInput(input));
         }
 
         let mut vec = Vec::new();
-        let orig_pos = buffer.position();
-        loop {
-            if buffer.position() as usize == orig_pos as usize + input {
-                break;
-            }
-
+        while buffer.position() as usize != end {
             match T::from_bytes(buffer) {
                 Ok(elem) => vec.push(elem),
                 Err(e) => {
-                    buffer.set_position(orig_pos);
+                    buffer.set_position(start as u64);
                     return Err(e);
                 }
             }
-            if buffer.position() as usize > orig_pos as usize + input {
-                buffer.set_position(orig_pos);
+            if buffer.position() as usize > end {
+                buffer.set_position(start as u64);
                 return Err(DeError::InvalidInput(input));
             }
         }
@@ -717,6 +715,19 @@ mod test {
         let v: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
         let de = Vec::<u8>::from_bytes_with_input(&mut Cursor::new(v), 9).unwrap();
         assert_eq!(vec, de.as_slice());
+    }
+
+    #[test]
+    fn test_nl_vec_of_arrays() {
+        setup();
+
+        let vec = vec![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+        let desired_vec = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let ser_buffer = serialize(&vec).unwrap();
+        assert_eq!(desired_vec, ser_buffer.as_slice());
+
+        let de = Vec::<[u8; 3]>::from_bytes_with_input(&mut Cursor::new(desired_vec), 9).unwrap();
+        assert_eq!(vec, de);
     }
 
     #[test]
