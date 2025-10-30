@@ -356,7 +356,7 @@ pub mod synchronous {
         /// Acquire a buffer for use.
         ///
         /// This method is backed by a semaphore.
-        pub fn acquire(&self) -> BufferPoolGuard {
+        pub fn acquire(&self) -> BufferPoolGuard<'_> {
             let mut sem_info = self.sem_info.lock();
             self.condvar
                 .wait_while(&mut sem_info, |sem_info| sem_info.count >= sem_info.max);
@@ -545,7 +545,7 @@ pub mod asynchronous {
         /// Acquire a buffer for use.
         ///
         /// This method is backed by a semaphore.
-        pub async fn acquire(&self) -> BufferPoolGuard {
+        pub async fn acquire(&self) -> BufferPoolGuard<'_> {
             let permit = self
                 .semaphore
                 .acquire()
