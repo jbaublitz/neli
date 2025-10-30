@@ -28,9 +28,16 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
-    self as neli, consts::nl::{NlType, NlmF, NlmsgerrAttr}, genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError}, nl::{Nlmsghdr, NlmsghdrBuilderError}, rtnl::{
-        IfaddrmsgBuilderError, IfinfomsgBuilderError, IfstatsmsgBuilderError, NdaCacheinfoBuilderError, NdmsgBuilderError, RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError
-    }, types::{Buffer, GenlBuffer}, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize
+    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
+    consts::nl::{NlType, NlmF, NlmsgerrAttr},
+    genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
+    nl::{Nlmsghdr, NlmsghdrBuilderError},
+    rtnl::{
+        IfaddrmsgBuilderError, IfinfomsgBuilderError, IfstatsmsgBuilderError,
+        NdaCacheinfoBuilderError, NdmsgBuilderError, RtattrBuilderError, RtgenmsgBuilderError,
+        RtmsgBuilderError, TcmsgBuilderError,
+    },
+    types::{Buffer, GenlBuffer},
 };
 
 /// A special struct that represents the contents of an ACK
