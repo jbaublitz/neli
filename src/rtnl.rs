@@ -375,7 +375,7 @@ where
 
     /// Return an [`AttrHandle`] for
     /// attributes nested in the given attribute payload.
-    pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<R>, DeError>
+    pub fn get_attr_handle<R>(&self) -> Result<RtAttrHandle<'_, R>, DeError>
     where
         R: RtaType,
     {
@@ -420,7 +420,7 @@ where
 {
     /// Get the payload of an attribute as a handle for parsing
     /// nested attributes.
-    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<RtAttrHandle<S>, DeError>
+    pub fn get_nested_attributes<S>(&self, subattr: T) -> Result<RtAttrHandle<'_, S>, DeError>
     where
         S: RtaType,
     {

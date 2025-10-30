@@ -392,7 +392,6 @@ pub enum Ifa {
     Anycast = libc::IFA_ANYCAST,
     Cacheinfo = libc::IFA_CACHEINFO,
     Multicast = libc::IFA_MULTICAST,
-    #[cfg(target_env = "gnu")]
     Flags = libc::IFA_FLAGS,
 }
 

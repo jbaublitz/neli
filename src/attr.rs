@@ -97,7 +97,7 @@ where
     }
 
     /// Pass back iterator over attributes
-    pub fn iter(&self) -> Iter<I> {
+    pub fn iter(&self) -> Iter<'_, I> {
         self.get_attrs().iter()
     }
 
