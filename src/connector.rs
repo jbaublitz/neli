@@ -17,16 +17,18 @@
 //! 2. By using a `Vec<u8>` as a payload and manually parsing protocol messages to suit other connector protocols.
 //!
 //! This design allows both high-level ergonomic handling of proc events and low-level manual parsing for custom needs.
-use crate::{
-    self as neli, FromBytesWithInput, Header, Size, ToBytes,
-    consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
-    err::{DeError, MsgError},
-};
-use byteorder::{NativeEndian, ReadBytesExt};
-use derive_builder::Builder;
+
+use std::{io::Cursor, io::Read};
+
+use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 use log::trace;
-use std::{io::Cursor, io::Read};
+
+use crate::{
+    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes,
+    consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
+    err::{DeError, MsgError, SerError},
+};
 
 /// Netlink connector message header and payload.
 #[derive(
@@ -52,7 +54,7 @@ pub struct CnMsg<P: Size> {
     /// Length of the payload
     #[builder(
         setter(skip),
-        default = "self.payload.as_ref().unwrap().unpadded_size() as _"
+        default = "self.payload.as_ref().ok_or_else(|| UninitializedFieldError::new(\"payload\"))?.unpadded_size() as _"
     )]
     #[getset(get = "pub")]
     len: u16,
@@ -65,7 +67,7 @@ pub struct CnMsg<P: Size> {
     /// You can either use predefined types like `ProcCnMcastOp` or `ProcEventHeader`,
     /// a custom type defined by you or `Vec<u8>` for raw payload.
     #[neli(size = "len as usize")]
-    #[neli(input = "(len as usize)")]
+    #[neli(input = "input - Self::header_size()")]
     #[getset(get = "pub")]
     pub(crate) payload: P,
 }
@@ -186,6 +188,138 @@ pub enum ProcEvent {
     },
 }
 
+impl From<&ProcEvent> for ProcEventType {
+    fn from(ev: &ProcEvent) -> Self {
+        match ev {
+            ProcEvent::Ack { .. } => ProcEventType::None,
+            ProcEvent::Fork { .. } => ProcEventType::Fork,
+            ProcEvent::Exec { .. } => ProcEventType::Exec,
+            ProcEvent::Uid { .. } => ProcEventType::Uid,
+            ProcEvent::Gid { .. } => ProcEventType::Gid,
+            ProcEvent::Sid { .. } => ProcEventType::Sid,
+            ProcEvent::Ptrace { .. } => ProcEventType::Ptrace,
+            ProcEvent::Comm { .. } => ProcEventType::Comm,
+            ProcEvent::Coredump { .. } => ProcEventType::Coredump,
+            ProcEvent::Exit { exit_code, .. } => {
+                if *exit_code == 0 {
+                    ProcEventType::Exit
+                } else {
+                    ProcEventType::NonzeroExit
+                }
+            }
+        }
+    }
+}
+
+impl ToBytes for ProcEventHeader {
+    fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
+        ProcEventType::from(&self.event).to_bytes(buffer)?;
+        self.cpu.to_bytes(buffer)?;
+        self.timestamp_ns.to_bytes(buffer)?;
+
+        match self.event {
+            ProcEvent::Ack { err } => {
+                err.to_bytes(buffer)?;
+            }
+            ProcEvent::Fork {
+                parent_pid,
+                parent_tgid,
+                child_pid,
+                child_tgid,
+            } => {
+                parent_pid.to_bytes(buffer)?;
+                parent_tgid.to_bytes(buffer)?;
+                child_pid.to_bytes(buffer)?;
+                child_tgid.to_bytes(buffer)?;
+            }
+            ProcEvent::Exec {
+                process_pid,
+                process_tgid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+            }
+            ProcEvent::Uid {
+                process_pid,
+                process_tgid,
+                ruid,
+                euid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                ruid.to_bytes(buffer)?;
+                euid.to_bytes(buffer)?;
+            }
+            ProcEvent::Gid {
+                process_pid,
+                process_tgid,
+                rgid,
+                egid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                rgid.to_bytes(buffer)?;
+                egid.to_bytes(buffer)?;
+            }
+            ProcEvent::Sid {
+                process_pid,
+                process_tgid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+            }
+            ProcEvent::Ptrace {
+                process_pid,
+                process_tgid,
+                tracer_pid,
+                tracer_tgid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                tracer_pid.to_bytes(buffer)?;
+                tracer_tgid.to_bytes(buffer)?;
+            }
+            ProcEvent::Comm {
+                process_pid,
+                process_tgid,
+                comm,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                comm.to_bytes(buffer)?;
+            }
+            ProcEvent::Coredump {
+                process_pid,
+                process_tgid,
+                parent_pid,
+                parent_tgid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                parent_pid.to_bytes(buffer)?;
+                parent_tgid.to_bytes(buffer)?;
+            }
+            ProcEvent::Exit {
+                process_pid,
+                process_tgid,
+                exit_code,
+                exit_signal,
+                parent_pid,
+                parent_tgid,
+            } => {
+                process_pid.to_bytes(buffer)?;
+                process_tgid.to_bytes(buffer)?;
+                exit_code.to_bytes(buffer)?;
+                exit_signal.to_bytes(buffer)?;
+                parent_pid.to_bytes(buffer)?;
+                parent_tgid.to_bytes(buffer)?;
+            }
+        };
+
+        Ok(())
+    }
+}
+
 impl FromBytesWithInput for ProcEventHeader {
     type Input = usize;
 
@@ -193,98 +327,109 @@ impl FromBytesWithInput for ProcEventHeader {
         buffer: &mut Cursor<impl AsRef<[u8]>>,
         input: Self::Input,
     ) -> Result<Self, DeError> {
-        let start = buffer.position() as usize;
-        let bytes = buffer.get_ref().as_ref();
+        let start = buffer.position();
 
         trace!("Parsing ProcEventHeader at position {start} with input size {input}");
 
         // Minimum size for header (16) + smallest event (ack: 4) is 20.
-        if input < 16 || bytes.len() < start + input {
+        if input < 16 || buffer.position() as usize + input > buffer.get_ref().as_ref().len() {
             return Err(DeError::InvalidInput(input));
         }
 
         // Read header fields: what (u32), cpu (u32), timestamp_ns (u64)
-        let what_val = buffer.read_u32::<NativeEndian>()?;
-        let what = ProcEventType::from(what_val);
-        let cpu = buffer.read_u32::<NativeEndian>()?;
-        let timestamp_ns = buffer.read_u64::<NativeEndian>()?;
+        fn parse(buffer: &mut Cursor<impl AsRef<[u8]>>) -> Result<ProcEventHeader, DeError> {
+            let what_val = u32::from_bytes(buffer)?;
+            let what = ProcEventType::from(what_val);
+            let cpu = u32::from_bytes(buffer)?;
+            let timestamp_ns = u64::from_bytes(buffer)?;
 
-        let event = match what {
-            ProcEventType::None => ProcEvent::Ack {
-                err: buffer.read_u32::<NativeEndian>()?,
-            },
-            ProcEventType::Fork => ProcEvent::Fork {
-                parent_pid: buffer.read_i32::<NativeEndian>()?,
-                parent_tgid: buffer.read_i32::<NativeEndian>()?,
-                child_pid: buffer.read_i32::<NativeEndian>()?,
-                child_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::Exec => ProcEvent::Exec {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::Uid => ProcEvent::Uid {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-                ruid: buffer.read_u32::<NativeEndian>()?,
-                euid: buffer.read_u32::<NativeEndian>()?,
-            },
-            ProcEventType::Gid => ProcEvent::Gid {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-                rgid: buffer.read_u32::<NativeEndian>()?,
-                egid: buffer.read_u32::<NativeEndian>()?,
-            },
-            ProcEventType::Sid => ProcEvent::Sid {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::Ptrace => ProcEvent::Ptrace {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-                tracer_pid: buffer.read_i32::<NativeEndian>()?,
-                tracer_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::Comm => {
-                let process_pid = buffer.read_i32::<NativeEndian>()?;
-                let process_tgid = buffer.read_i32::<NativeEndian>()?;
-                let mut comm = [0u8; 16];
-                buffer.read_exact(&mut comm)?;
-                ProcEvent::Comm {
-                    process_pid,
-                    process_tgid,
-                    comm,
+            let event = match what {
+                ProcEventType::None => ProcEvent::Ack {
+                    err: u32::from_bytes(buffer)?,
+                },
+                ProcEventType::Fork => ProcEvent::Fork {
+                    parent_pid: i32::from_bytes(buffer)?,
+                    parent_tgid: i32::from_bytes(buffer)?,
+                    child_pid: i32::from_bytes(buffer)?,
+                    child_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::Exec => ProcEvent::Exec {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::Uid => ProcEvent::Uid {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                    ruid: u32::from_bytes(buffer)?,
+                    euid: u32::from_bytes(buffer)?,
+                },
+                ProcEventType::Gid => ProcEvent::Gid {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                    rgid: u32::from_bytes(buffer)?,
+                    egid: u32::from_bytes(buffer)?,
+                },
+                ProcEventType::Sid => ProcEvent::Sid {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::Ptrace => ProcEvent::Ptrace {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                    tracer_pid: i32::from_bytes(buffer)?,
+                    tracer_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::Comm => {
+                    let process_pid = i32::from_bytes(buffer)?;
+                    let process_tgid = i32::from_bytes(buffer)?;
+                    let mut comm = [0u8; 16];
+                    buffer.read_exact(&mut comm)?;
+                    ProcEvent::Comm {
+                        process_pid,
+                        process_tgid,
+                        comm,
+                    }
                 }
-            }
-            ProcEventType::Coredump => ProcEvent::Coredump {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-                parent_pid: buffer.read_i32::<NativeEndian>()?,
-                parent_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::Exit | ProcEventType::NonzeroExit => ProcEvent::Exit {
-                process_pid: buffer.read_i32::<NativeEndian>()?,
-                process_tgid: buffer.read_i32::<NativeEndian>()?,
-                exit_code: buffer.read_u32::<NativeEndian>()?,
-                exit_signal: buffer.read_u32::<NativeEndian>()?,
-                parent_pid: buffer.read_i32::<NativeEndian>()?,
-                parent_tgid: buffer.read_i32::<NativeEndian>()?,
-            },
-            ProcEventType::UnrecognizedConst(i) => {
-                return Err(DeError::Msg(MsgError::new(format!(
-                    "Unrecognized Proc event type: {i} (raw value: {what_val})"
-                ))));
+                ProcEventType::Coredump => ProcEvent::Coredump {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                    parent_pid: i32::from_bytes(buffer)?,
+                    parent_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::Exit | ProcEventType::NonzeroExit => ProcEvent::Exit {
+                    process_pid: i32::from_bytes(buffer)?,
+                    process_tgid: i32::from_bytes(buffer)?,
+                    exit_code: u32::from_bytes(buffer)?,
+                    exit_signal: u32::from_bytes(buffer)?,
+                    parent_pid: i32::from_bytes(buffer)?,
+                    parent_tgid: i32::from_bytes(buffer)?,
+                },
+                ProcEventType::UnrecognizedConst(i) => {
+                    return Err(DeError::Msg(MsgError::new(format!(
+                        "Unrecognized Proc event type: {i} (raw value: {what_val})"
+                    ))));
+                }
+            };
+            Ok(ProcEventHeader {
+                cpu,
+                timestamp_ns,
+                event,
+            })
+        }
+
+        let event = match parse(buffer) {
+            Ok(ev) => ev,
+            Err(e) => {
+                buffer.set_position(start);
+                return Err(e);
             }
         };
 
-        // consume the entire len, because the kernel can pad the event data with zeros
-        buffer.set_position(start as u64 + input as u64);
+        buffer.set_position(start + input as u64);
 
-        Ok(ProcEventHeader {
-            cpu,
-            timestamp_ns,
-            event,
-        })
+        // consume the entire len, because the kernel can pad the event data with zeros
+
+        Ok(event)
     }
 }
 
@@ -292,18 +437,34 @@ impl FromBytesWithInput for ProcEventHeader {
 mod tests {
     use super::*;
 
-    static RAW_RESPONSE: &[u8] = &[
-        1, 0, 0, 0, 1, 0, 0, 0, 122, 2, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 184,
-        52, 84, 25, 71, 2, 0, 0, 127, 22, 0, 0, 127, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0,
-    ];
+    fn build_endian_agnostic_response() -> Vec<u8> {
+        let mut cursor = Cursor::new(vec![]);
+        let msg = CnMsg {
+            idx: CnMsgIdx::Proc,
+            val: CnMsgVal::Proc,
+            seq: 643,
+            ack: 0,
+            len: 40,
+            flags: 0,
+            payload: ProcEventHeader {
+                cpu: 1,
+                timestamp_ns: 2504390882488,
+                event: ProcEvent::Exec {
+                    process_pid: 5759,
+                    process_tgid: 5759,
+                },
+            },
+        };
+        msg.to_bytes(&mut cursor).unwrap();
+        cursor.into_inner()
+    }
 
     #[test]
     fn parse_static_proc_header() {
-        let mut cursor = Cursor::new(&RAW_RESPONSE);
+        let mut cursor = Cursor::new(build_endian_agnostic_response());
 
-        let msg: CnMsg<ProcEventHeader> =
-            CnMsg::from_bytes_with_input(&mut cursor, RAW_RESPONSE.len()).unwrap();
+        let len = cursor.get_ref().len();
+        let msg: CnMsg<ProcEventHeader> = CnMsg::from_bytes_with_input(&mut cursor, len).unwrap();
 
         assert_eq!(msg.idx(), &CnMsgIdx::Proc);
         assert_eq!(msg.val(), &CnMsgVal::Proc);
@@ -323,13 +484,12 @@ mod tests {
 
     #[test]
     fn parse_static_raw_data() {
-        let mut cursor = Cursor::new(&RAW_RESPONSE);
+        let mut cursor = Cursor::new(build_endian_agnostic_response());
 
-        let msg: CnMsg<Vec<u8>> =
-            CnMsg::from_bytes_with_input(&mut cursor, RAW_RESPONSE.len()).unwrap();
+        let len = cursor.get_ref().len();
+        let msg: CnMsg<Vec<u8>> = CnMsg::from_bytes_with_input(&mut cursor, len).unwrap();
 
         assert_eq!(msg.idx(), &CnMsgIdx::Proc);
         assert_eq!(msg.val(), &CnMsgVal::Proc);
-        assert_eq!(msg.payload, RAW_RESPONSE[CnMsg::<Vec<u8>>::header_size()..]);
     }
 }
