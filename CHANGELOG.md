@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2
+### Features
+* VLAN support
+
+### Bug fixes and maintenance
+* Fix connector tests for endianness
+* Clippy maintenance
+* nl80211 example updates
+* Doc improvements
+
 ## 0.7.1
 ### Features
 * Support `FromBytes` and `ToBytes` for statically sized arrays
