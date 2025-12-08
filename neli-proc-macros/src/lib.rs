@@ -7,7 +7,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Item, Meta, parse};
+use syn::{parse, Item, Meta};
 
 #[macro_use]
 mod shared;

@@ -28,7 +28,7 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
-    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
+    self as neli,
     consts::nl::{NlType, NlmF, NlmsgerrAttr},
     genl::{AttrTypeBuilderError, GenlmsghdrBuilderError, NlattrBuilderError},
     nl::{Nlmsghdr, NlmsghdrBuilderError},
@@ -37,6 +37,7 @@ use crate::{
         RtattrBuilderError, RtgenmsgBuilderError, RtmsgBuilderError, TcmsgBuilderError,
     },
     types::{Buffer, GenlBuffer},
+    FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
 /// A special struct that represents the contents of an ACK
@@ -603,9 +604,9 @@ impl SerError {
 impl Display for SerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SerError::Msg(s) => write!(f, "{s}"),
-            SerError::Io(err) => write!(f, "IO error: {err}"),
-            SerError::Utf8(err) => write!(f, "UTF error: {err}"),
+            SerError::Msg(ref s) => write!(f, "{s}"),
+            SerError::Io(ref err) => write!(f, "IO error: {err}"),
+            SerError::Utf8(ref err) => write!(f, "UTF error: {err}"),
         }
     }
 }

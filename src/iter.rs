@@ -5,7 +5,7 @@ use std::{io::Cursor, marker::PhantomData};
 use log::trace;
 
 use crate::{
-    FromBytes, FromBytesWithInput, Size, consts::nl::NlType, err::SocketError, nl::Nlmsghdr,
+    consts::nl::NlType, err::SocketError, nl::Nlmsghdr, FromBytes, FromBytesWithInput, Size,
 };
 
 /// Iterator over a single buffer received from a [`recv`][crate::socket::NlSocket::recv]

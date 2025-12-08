@@ -3,8 +3,8 @@ use quote::quote;
 use syn::{FieldsNamed, FieldsUnnamed, Ident, ItemEnum, ItemStruct};
 
 use crate::shared::{
-    FieldInfo, StructInfo, generate_arms, generate_named_fields, generate_unnamed_fields,
-    process_impl_generics, process_trait_bounds,
+    generate_arms, generate_named_fields, generate_unnamed_fields, process_impl_generics,
+    process_trait_bounds, FieldInfo, StructInfo,
 };
 
 pub fn impl_tobytes_struct(is: ItemStruct) -> TokenStream2 {
@@ -24,14 +24,14 @@ pub fn impl_tobytes_struct(is: ItemStruct) -> TokenStream2 {
 
     let padding = if padded {
         quote! {
-            <#struct_name #generics_without_bounds as neli::ToBytes>::pad(&self, buffer)?;
+            <#struct_name#generics_without_bounds as neli::ToBytes>::pad(&self, buffer)?;
         }
     } else {
         TokenStream2::new()
     };
 
     quote! {
-        impl #generics neli::ToBytes for #struct_name #generics_without_bounds {
+        impl#generics neli::ToBytes for #struct_name#generics_without_bounds {
             fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::err::SerError> {
                 #( <#field_types as neli::ToBytes>::to_bytes(&self.#field_names, buffer)?; )*
                 #padding
@@ -89,7 +89,7 @@ pub fn impl_tobytes_enum(ie: ItemEnum) -> TokenStream2 {
         },
     );
     quote! {
-        impl #generics neli::ToBytes for #enum_name #generics_without_bounds where #( #trait_bounds ),* {
+        impl#generics neli::ToBytes for #enum_name#generics_without_bounds where #( #trait_bounds ),* {
             fn to_bytes(&self, buffer: &mut std::io::Cursor<Vec<u8>>) -> Result<(), neli::err::SerError> {
                 match self {
                     #(#arms)*
