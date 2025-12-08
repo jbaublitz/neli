@@ -25,9 +25,10 @@ use getset::Getters;
 use log::trace;
 
 use crate::{
-    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes,
+    self as neli,
     consts::connector::{CnMsgIdx, CnMsgVal, ProcEventType},
     err::{DeError, MsgError, SerError},
+    FromBytes, FromBytesWithInput, Header, Size, ToBytes,
 };
 
 /// Netlink connector message header and payload.

@@ -2,19 +2,21 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
-    Arm, Attribute, Expr, Ident, ItemEnum, Lit, Meta, Path, Token, Type, Variant, parse, parse_str,
+    parse, parse_str, Arm, Attribute, Expr, Ident, ItemEnum, Lit, Meta, Path, Token, Type, Variant,
 };
 
 use crate::shared::remove_bad_attrs;
 
 fn parse_type_attr(attr: Meta) -> Type {
-    if let Meta::NameValue(nv) = attr
-        && nv.path == parse_str::<Path>("serialized_type").unwrap()
-        && let Expr::Lit(el) = nv.value
-        && let Lit::Str(ls) = el.lit
-    {
-        return parse_str::<Type>(&ls.value())
-            .unwrap_or_else(|_| panic!("Invalid type supplied: {}", ls.value()));
+    if let Meta::NameValue(nv) = attr {
+        if nv.path == parse_str::<Path>("serialized_type").unwrap() {
+            if let Expr::Lit(el) = nv.value {
+                if let Lit::Str(ls) = el.lit {
+                    return parse_str::<Type>(&ls.value())
+                        .unwrap_or_else(|_| panic!("Invalid type supplied: {}", ls.value()));
+                }
+            }
+        }
     }
 
     panic!("Attribute in the form #[neli(serialized_type = \"TYPE_LITERAL_STR\")] required")

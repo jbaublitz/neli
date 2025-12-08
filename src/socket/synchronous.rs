@@ -7,7 +7,6 @@ use std::{
 use log::trace;
 
 use crate::{
-    FromBytesWithInput, Size, ToBytes,
     consts::{nl::*, socket::*},
     err::SocketError,
     iter::NlBufferIter,
@@ -15,9 +14,10 @@ use crate::{
     socket::shared::NlSocket,
     types::NlBuffer,
     utils::{
-        Groups, NetlinkBitArray,
         synchronous::{BufferPool, BufferPoolGuard},
+        Groups, NetlinkBitArray,
     },
+    FromBytesWithInput, Size, ToBytes,
 };
 
 /// Higher level handle for socket operations.

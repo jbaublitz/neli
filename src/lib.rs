@@ -155,7 +155,7 @@ use std::{
 };
 
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
-pub use neli_proc_macros::{FromBytes, FromBytesWithInput, Header, Size, ToBytes, neli_enum};
+pub use neli_proc_macros::{neli_enum, FromBytes, FromBytesWithInput, Header, Size, ToBytes};
 
 use crate::{
     self as neli,

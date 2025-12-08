@@ -148,3 +148,19 @@ release - this will look like `v[NEXT_VERSION]-dev`
 file
 * Once a PR has been reviewed and approved, please rebase onto the
 target branch
+
+### Support matrix
+
+Currently support is defined as follows:
+* Edition updates will only be updated as part of breaking changes
+* Testing is done on nightly and stable and as such, both channels are considered supported
+  * Problems found on older versions that cannot be reproduced on nightly or stable
+    will be considered low-priority
+* The most recent breaking change release track will receive feature updates and bug
+  fixes
+* The past breaking change release track is elligible for bug fixes
+* All release tracks older than this are considered out of scope for support and
+  problems with these releases will be considered low-priority
+
+If you would like to propose a revision to these support guidelines, please open an
+issue.

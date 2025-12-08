@@ -1,6 +1,6 @@
 use std::{
     io,
-    mem::{MaybeUninit, size_of, zeroed},
+    mem::{size_of, zeroed, MaybeUninit},
     os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
 };
 

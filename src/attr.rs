@@ -12,9 +12,9 @@
 use std::{io::Cursor, slice::Iter};
 
 use crate::{
-    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Size, ToBytes,
     err::{DeError, SerError},
     types::Buffer,
+    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Size, ToBytes,
 };
 
 /// Trait that defines shared operations for netlink attributes.
