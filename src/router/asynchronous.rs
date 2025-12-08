@@ -395,12 +395,12 @@ impl NlRouter {
                 };
                 for group_by_index in groups.iter() {
                     let attributes = group_by_index.get_attr_handle::<CtrlAttrMcastGrp>()?;
-                    if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
-                        && mcid == id
-                    {
-                        let mcast_name = attributes
-                            .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)?;
-                        res = Ok((name.clone(), mcast_name));
+                    if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id) {
+                        if mcid == id {
+                            let mcast_name = attributes
+                                .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)?;
+                            res = Ok((name.clone(), mcast_name));
+                        }
                     }
                 }
             }
@@ -523,10 +523,10 @@ where
 
 impl<T, P> Drop for NlRouterReceiverHandle<T, P> {
     fn drop(&mut self) {
-        if let Some(seq) = self.seq
-            && let Ok(mut lock) = self.senders.try_lock()
-        {
-            lock.remove(&seq);
+        if let Some(seq) = self.seq {
+            if let Ok(mut lock) = self.senders.try_lock() {
+                lock.remove(&seq);
+            }
         }
     }
 }

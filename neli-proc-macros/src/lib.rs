@@ -53,7 +53,7 @@ use neli_enum::*;
 pub fn neli_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr_string = attr.to_string();
     let meta =
-        parse::<Meta>(attr).unwrap_or_else(|_| panic!("{attr_string} is not a valid attribute"));
+        parse::<Meta>(attr).unwrap_or_else(|_| panic!("{} is not a valid attribute", attr_string));
     let enum_item = parse::<Item>(item).unwrap();
 
     let enm = if let Item::Enum(e) = enum_item {

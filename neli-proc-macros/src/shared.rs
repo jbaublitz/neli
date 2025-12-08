@@ -361,14 +361,14 @@ pub fn generate_unnamed_fields(fields: FieldsUnnamed, uses_self: bool) -> Vec<Fi
 /// Returns [`true`] if the given attribute is present in the list.
 fn attr_present(attrs: &[Attribute], attr_name: &str) -> bool {
     for attr in attrs {
-        if let Meta::List(list) = &attr.meta
-            && list.path.is_ident("neli")
-        {
-            for token in list.tokens.clone() {
-                if let TokenTree::Ident(ident) = token
-                    && ident == attr_name
-                {
-                    return true;
+        if let Meta::List(list) = &attr.meta {
+            if list.path.is_ident("neli") {
+                for token in list.tokens.clone() {
+                    if let TokenTree::Ident(ident) = token {
+                        if ident == attr_name {
+                            return true;
+                        }
+                    }
                 }
             }
         }
