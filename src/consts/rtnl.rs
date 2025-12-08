@@ -93,6 +93,7 @@ impl_trait!(
     IflaInfo,
     IflaVlan,
     IflaVlanQos,
+    Frattr,
 );
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -378,6 +379,62 @@ pub enum Ifa {
     Flags = libc::IFA_FLAGS,
 }
 
+/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field, `rta_type`.
+///
+/// Values are fib rule attributes. Used with
+/// [`Fibmsg`][crate::rtnl::Fibmsg].
+#[allow(missing_docs)]
+#[neli_enum(serialized_type = "u16")]
+pub enum Frattr {
+    Unspec = 0,
+    Dst = 1,
+    Src = 2,
+    Iifname = 3,
+    Goto = 4,
+    Unused2 = 5,
+    Priority = 6,
+    Unused3 = 7,
+    Unused4 = 8,
+    Unused5 = 9,
+    Fwmark = 10,
+    Flow = 11,
+    TunId = 12,
+    SuppressIfgroup = 13,
+    SuppressPrefixlen = 14,
+    Table = 15,
+    Fwmask = 16,
+    Oifname = 17,
+    Pad = 18,
+    L3mdev = 19,
+    UidRange = 20,
+    Protocol = 21,
+    IpProto = 22,
+    SportRange = 23,
+    DportRange = 24,
+    Dscp = 25,
+    Flowlabel = 26,
+    FlowlabelMask = 27,
+    SportMask = 28,
+    DportMask = 29,
+    DscpMask = 30,
+}
+
+/// Action for a FIB rule.
+#[allow(missing_docs)]
+#[neli_enum(serialized_type = "u8")]
+pub enum FrAct {
+    Unspec = 0,
+    FrActToTbl = 1,
+    FrActGoto = 2,
+    FrActNop = 3,
+    FrActRes3 = 4,
+    FrActRes4 = 5,
+    FrActBlackhole = 6,
+    FrActUnreachable = 7,
+    FrActProhibit = 8,
+    FrActMax = 9,
+}
+
 impl_flags!(
     /// Values for `ifi_flags` in
     /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
@@ -477,5 +534,19 @@ impl_flags!(
         LOOSE_BINDING = 0x4,
         MVRP = 0x8,
         BRIDGE_BINDING = 0x10,
+    }
+);
+
+impl_flags!(
+    /// Values for `fib_flags` in
+    /// [`Fibmsg`][crate::rtnl::Fibmsg].
+    #[allow(missing_docs)]
+    pub Frf: u32 {
+        PERMANENT = 0x01,
+        INVERT = 0x02,
+        UNRESOLVED = 0x04,
+        IIF_DETACHED = 0x08,
+        FIB_RULE_DEV_DETACHED = 0x08,
+        FIB_RULE_OIF_DETACHED = 0x10,
     }
 );
