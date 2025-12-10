@@ -26,6 +26,7 @@ byteorder = "1.3"
 derive_builder = "0.20"
 getset = "0.1.2"
 libc = "0.2.174"
+linux-raw-sys = { version = "0.11.0", features = ["netlink"] }
 log = "0.4"
 
 [dependencies.neli-proc-macros]

@@ -51,10 +51,14 @@ mod macros;
 pub mod connector;
 /// Constants related to generic netlink
 pub mod genl;
+/// Constants related to mac80211_hwsim virtual WiFi driver
+pub mod mac80211_hwsim;
 /// Constants related to netfilter netlink integration
 pub mod netfilter;
 /// Constants related to generic netlink top level headers
 pub mod nl;
+/// Constants related to nl80211, Linux userspace API to wireless stack
+pub mod nl80211;
 /// Constants related to rtnetlink
 pub mod rtnl;
 /// Constants related to netlink socket operations
