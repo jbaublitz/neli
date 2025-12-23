@@ -237,6 +237,71 @@ pub struct Tcmsg {
     rtattrs: RtBuffer<Tca, Buffer>,
 }
 
+/// Routing rule message
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
+pub struct Fibmsg {
+    /// Address family
+    #[getset(get = "pub")]
+    fib_family: RtAddrFamily,
+    /// Length of destination prefix
+    #[getset(get = "pub")]
+    fib_dst_len: libc::c_uchar,
+    /// Length of source prefix
+    #[getset(get = "pub")]
+    fib_src_len: libc::c_uchar,
+    /// Type of service
+    #[getset(get = "pub")]
+    fib_tos: libc::c_uchar,
+    /// Routing table identifier
+    #[getset(get = "pub")]
+    fib_table: RtTable,
+    /// Padding
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad1: u8,
+    /// Padding
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad2: u8,
+    /// Rule action
+    #[getset(get = "pub")]
+    fib_action: FrAct,
+    /// Rule flags
+    #[getset(get = "pub")]
+    #[builder(default = "Frf::empty()")]
+    fib_flags: Frf,
+    /// Payload of [`Frattr`]s
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Frattr, Buffer>,
+}
+
+/// FIB UID Range
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
+pub struct FibRuleUidRange {
+    /// start of range
+    #[getset(get = "pub")]
+    start: u32,
+    /// end of range
+    #[getset(get = "pub")]
+    end: u32,
+}
+
+/// FIB Port range
+#[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
+pub struct FibRulePortRange {
+    /// start of range
+    #[getset(get = "pub")]
+    start: u16,
+    /// end of range
+    #[getset(get = "pub")]
+    end: u16,
+}
+
 /// Struct representing VLAN Flags
 #[derive(Builder, Getters, Debug, Size, ToBytes, FromBytes)]
 #[builder(pattern = "owned")]
