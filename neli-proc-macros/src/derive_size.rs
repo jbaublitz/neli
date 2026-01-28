@@ -3,8 +3,8 @@ use quote::quote;
 use syn::{FieldsNamed, FieldsUnnamed, Ident, ItemEnum, ItemStruct};
 
 use crate::shared::{
-    generate_arms, generate_named_fields, generate_unnamed_fields, process_impl_generics,
-    FieldInfo, StructInfo,
+    FieldInfo, StructInfo, generate_arms, generate_named_fields, generate_unnamed_fields,
+    process_impl_generics,
 };
 
 fn generate_size(i: StructInfo) -> TokenStream2 {
@@ -13,7 +13,7 @@ fn generate_size(i: StructInfo) -> TokenStream2 {
 
     if field_types.is_empty() {
         quote! {
-            impl#generics neli::Size for #struct_name#generics_without_bounds {
+            impl #generics neli::Size for #struct_name #generics_without_bounds {
                 fn unpadded_size(&self) -> usize {
                     0
                 }
@@ -21,7 +21,7 @@ fn generate_size(i: StructInfo) -> TokenStream2 {
         }
     } else {
         quote! {
-            impl#generics neli::Size for #struct_name#generics_without_bounds {
+            impl #generics neli::Size for #struct_name #generics_without_bounds {
                 fn unpadded_size(&self) -> usize {
                     #( <#field_types as neli::Size>::unpadded_size(&self.#field_names) )+*
                 }
@@ -80,7 +80,7 @@ pub fn impl_size_enum(ie: ItemEnum) -> TokenStream2 {
         },
     );
     quote! {
-        impl#generics neli::Size for #enum_name#generics_without_bounds {
+        impl #generics neli::Size for #enum_name #generics_without_bounds {
             fn unpadded_size(&self) -> usize {
                 match self {
                     #(#arms)*

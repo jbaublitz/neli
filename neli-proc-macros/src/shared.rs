@@ -1,15 +1,15 @@
 use std::{any::type_name, collections::HashMap};
 
 use proc_macro2::{Span, TokenStream as TokenStream2, TokenTree};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{
+    Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
+    ItemStruct, LitStr, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token, TraitBound,
+    TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
     parse::Parse,
     parse_str,
     punctuated::Punctuated,
     token::{PathSep, Plus},
-    Attribute, Expr, Fields, FieldsNamed, FieldsUnnamed, GenericParam, Generics, Ident, Index,
-    ItemStruct, LitStr, Meta, MetaNameValue, Path, PathArguments, PathSegment, Token, TraitBound,
-    TraitBoundModifier, Type, TypeParam, TypeParamBound, Variant,
 };
 
 /// Represents a field as either an identifier or an index.
@@ -189,8 +189,8 @@ pub fn process_impl_generics(
     required_trait: Option<&str>,
 ) -> (Generics, Generics) {
     if let Some(rt) = required_trait {
-        for gen in generics.params.iter_mut() {
-            if let GenericParam::Type(param) = gen {
+        for generic in generics.params.iter_mut() {
+            if let GenericParam::Type(param) = generic {
                 param.colon_token = Some(Token![:](Span::call_site()));
                 param.bounds.push(TypeParamBound::Trait(TraitBound {
                     paren_token: None,
@@ -205,8 +205,8 @@ pub fn process_impl_generics(
     }
 
     let mut generics_without_bounds: Generics = generics.clone();
-    for gen in generics_without_bounds.params.iter_mut() {
-        if let GenericParam::Type(param) = gen {
+    for generic in generics_without_bounds.params.iter_mut() {
+        if let GenericParam::Type(param) = generic {
             param.colon_token = None;
             param.bounds.clear();
             param.eq_token = None;
@@ -361,14 +361,14 @@ pub fn generate_unnamed_fields(fields: FieldsUnnamed, uses_self: bool) -> Vec<Fi
 /// Returns [`true`] if the given attribute is present in the list.
 fn attr_present(attrs: &[Attribute], attr_name: &str) -> bool {
     for attr in attrs {
-        if let Meta::List(list) = &attr.meta {
-            if list.path.is_ident("neli") {
-                for token in list.tokens.clone() {
-                    if let TokenTree::Ident(ident) = token {
-                        if ident == attr_name {
-                            return true;
-                        }
-                    }
+        if let Meta::List(list) = &attr.meta
+            && list.path.is_ident("neli")
+        {
+            for token in list.tokens.clone() {
+                if let TokenTree::Ident(ident) = token
+                    && ident == attr_name
+                {
+                    return true;
                 }
             }
         }
@@ -525,7 +525,7 @@ fn override_trait_bounds_on_generics(generics: &mut Generics, trait_bound_overri
     );
 
     for generic in generics.params.iter_mut() {
-        if let GenericParam::Type(ref mut ty) = generic {
+        if let GenericParam::Type(ty) = generic {
             let ident = &ty.ident;
             if let Some(ors) = overrides.remove(ident) {
                 ty.colon_token = Some(Token![:](Span::call_site()));

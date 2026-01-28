@@ -3,11 +3,11 @@ extern crate neli;
 use std::{error::Error, io::Cursor};
 
 use neli::{
+    Size, ToBytes,
     consts::{genl::*, nl::*},
     genl::{AttrTypeBuilder, GenlmsghdrBuilder, NlattrBuilder},
     nl::{NlPayload, NlmsghdrBuilder},
     types::GenlBuffer,
-    Size, ToBytes,
 };
 
 pub fn main() -> Result<(), Box<dyn Error>> {
