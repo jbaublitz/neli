@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.4
+### Bug fixes
+* Fix memory leak in asynchronous and synchronous router that causes threads not to
+be cleaned up when the NlRouter object is dropped
+    * The fix should reliably signal to the thread to exit. Tested with valgrind.
+    * ctrl-list-multiple example allows testing multiple socket creation and drop
+operations to confirm the problem is resolved  
+    * Please note that the underlying file descriptor had to be set to non-blocking
+to work with epoll. This mechanism allows waiting for either a thread exit signal
+or input from the socket.
+
+## 0.7.3
+### Fixes
+* Revert Rust edition 2024 bump
+
 ## 0.7.2
 ### Features
 * VLAN support
