@@ -1,3 +1,4 @@
+use linux_raw_sys::netlink;
 use neli_proc_macros::neli_enum;
 
 use crate as neli;
@@ -93,6 +94,7 @@ impl_trait!(
     IflaInfo,
     IflaVlan,
     IflaVlanQos,
+    Frattr,
 );
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -378,6 +380,64 @@ pub enum Ifa {
     Flags = libc::IFA_FLAGS,
 }
 
+/// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field, `rta_type`.
+///
+/// Values are fib rule attributes. Used with
+/// [`Fibmsg`][crate::rtnl::Fibmsg].
+#[allow(missing_docs)]
+#[neli_enum(serialized_type = "u16")]
+pub enum Frattr {
+    Unspec = netlink::FRA_UNSPEC as u16,
+    Dst = netlink::FRA_DST as u16,
+    Src = netlink::FRA_SRC as u16,
+    Iifname = netlink::FRA_IIFNAME as u16,
+    Ifname = netlink::FRA_IIFNAME as u16,
+    Goto = netlink::FRA_GOTO as u16,
+    Unused2 = netlink::FRA_UNUSED2 as u16,
+    Priority = netlink::FRA_PRIORITY as u16,
+    Unused3 = netlink::FRA_UNUSED3 as u16,
+    Unused4 = netlink::FRA_UNUSED4 as u16,
+    Unused5 = netlink::FRA_UNUSED5 as u16,
+    Fwmark = netlink::FRA_FWMARK as u16,
+    Flow = netlink::FRA_FLOW as u16,
+    TunId = netlink::FRA_TUN_ID as u16,
+    SuppressIfgroup = netlink::FRA_SUPPRESS_IFGROUP as u16,
+    SuppressPrefixlen = netlink::FRA_SUPPRESS_PREFIXLEN as u16,
+    Table = netlink::FRA_TABLE as u16,
+    Fwmask = netlink::FRA_FWMASK as u16,
+    Oifname = netlink::FRA_OIFNAME as u16,
+    Pad = netlink::FRA_PAD as u16,
+    L3mdev = netlink::FRA_L3MDEV as u16,
+    UidRange = netlink::FRA_UID_RANGE as u16,
+    Protocol = netlink::FRA_PROTOCOL as u16,
+    IpProto = netlink::FRA_IP_PROTO as u16,
+    SportRange = netlink::FRA_SPORT_RANGE as u16,
+    DportRange = netlink::FRA_DPORT_RANGE as u16,
+    Dscp = netlink::FRA_DSCP as u16,
+    Flowlabel = netlink::FRA_FLOWLABEL as u16,
+    FlowlabelMask = netlink::FRA_FLOWLABEL_MASK as u16,
+    SportMask = netlink::FRA_SPORT_MASK as u16,
+    DportMask = netlink::FRA_DPORT_MASK as u16,
+    DscpMask = netlink::FRA_DSCP_MASK as u16,
+    Max = netlink::__FRA_MAX as u16,
+}
+
+/// Action for a FIB rule.
+#[allow(missing_docs)]
+#[neli_enum(serialized_type = "u8")]
+pub enum FrAct {
+    Unspec = netlink::FR_ACT_UNSPEC as u8,
+    FrActToTbl = netlink::FR_ACT_TO_TBL as u8,
+    FrActGoto = netlink::FR_ACT_GOTO as u8,
+    FrActNop = netlink::FR_ACT_NOP as u8,
+    FrActRes3 = netlink::FR_ACT_RES3 as u8,
+    FrActRes4 = netlink::FR_ACT_RES4 as u8,
+    FrActBlackhole = netlink::FR_ACT_BLACKHOLE as u8,
+    FrActUnreachable = netlink::FR_ACT_UNREACHABLE as u8,
+    FrActProhibit = netlink::FR_ACT_PROHIBIT as u8,
+    FrActMax = netlink::__FR_ACT_MAX as u8,
+}
+
 impl_flags!(
     /// Values for `ifi_flags` in
     /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
@@ -477,5 +537,20 @@ impl_flags!(
         LOOSE_BINDING = 0x4,
         MVRP = 0x8,
         BRIDGE_BINDING = 0x10,
+    }
+);
+
+impl_flags!(
+    /// Values for `fib_flags` in
+    /// [`Fibmsg`][crate::rtnl::Fibmsg].
+    #[allow(missing_docs)]
+    pub Frf: u32 {
+        PERMANENT = netlink::FIB_RULE_PERMANENT,
+        INVERT = netlink::FIB_RULE_INVERT,
+        UNRESOLVED = netlink::FIB_RULE_UNRESOLVED,
+        IIF_DETACHED = netlink::FIB_RULE_IIF_DETACHED,
+        DEV_DETACHED = netlink::FIB_RULE_DEV_DETACHED,
+        OIF_DETACHED = netlink::FIB_RULE_OIF_DETACHED,
+        FIND_SADDR = netlink::FIB_RULE_FIND_SADDR,
     }
 );
