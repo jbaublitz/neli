@@ -7,9 +7,9 @@ use std::{
 
 use log::{error, trace, warn};
 use tokio::{
-    spawn,
+    select, spawn,
     sync::{
-        mpsc::{channel, error::TryRecvError, Receiver, Sender},
+        mpsc::{channel, Receiver, Sender},
         Mutex,
     },
 };
@@ -20,7 +20,7 @@ use crate::{
         nl::{GenlId, NlType, NlmF, Nlmsg},
         socket::NlFamily,
     },
-    err::RouterError,
+    err::{RouterError, SocketError},
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::asynchronous::NlSocketHandle,
@@ -33,6 +33,7 @@ type GenlFamily = Result<
     NlBuffer<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>,
     RouterError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>,
 >;
+type MCastSender = Sender<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>;
 type Senders =
     Arc<Mutex<HashMap<u32, Sender<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>>>>;
 type ProcThreadReturn = (
@@ -50,82 +51,99 @@ pub struct NlRouter {
     exit_sender: Sender<()>,
 }
 
+async fn processing_loop(
+    socket: &Arc<NlSocketHandle>,
+    senders: &Senders,
+    multicast_sender: &MCastSender,
+    iter: impl Iterator<Item = Result<Nlmsghdr<u16, Buffer>, SocketError>>,
+    group: Groups,
+) {
+    for msg in iter {
+        trace!("Message received: {msg:?}");
+        let mut seqs_to_remove = HashSet::new();
+        match msg {
+            Ok(m) => {
+                let seq = *m.nl_seq();
+                let lock = senders.lock().await;
+                if !group.is_empty() {
+                    if multicast_sender.send(Ok(m)).await.is_err() {
+                        warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                    }
+                } else if let Some(sender) = lock.get(m.nl_seq()) {
+                    if &socket.pid() == m.nl_pid() {
+                        if sender.send(Ok(m)).await.is_err() {
+                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                            seqs_to_remove.insert(seq);
+                        }
+                    } else {
+                        for (seq, sender) in lock.iter() {
+                            if sender
+                                .send(Err(RouterError::BadSeqOrPid(m.clone())))
+                                .await
+                                .is_err()
+                            {
+                                error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                                seqs_to_remove.insert(*seq);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let lock = senders.lock().await;
+                for (seq, sender) in lock.iter() {
+                    if sender
+                        .send(Err(RouterError::from(e.clone())))
+                        .await
+                        .is_err()
+                    {
+                        error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                        seqs_to_remove.insert(*seq);
+                    }
+                }
+            }
+        }
+        for seq in seqs_to_remove {
+            senders.lock().await.remove(&seq);
+        }
+    }
+}
+
 fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> ProcThreadReturn {
     let (exit_sender, mut exit_receiver) = channel(1);
     let (multicast_sender, multicast_receiver) = channel(1024);
     spawn(async move {
-        while let Err(TryRecvError::Empty) = exit_receiver.try_recv() {
-            match socket.recv::<u16, Buffer>().await {
-                Ok((iter, group)) => {
-                    for msg in iter {
-                        trace!("Message received: {msg:?}");
-                        let mut seqs_to_remove = HashSet::new();
-                        match msg {
-                            Ok(m) => {
-                                let seq = *m.nl_seq();
-                                let lock = senders.lock().await;
-                                if !group.is_empty() {
-                                    if multicast_sender.send(Ok(m)).await.is_err() {
-                                        warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                    }
-                                } else if let Some(sender) = lock.get(m.nl_seq()) {
-                                    if &socket.pid() == m.nl_pid() {
-                                        if sender.send(Ok(m)).await.is_err() {
-                                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                            seqs_to_remove.insert(seq);
-                                        }
-                                    } else {
-                                        for (seq, sender) in lock.iter() {
-                                            if sender
-                                                .send(Err(RouterError::BadSeqOrPid(m.clone())))
-                                                .await
-                                                .is_err()
-                                            {
-                                                error!(
-                                                    "{}",
-                                                    RouterError::<u16, Buffer>::ClosedChannel
-                                                );
-                                                seqs_to_remove.insert(*seq);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                let lock = senders.lock().await;
-                                for (seq, sender) in lock.iter() {
-                                    if sender
-                                        .send(Err(RouterError::from(e.clone())))
-                                        .await
-                                        .is_err()
-                                    {
-                                        error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                        seqs_to_remove.insert(*seq);
-                                    }
-                                }
-                            }
-                        }
-                        for seq in seqs_to_remove {
-                            senders.lock().await.remove(&seq);
-                        }
+        loop {
+            select! {
+                res = exit_receiver.recv() => {
+                    if res.is_none() {
+                        warn!("Failed to read from exit channel");
                     }
+                    return;
                 }
-                Err(e) => {
-                    let mut seqs_to_remove = HashSet::new();
-                    let mut lock = senders.lock().await;
-                    for (seq, sender) in lock.iter() {
-                        if sender
-                            .send(Err(RouterError::from(e.clone())))
-                            .await
-                            .is_err()
-                        {
-                            seqs_to_remove.insert(*seq);
-                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                            break;
+                res = socket.recv::<u16, Buffer>() => {
+                    match res {
+                        Ok((iter, group)) => {
+                            processing_loop(&socket, &senders, &multicast_sender, iter, group).await
                         }
-                    }
-                    for seq in seqs_to_remove {
-                        lock.remove(&seq);
+                        Err(e) => {
+                            let mut seqs_to_remove = HashSet::new();
+                            let mut lock = senders.lock().await;
+                            for (seq, sender) in lock.iter() {
+                                if sender
+                                    .send(Err(RouterError::from(e.clone())))
+                                    .await
+                                    .is_err()
+                                {
+                                    seqs_to_remove.insert(*seq);
+                                    error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                                    break;
+                                }
+                            }
+                            for seq in seqs_to_remove {
+                                lock.remove(&seq);
+                            }
+                        }
                     }
                 }
             }

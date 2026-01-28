@@ -181,6 +181,10 @@ impl NlSocketHandle {
             .get_strict_checking_enabled()
             .map_err(SocketError::from)
     }
+
+    pub(in super::super) fn set_nonblock(&self) -> Result<(), SocketError> {
+        self.socket.nonblock().map_err(SocketError::from)
+    }
 }
 
 impl AsRawFd for NlSocketHandle {

@@ -5,6 +5,8 @@ use neli::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
     // Create a socket and connect to generic netlink.
     let (sock, _) = NlRouter::connect(NlFamily::Generic, None, Groups::empty())?;
     // Attempt to resolve a multicast group that should not exist.
@@ -15,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             // Should be packet that caused error
             println!("{e:?}");
         }
-        Err(_) => panic!("Should not return any error other than NlError"),
+        Err(e) => panic!("Should not return any error other than NlError: {e}"),
     };
     Ok(())
 }
