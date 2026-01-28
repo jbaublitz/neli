@@ -14,14 +14,13 @@ use std::{
 };
 
 use crate::{
-    self as neli,
+    self as neli, FromBytesWithInput, Size, ToBytes,
     attr::AttrHandle,
     consts::{genl::NlAttrType, nl::NlType, rtnl::RtaType},
     err::DeError,
     genl::{AttrTypeBuilder, GenlAttrHandle, Nlattr, NlattrBuilder},
     nl::Nlmsghdr,
     rtnl::{RtAttrHandle, Rtattr},
-    FromBytesWithInput, Size, ToBytes,
 };
 
 /// A buffer of bytes.
