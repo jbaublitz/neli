@@ -1,7 +1,7 @@
 [package]
 name = "neli"
 version = "0.7.4"
-edition = "2021"
+edition = "2024"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Type safe netlink library written in Rust"
 license = "BSD-3-Clause"
