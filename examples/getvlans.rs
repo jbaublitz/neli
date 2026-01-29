@@ -49,10 +49,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for (vlan_id, vlan_index) in &vlans {
-        if let Some((name, link)) = ifaces.get(vlan_index)
-            && let Some((link, _)) = link.as_ref().and_then(|link| ifaces.get(link))
-        {
-            println!("- vlan: {vlan_id}, name: {name}, link: {link}");
+        if let Some((name, link)) = ifaces.get(vlan_index) {
+            if let Some((link, _)) = link.as_ref().and_then(|link| ifaces.get(link)) {
+                println!("- vlan: {vlan_id}, name: {name}, link: {link}");
+            }
         }
     }
 

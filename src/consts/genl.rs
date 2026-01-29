@@ -3,12 +3,13 @@ use std::{io::Cursor, mem::size_of};
 use neli_proc_macros::neli_enum;
 
 use crate::{
-    self as neli, FromBytes, Size, ToBytes, TypeSize,
+    self as neli,
     consts::{
         netfilter::{NfLogAttr, NfLogCfg},
         nl::NlmsgerrAttr,
     },
     err::{DeError, SerError},
+    FromBytes, Size, ToBytes, TypeSize,
 };
 
 impl_trait!(

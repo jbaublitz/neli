@@ -1,36 +1,40 @@
 use std::{
     collections::{HashMap, HashSet},
+    io,
     iter::once,
     marker::PhantomData,
+    mem::MaybeUninit,
+    os::fd::{AsRawFd, FromRawFd, OwnedFd},
     sync::{
+        mpsc::{channel, Receiver, Sender},
         Arc,
-        mpsc::{Receiver, Sender, TryRecvError, channel},
     },
     thread::spawn,
 };
 
-use log::{error, trace, warn};
+use log::{debug, error, trace, warn};
 use parking_lot::Mutex;
 
 use crate::{
-    FromBytesWithInput, Size, ToBytes,
     consts::{
         genl::{CtrlAttr, CtrlAttrMcastGrp, CtrlCmd, Index},
         nl::{GenlId, NlType, NlmF, Nlmsg},
         socket::NlFamily,
     },
-    err::RouterError,
+    err::{RouterError, SocketError},
     genl::{AttrTypeBuilder, Genlmsghdr, GenlmsghdrBuilder, NlattrBuilder, NoUserHeader},
     nl::{NlPayload, Nlmsghdr, NlmsghdrBuilder},
     socket::synchronous::NlSocketHandle,
     types::{Buffer, GenlBuffer, NlBuffer},
     utils::{Groups, NetlinkBitArray},
+    FromBytesWithInput, Size, ToBytes,
 };
 
 type GenlFamily = Result<
     NlBuffer<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>,
     RouterError<GenlId, Genlmsghdr<CtrlCmd, CtrlAttr>>,
 >;
+type MCastSender = Sender<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>;
 type Senders =
     Arc<Mutex<HashMap<u32, Sender<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>>>>;
 type ConnectReturn<T> = Result<
@@ -40,10 +44,13 @@ type ConnectReturn<T> = Result<
     ),
     RouterError<u16, Buffer>,
 >;
-type ProcThreadReturn = (
-    Sender<()>,
-    Receiver<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>,
-);
+type ProcThreadReturn = Result<
+    (
+        Receiver<Result<Nlmsghdr<u16, Buffer>, RouterError<u16, Buffer>>>,
+        OwnedFd,
+    ),
+    RouterError<u16, Buffer>,
+>;
 
 /// A high-level handle for sending messages and generating a handle that validates
 /// all of the received messages.
@@ -51,92 +58,204 @@ pub struct NlRouter {
     socket: Arc<NlSocketHandle>,
     seq: Mutex<u32>,
     senders: Senders,
-    exit_sender: Sender<()>,
+    fd: OwnedFd,
 }
 
-fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> ProcThreadReturn {
-    let (exit_sender, exit_receiver) = channel();
-    let (multicast_sender, multicast_receiver) = channel();
-    spawn(move || {
-        while let Err(TryRecvError::Empty) = exit_receiver.try_recv() {
-            match socket.recv::<u16, Buffer>() {
-                Ok((iter, group)) => {
-                    for msg in iter {
-                        trace!("Message received: {msg:?}");
-                        let mut seqs_to_remove = HashSet::new();
-                        match msg {
-                            Ok(m) => {
-                                let seq = *m.nl_seq();
-                                let lock = senders.lock();
-                                if !group.is_empty() {
-                                    if multicast_sender.send(Ok(m)).is_err() {
-                                        warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                    }
-                                } else if let Some(sender) = lock.get(m.nl_seq()) {
-                                    if &socket.pid() == m.nl_pid() {
-                                        if sender.send(Ok(m)).is_err() {
-                                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                            seqs_to_remove.insert(seq);
-                                        }
-                                    } else {
-                                        for (seq, sender) in lock.iter() {
-                                            if sender
-                                                .send(Err(RouterError::BadSeqOrPid(m.clone())))
-                                                .is_err()
-                                            {
-                                                error!(
-                                                    "{}",
-                                                    RouterError::<u16, Buffer>::ClosedChannel
-                                                );
-                                                seqs_to_remove.insert(*seq);
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    for (seq, sender) in lock.iter() {
-                                        if sender
-                                            .send(Err(RouterError::BadSeqOrPid(m.clone())))
-                                            .is_err()
-                                        {
-                                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                            seqs_to_remove.insert(*seq);
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                let lock = senders.lock();
-                                for (seq, sender) in lock.iter() {
-                                    if sender.send(Err(RouterError::from(e.clone()))).is_err() {
-                                        error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                                        seqs_to_remove.insert(*seq);
-                                    }
-                                }
+fn processing_loop(
+    socket: &Arc<NlSocketHandle>,
+    senders: &Senders,
+    multicast_sender: &MCastSender,
+    iter: impl Iterator<Item = Result<Nlmsghdr<u16, Buffer>, SocketError>>,
+    group: Groups,
+) {
+    for msg in iter {
+        trace!("Message received: {msg:?}");
+        let mut seqs_to_remove = HashSet::new();
+        match msg {
+            Ok(m) => {
+                let seq = *m.nl_seq();
+                let lock = senders.lock();
+                if !group.is_empty() {
+                    if multicast_sender.send(Ok(m)).is_err() {
+                        warn!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                    }
+                } else if let Some(sender) = lock.get(m.nl_seq()) {
+                    if &socket.pid() == m.nl_pid() {
+                        if sender.send(Ok(m)).is_err() {
+                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                            seqs_to_remove.insert(seq);
+                        }
+                    } else {
+                        for (seq, sender) in lock.iter() {
+                            if sender
+                                .send(Err(RouterError::BadSeqOrPid(m.clone())))
+                                .is_err()
+                            {
+                                error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                                seqs_to_remove.insert(*seq);
                             }
                         }
-                        for seq in seqs_to_remove {
-                            senders.lock().remove(&seq);
+                    }
+                } else {
+                    for (seq, sender) in lock.iter() {
+                        if sender
+                            .send(Err(RouterError::BadSeqOrPid(m.clone())))
+                            .is_err()
+                        {
+                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                            seqs_to_remove.insert(*seq);
                         }
                     }
                 }
-                Err(e) => {
-                    let mut seqs_to_remove = HashSet::new();
-                    let mut lock = senders.lock();
-                    for (seq, sender) in lock.iter() {
-                        if sender.send(Err(RouterError::from(e.clone()))).is_err() {
-                            seqs_to_remove.insert(*seq);
-                            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
-                            break;
+            }
+            Err(e) => {
+                let lock = senders.lock();
+                for (seq, sender) in lock.iter() {
+                    if sender.send(Err(RouterError::from(e.clone()))).is_err() {
+                        error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+                        seqs_to_remove.insert(*seq);
+                    }
+                }
+            }
+        }
+        for seq in seqs_to_remove {
+            senders.lock().remove(&seq);
+        }
+    }
+}
+
+fn error_handling(senders: &Senders, e: SocketError) {
+    let mut seqs_to_remove = HashSet::new();
+    let mut lock = senders.lock();
+    for (seq, sender) in lock.iter() {
+        if sender.send(Err(RouterError::from(e.clone()))).is_err() {
+            seqs_to_remove.insert(*seq);
+            error!("{}", RouterError::<u16, Buffer>::ClosedChannel);
+            break;
+        }
+    }
+    for seq in seqs_to_remove {
+        lock.remove(&seq);
+    }
+}
+
+fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> ProcThreadReturn {
+    let owned_event_fd = {
+        let event_fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+        if event_fd < 0 {
+            return Err(RouterError::new(format!(
+                "Failed to initialize eventfd for signaling processing thread exit: errno {event_fd}"
+            )));
+        }
+        unsafe { OwnedFd::from_raw_fd(event_fd) }
+    };
+
+    let owned_duped_event_fd = {
+        let duped_event_fd = unsafe { libc::dup(owned_event_fd.as_raw_fd()) };
+        if duped_event_fd < 0 {
+            return Err(RouterError::new(format!(
+                "Failed to duplicate eventfd for signaling processing thread exit: errno {duped_event_fd}"
+            )));
+        }
+        unsafe { OwnedFd::from_raw_fd(duped_event_fd) }
+    };
+
+    socket.set_nonblock()?;
+
+    let epoll_fd = unsafe { libc::epoll_create(1) };
+    if epoll_fd < 0 {
+        return Err(RouterError::Io(
+            io::Error::from_raw_os_error(epoll_fd).kind(),
+        ));
+    }
+    let epoll = unsafe { OwnedFd::from_raw_fd(epoll_fd) };
+
+    let (multicast_sender, multicast_receiver) = channel();
+    spawn(move || {
+        const EVENT_FD_TOKEN: u64 = 0;
+        const SOCKET_TOKEN: u64 = 1;
+
+        let mut event_fd_epoll_event = libc::epoll_event {
+            events: libc::EPOLLIN as u32,
+            u64: EVENT_FD_TOKEN,
+        };
+        unsafe {
+            libc::epoll_ctl(
+                epoll_fd.as_raw_fd(),
+                libc::EPOLL_CTL_ADD,
+                owned_event_fd.as_raw_fd(),
+                &mut event_fd_epoll_event as *mut _,
+            )
+        };
+        let mut socket_epoll_event = libc::epoll_event {
+            events: libc::EPOLLIN as u32,
+            u64: SOCKET_TOKEN,
+        };
+        unsafe {
+            libc::epoll_ctl(
+                epoll_fd.as_raw_fd(),
+                libc::EPOLL_CTL_ADD,
+                socket.as_raw_fd(),
+                &mut socket_epoll_event as *mut _,
+            )
+        };
+
+        let mut events = vec![MaybeUninit::<libc::epoll_event>::uninit(); 2];
+        loop {
+            let event_count = unsafe {
+                libc::epoll_wait(
+                    epoll.as_raw_fd(),
+                    events.as_mut_ptr() as *mut _,
+                    events.len() as libc::c_int,
+                    100, /* ms */
+                )
+            };
+            if event_count < 0 {
+                warn!(
+                    "Failed to epoll file descriptors: errno {event_count}; exiting processing thread"
+                );
+                return;
+            }
+            for event in events.iter().take(event_count as usize) {
+                if unsafe { event.assume_init_ref() }.u64 == EVENT_FD_TOKEN {
+                    let mut buffer = [0u8; 8];
+                    let ret = unsafe {
+                        libc::read(
+                            owned_event_fd.as_raw_fd(),
+                            buffer.as_mut_ptr() as *mut _,
+                            buffer.len(),
+                        )
+                    };
+                    match ret as i32 {
+                        i if i > 0 => {
+                            debug!("Processing thread signaled to exit; exiting");
+                            return;
+                        }
+                        libc::EAGAIN => (),
+                        i => {
+                            warn!("Unexpected return value from read: {i}");
                         }
                     }
-                    for seq in seqs_to_remove {
-                        lock.remove(&seq);
+                } else if unsafe { event.assume_init_ref() }.u64 == SOCKET_TOKEN {
+                    match socket.recv::<u16, Buffer>() {
+                        Ok((iter, group)) => {
+                            processing_loop(&socket, &senders, &multicast_sender, iter, group)
+                        }
+                        Err(e) => {
+                            if let SocketError::Io(ref io_e) = e {
+                                if io_e.kind() != io::ErrorKind::WouldBlock {
+                                    error_handling(&senders, e);
+                                }
+                            } else {
+                                error_handling(&senders, e);
+                            }
+                        }
                     }
                 }
             }
         }
     });
-    (exit_sender, multicast_receiver)
+    Ok((multicast_receiver, owned_duped_event_fd))
 }
 
 impl NlRouter {
@@ -144,8 +263,8 @@ impl NlRouter {
     pub fn connect(proto: NlFamily, pid: Option<u32>, groups: Groups) -> ConnectReturn<Self> {
         let socket = Arc::new(NlSocketHandle::connect(proto, pid, groups)?);
         let senders = Arc::new(Mutex::new(HashMap::default()));
-        let (exit_sender, multicast_receiver) =
-            spawn_processing_thread(Arc::clone(&socket), Arc::clone(&senders));
+        let (multicast_receiver, fd) =
+            spawn_processing_thread(Arc::clone(&socket), Arc::clone(&senders))?;
         let multicast_receiver =
             NlRouterReceiverHandle::new(multicast_receiver, Arc::clone(&senders), false, None);
         Ok((
@@ -153,7 +272,7 @@ impl NlRouter {
                 socket,
                 senders,
                 seq: Mutex::new(0),
-                exit_sender,
+                fd,
             },
             multicast_receiver,
         ))
@@ -288,7 +407,7 @@ impl NlRouter {
 
         let mut buffer = NlBuffer::new();
         for msg in recv {
-            buffer.push(msg?);
+            buffer.push(msg?)
         }
         Ok(buffer)
     }
@@ -387,12 +506,12 @@ impl NlRouter {
                 };
                 for group_by_index in groups.iter() {
                     let attributes = group_by_index.get_attr_handle::<CtrlAttrMcastGrp>()?;
-                    if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id)
-                        && mcid == id
-                    {
-                        let mcast_name = attributes
-                            .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)?;
-                        res = Ok((name.clone(), mcast_name));
+                    if let Ok(mcid) = attributes.get_attr_payload_as::<u32>(CtrlAttrMcastGrp::Id) {
+                        if mcid == id {
+                            let mcast_name = attributes
+                                .get_attr_payload_as_with_len::<String>(CtrlAttrMcastGrp::Name)?;
+                            res = Ok((name.clone(), mcast_name));
+                        }
                     }
                 }
             }
@@ -404,8 +523,16 @@ impl NlRouter {
 
 impl Drop for NlRouter {
     fn drop(&mut self) {
-        if self.exit_sender.send(()).is_err() {
-            warn!("Failed to send shutdown message; processing thread should exit anyway");
+        let buffer: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
+        let ret = unsafe {
+            libc::write(
+                self.fd.as_raw_fd(),
+                buffer.as_ptr() as *const _,
+                buffer.len(),
+            )
+        };
+        if ret < 0 {
+            warn!("Failed to signal processing thread to exit: errno {ret}");
         }
     }
 }

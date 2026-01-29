@@ -8,7 +8,6 @@ use log::trace;
 use tokio::io::unix::AsyncFd;
 
 use crate::{
-    FromBytesWithInput, Size, ToBytes,
     consts::{nl::*, socket::*},
     err::SocketError,
     iter::NlBufferIter,
@@ -16,9 +15,10 @@ use crate::{
     socket::shared::NlSocket,
     types::NlBuffer,
     utils::{
-        Groups, NetlinkBitArray,
         asynchronous::{BufferPool, BufferPoolGuard},
+        Groups, NetlinkBitArray,
     },
+    FromBytesWithInput, Size, ToBytes,
 };
 
 /// Tokio-enabled Netlink socket struct

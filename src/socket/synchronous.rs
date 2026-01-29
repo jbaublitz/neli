@@ -7,7 +7,6 @@ use std::{
 use log::trace;
 
 use crate::{
-    FromBytesWithInput, Size, ToBytes,
     consts::{nl::*, socket::*},
     err::SocketError,
     iter::NlBufferIter,
@@ -15,9 +14,10 @@ use crate::{
     socket::shared::NlSocket,
     types::NlBuffer,
     utils::{
-        Groups, NetlinkBitArray,
         synchronous::{BufferPool, BufferPoolGuard},
+        Groups, NetlinkBitArray,
     },
+    FromBytesWithInput, Size, ToBytes,
 };
 
 /// Higher level handle for socket operations.
@@ -180,6 +180,10 @@ impl NlSocketHandle {
         self.socket
             .get_strict_checking_enabled()
             .map_err(SocketError::from)
+    }
+
+    pub(in super::super) fn set_nonblock(&self) -> Result<(), SocketError> {
+        self.socket.nonblock().map_err(SocketError::from)
     }
 }
 
