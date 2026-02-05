@@ -155,7 +155,7 @@ use std::{
 };
 
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
-pub use neli_proc_macros::{neli_enum, FromBytes, FromBytesWithInput, Header, Size, ToBytes};
+pub use neli_proc_macros::{FromBytes, FromBytesWithInput, Header, Size, ToBytes, neli_enum};
 
 use crate::{
     self as neli,
@@ -407,7 +407,7 @@ impl<'a> FromBytesWithInputBorrowed<'a> for &'a str {
     fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
         let position = buffer.position() as usize;
         Ok(str::from_utf8(
-            &buffer.get_ref()[position..position + input],
+            &buffer.get_ref()[position..position + input - 1],
         )?)
     }
 }
