@@ -79,12 +79,12 @@
 //!                 .build()?
 //!         ),
 //!     )?;
-//!     
+//!
 //!     for msg in recv {
 //!         let msg = msg?;
 //!         // Do things with response here...
 //!     }
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -115,7 +115,7 @@
 //!     s.add_mcast_membership(Groups::new_groups(&[id]))?;
 //!     for next in multicast {
 //!         // Do stuff here with parsed packets...
-//!     
+//!
 //!         // like printing a debug representation of them:
 //!         println!("{:?}", next?);
 //!     }
@@ -356,7 +356,7 @@ impl FromBytesWithInput for () {
 
     fn from_bytes_with_input(
         _: &mut Cursor<impl AsRef<[u8]>>,
-        input: usize,
+        input: Self::Input,
     ) -> Result<Self, DeError> {
         assert_eq!(input, 0);
         Ok(())
@@ -404,11 +404,15 @@ impl ToBytes for &'_ str {
 impl<'a> FromBytesWithInputBorrowed<'a> for &'a str {
     type Input = usize;
 
-    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
-        let position = buffer.position() as usize;
-        Ok(str::from_utf8(
-            &buffer.get_ref()[position..position + input],
-        )?)
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'a [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        let slice: &[u8] = FromBytesWithInputBorrowed::from_bytes_with_input(buffer, input)?;
+        let Ok(cstr) = std::ffi::CStr::from_bytes_with_nul(slice) else {
+            return Err(DeError::InvalidInput(input));
+        };
+        Ok(cstr.to_str()?)
     }
 }
 
@@ -430,13 +434,11 @@ impl FromBytesWithInput for String {
 
     fn from_bytes_with_input(
         buffer: &mut Cursor<impl AsRef<[u8]>>,
-        input: usize,
+        input: Self::Input,
     ) -> Result<Self, DeError> {
-        let s = String::from_utf8(
-            buffer.get_ref().as_ref()
-                [buffer.position() as usize..buffer.position() as usize + input - 1]
-                .to_vec(),
-        )?;
+        let mut buffer = Cursor::new(buffer.get_ref().as_ref());
+        let s: &str = FromBytesWithInputBorrowed::from_bytes_with_input(&mut buffer, input)?;
+        let s = s.to_string();
         buffer.set_position(buffer.position() + input as u64);
         Ok(s)
     }
@@ -479,9 +481,16 @@ impl<const N: usize> ToBytes for [u8; N] {
 impl<'a> FromBytesWithInputBorrowed<'a> for &'a [u8] {
     type Input = usize;
 
-    fn from_bytes_with_input(buffer: &mut Cursor<&'a [u8]>, input: usize) -> Result<Self, DeError> {
-        let position = buffer.position() as usize;
-        Ok(&buffer.get_ref()[position..position + input])
+    fn from_bytes_with_input(
+        buffer: &mut Cursor<&'a [u8]>,
+        input: Self::Input,
+    ) -> Result<Self, DeError> {
+        let start = buffer.position() as usize;
+        let end = start + input;
+        match buffer.get_ref().get(start..end) {
+            Some(buf) => Ok(buf),
+            None => Err(DeError::InvalidInput(input)),
+        }
     }
 }
 
@@ -517,26 +526,24 @@ where
         buffer: &mut Cursor<impl AsRef<[u8]>>,
         input: Self::Input,
     ) -> Result<Self, DeError> {
-        if buffer.position() as usize + input > buffer.get_ref().as_ref().len() {
+        let start = buffer.position() as usize;
+        let end = start + input;
+
+        if end > buffer.get_ref().as_ref().len() {
             return Err(DeError::InvalidInput(input));
         }
 
         let mut vec = Vec::new();
-        let orig_pos = buffer.position();
-        loop {
-            if buffer.position() as usize == orig_pos as usize + input {
-                break;
-            }
-
+        while buffer.position() as usize != end {
             match T::from_bytes(buffer) {
                 Ok(elem) => vec.push(elem),
                 Err(e) => {
-                    buffer.set_position(orig_pos);
+                    buffer.set_position(start as u64);
                     return Err(e);
                 }
             }
-            if buffer.position() as usize > orig_pos as usize + input {
-                buffer.set_position(orig_pos);
+            if buffer.position() as usize > end {
+                buffer.set_position(start as u64);
                 return Err(DeError::InvalidInput(input));
             }
         }
@@ -562,7 +569,7 @@ impl BeU64 {
 
 impl ToBytes for BeU64 {
     fn to_bytes(&self, buffer: &mut Cursor<Vec<u8>>) -> Result<(), SerError> {
-        buffer.write_all(&self.0.to_be_bytes() as &[u8])?;
+        buffer.write_all(&self.0.to_be_bytes())?;
         Ok(())
     }
 }
@@ -711,6 +718,32 @@ mod test {
     }
 
     #[test]
+    fn test_nl_vec_of_arrays() {
+        setup();
+
+        let vec = vec![[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+        let desired_vec = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let ser_buffer = serialize(&vec).unwrap();
+        assert_eq!(desired_vec, ser_buffer.as_slice());
+
+        let de = Vec::<[u8; 3]>::from_bytes_with_input(&mut Cursor::new(desired_vec), 9).unwrap();
+        assert_eq!(vec, de);
+    }
+
+    #[test]
+    fn test_nl_slice() {
+        setup();
+
+        let slice = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let ser_buffer = serialize(slice).unwrap();
+        assert_eq!(slice, ser_buffer.as_slice());
+
+        let de: &[u8] =
+            FromBytesWithInputBorrowed::from_bytes_with_input(&mut Cursor::new(slice), 9).unwrap();
+        assert_eq!(slice, de);
+    }
+
+    #[test]
     fn test_nl_string() {
         setup();
 
@@ -721,6 +754,24 @@ mod test {
 
         let de_s = "AAAAA".to_string();
         let de = String::from_bytes_with_input(&mut Cursor::new(desired_s.as_bytes()), 6).unwrap();
+        assert_eq!(de_s, de)
+    }
+
+    #[test]
+    fn test_nl_str() {
+        setup();
+
+        let s = "AAAAA";
+        let desired_s = "AAAAA\0";
+        let ser_buffer = serialize(&s).unwrap();
+        assert_eq!(desired_s.as_bytes(), ser_buffer.as_slice());
+
+        let de_s = "AAAAA";
+        let de: &str = FromBytesWithInputBorrowed::from_bytes_with_input(
+            &mut Cursor::new(desired_s.as_bytes()),
+            6,
+        )
+        .unwrap();
         assert_eq!(de_s, de)
     }
 }
