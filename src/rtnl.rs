@@ -100,6 +100,35 @@ pub struct Ifaddrmsg {
     rtattrs: RtBuffer<Ifa, Buffer>,
 }
 
+/// Struct representing interface information messages
+#[derive(Builder, Getters, Clone, Debug, Size, ToBytes, FromBytesWithInput, Header)]
+#[builder(pattern = "owned")]
+pub struct Ifstatsmsg {
+    /// Interface address family
+    #[getset(get = "pub")]
+    family: RtAddrFamily,
+    /// Padding
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad1: u8,
+    #[builder(setter(skip))]
+    #[builder(default = "0")]
+    pad2: u16,
+    /// Interface index
+    #[getset(get = "pub")]
+    #[builder(default = "0")]
+    ifindex: libc::c_int,
+    /// Interface flags
+    #[getset(get = "pub")]
+    #[builder(default = "IflaStats::empty()")]
+    filter_mask: IflaStats,
+    /// Payload of [`Rtattr`]s
+    #[neli(input = "input.checked_sub(Self::header_size()).ok_or(DeError::InvalidInput(input))?")]
+    #[getset(get = "pub")]
+    #[builder(default = "RtBuffer::new()")]
+    rtattrs: RtBuffer<Ifla, Buffer>,
+}
+
 /// General form of address family dependent message.  Used for
 /// requesting things from rtnetlink.
 #[derive(Builder, Getters, Debug, Size, ToBytes, FromBytesWithInput, Header)]
@@ -504,6 +533,35 @@ mod test {
         utils::Groups,
     };
 
+    #[derive(Debug, Clone, FromBytes)]
+    pub struct LinkStats64 {
+        pub rx_packets: u64,
+        pub tx_packets: u64,
+        pub rx_bytes: u64,
+        pub tx_bytes: u64,
+        pub rx_errors: u64,
+        pub tx_errors: u64,
+        pub rx_dropped: u64,
+        pub tx_dropped: u64,
+        pub multicast: u64,
+        pub collisions: u64,
+        pub rx_length_errors: u64,
+        pub rx_over_errors: u64,
+        pub rx_crc_errors: u64,
+        pub rx_frame_errors: u64,
+        pub rx_fifo_errors: u64,
+        pub rx_missed_errors: u64,
+        pub tx_aborted_errors: u64,
+        pub tx_carrier_errors: u64,
+        pub tx_fifo_errors: u64,
+        pub tx_heartbeat_errors: u64,
+        pub tx_window_errors: u64,
+        pub rx_compressed: u64,
+        pub tx_compressed: u64,
+        pub rx_nohandler: u64,
+        pub rx_otherhost_dropped: u64,
+    }
+
     #[test]
     fn test_rta_deserialize() {
         setup();
@@ -587,6 +645,54 @@ mod test {
                 assert_eq!(attr.len(), 6);
             }
         }
+    }
+
+    #[test]
+    fn real_test_if_stats_msg() {
+        setup();
+
+        let (rtnl, _) = NlRouter::connect(NlFamily::Route, None, Groups::empty())
+            .expect("To be able to connect to rtnl");
+        rtnl.enable_ext_ack(true)
+            .expect("To be able to enable ext ack for routelink connection");
+        rtnl.enable_strict_checking(true)
+            .expect("To be able to enable strict_checking for routlink connection");
+
+        let mut recv = rtnl
+            .send::<_, _, Rtm, ()>(
+                Rtm::Getstats,
+                NlmF::DUMP | NlmF::ACK,
+                neli::nl::NlPayload::Payload(
+                    IfstatsmsgBuilder::default()
+                        .family(RtAddrFamily::Unspecified)
+                        .filter_mask(IflaStats::LINK_64)
+                        .build()
+                        .expect("To be able to build a Ifstatsmsg successfully"),
+                ),
+            )
+            .expect("To be able to send Getstats message to kernel's routlink connection");
+        let mut stats = Vec::new();
+        while let Some(response) = recv.next_typed::<Rtm, Ifstatsmsg>() {
+            let response = response
+                .expect("To be able to successfully parse out a response from Getstats command");
+            let payload = {
+                match response.nl_payload() {
+                    NlPayload::Payload(x) => x,
+                    _ => {
+                        continue;
+                    }
+                }
+            };
+
+            let attr_handle = payload.rtattrs().get_attr_handle();
+            for attr in attr_handle.iter() {
+                stats.push(
+                    attr.get_payload_as::<LinkStats64>()
+                        .expect("To only get binary stuff that can fit into a Link64 struct"),
+                )
+            }
+        }
+        assert!(stats.len() > 1);
     }
 
     #[test]

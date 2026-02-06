@@ -159,6 +159,21 @@ pub enum Ifla {
     AltIfname = libc::IFLA_ALT_IFNAME,
     PermAddress = libc::IFLA_PERM_ADDRESS,
     ProtoDownReason = libc::IFLA_PROTO_DOWN_REASON,
+    IflaParentDevName = libc::IFLA_PARENT_DEV_NAME,
+    IflaParentDevBusName = libc::IFLA_PARENT_DEV_BUS_NAME,
+    IflaGroMaxSize = libc::IFLA_GRO_MAX_SIZE,
+    IflaTsoMaxSize = libc::IFLA_TSO_MAX_SIZE,
+    IflaTsoMaxSegs = libc::IFLA_TSO_MAX_SEGS,
+    IflaAllmulti = libc::IFLA_ALLMULTI, /* Allmulti count: > 0 means acts ALLMULTI */
+
+    // Hardcoding because libc doesn't have these constants
+    IflaDevlinkPort = 62,
+
+    IflaGsoIpv4MaxSize = 63,
+    IflaGroIpv4MaxSize = 64,
+    IflaDpllPin = 65,
+    IflaMaxPacingOffloadHorizon = 66,
+    IflaNetnsImmutable = 67,
 }
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -251,6 +266,8 @@ pub enum Rtm {
     Newnsid = libc::RTM_NEWNSID,
     Delnsid = libc::RTM_DELNSID,
     Getnsid = libc::RTM_GETNSID,
+    Newstats = libc::RTM_NEWSTATS,
+    Getstats = libc::RTM_GETSTATS,
 }
 
 /// Enum usable with [`Rtattr`][crate::rtnl::Rtattr] field,
@@ -461,6 +478,21 @@ impl_flags!(
         LOWERUP = libc::IFF_LOWER_UP as libc::c_uint,
         DORMANT = libc::IFF_DORMANT as libc::c_uint,
         ECHO = libc::IFF_ECHO as libc::c_uint,
+        // Possibly more types here - need to look into private flags for interfaces
+    }
+);
+
+impl_flags!(
+    /// Values for `ifi_flags` in
+    /// [`Ifinfomsg`][crate::rtnl::Ifinfomsg].
+    pub IflaStats: libc::c_uint {
+        UNSPEC = 0 as libc::c_uint,
+        LINK_64 = 1 as libc::c_uint,
+        LINK_XSTATS = 2 as libc::c_uint,
+        LINK_XSTATS_SLAVE = 3 as libc::c_uint,
+        LINK_OFFLOAD_XSTATS = 4 as libc::c_uint,
+        LINK_AF_SPEC = 5 as libc::c_uint,
+        MAX = 6 as libc::c_uint,
         // Possibly more types here - need to look into private flags for interfaces
     }
 );
