@@ -5,6 +5,8 @@
 //! See this blog post for more details:
 //! https://nick-black.com/dankwiki/index.php/The_Proc_Connector_and_Socket_Filters
 
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
 use neli::{
     connector::{CnMsg, ProcEvent, ProcEventHeader},
     consts::{
@@ -57,13 +59,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let exe = fs::read_link(format!("/proc/{process_pid}/exe"))
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| "unknown".to_string());
-            let cmdline = cmdline_to_string(process_pid).unwrap_or_else(|_| "unknown".to_string());
-            println!("Process created: PID: {process_pid}, Exe: {exe}, Cmdline: {cmdline}");
+            let cmdline =
+                cmdline_to_string(process_pid).unwrap_or_else(|_| "unknown".to_string().into());
+            println!(
+                "Process created: PID: {process_pid}, Exe: {exe}, Cmdline: {}",
+                cmdline.display()
+            );
         }
     }
 }
 
-fn cmdline_to_string(pid: i32) -> std::io::Result<String> {
+fn cmdline_to_string(pid: i32) -> std::io::Result<OsString> {
     // 1) Read the entire file into a byte‐buffer in one go
     let mut data = fs::read(format!("/proc/{pid}/cmdline"))?;
 
@@ -74,11 +80,6 @@ fn cmdline_to_string(pid: i32) -> std::io::Result<String> {
         }
     }
 
-    // 3) SAFELY convert bytes → String without re‐checking UTF‐8
-    //
-    //    We can do this because /proc/cmdline is guaranteed to be valid UTF-8
-    //    on Linux (arguments must be passed as UTF-8), so we skip the cost
-    //    of a UTF-8 validation pass.
-    let s = unsafe { String::from_utf8_unchecked(data) };
+    let s = OsString::from_vec(data);
     Ok(s)
 }
