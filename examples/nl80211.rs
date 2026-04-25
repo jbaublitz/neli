@@ -8,7 +8,10 @@ use neli::{
     attr::Attribute,
     consts::{
         nl::{GenlId, NlmF},
-        nl80211::{Nl80211Attribute, Nl80211Command, Nl80211IfType},
+        nl80211::{
+            Nl80211Attribute, Nl80211BandAttr, Nl80211BitrateAttr, Nl80211Command, Nl80211FreqAttr,
+            Nl80211IfType,
+        },
         socket::NlFamily,
     },
     genl::{AttrTypeBuilder, NlattrBuilder},
@@ -57,6 +60,67 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
                 // For simplicity, just try to parse as UTF-8
                 let ssid: &[u8] = attr.get_payload_as_with_len_borrowed().unwrap();
                 println!("{:<12}{}", "Ssid:", std::str::from_utf8(ssid).unwrap());
+            }
+            Nl80211Attribute::WiphyBands => {
+                // Bands are nested arrays of each element having nested arrays itself.
+
+                let bands_iter = attr_handle
+                    .get_nested_attributes::<Nl80211BandAttr>(Nl80211Attribute::WiphyBands)
+                    .unwrap();
+
+                println!("{:<12}", "Bands:");
+
+                for b in bands_iter.iter() {
+                    let index = u16::from(b.nla_type());
+                    println!("  Band {}:", index);
+
+                    let b = b.get_attr_handle::<Nl80211BandAttr>().unwrap();
+                    println!("          {:<12}", "Frequencies:");
+                    for f in b
+                        .get_nested_attributes::<Nl80211FreqAttr>(Nl80211BandAttr::Freqs)
+                        .unwrap()
+                        .iter()
+                    {
+                        let f = f.get_attr_handle::<Nl80211FreqAttr>().unwrap();
+
+                        // presence of attribute means it's true, otherwise false
+                        let disabled = f
+                            .get_attr_payload_as::<()>(Nl80211FreqAttr::Disabled)
+                            .is_ok();
+                        let value = f.get_attr_payload_as::<u32>(Nl80211FreqAttr::Freq).unwrap();
+                        println!(
+                            "            * {value} MHz{}",
+                            if disabled { " (disabled) " } else { "" }
+                        );
+                    }
+
+                    println!("          {:<12}", "Bitrates:");
+                    for r in b
+                        .get_nested_attributes::<Nl80211BitrateAttr>(Nl80211BandAttr::Rates)
+                        .unwrap()
+                        .iter()
+                    {
+                        let r = r.get_attr_handle::<Nl80211BitrateAttr>().unwrap();
+
+                        // presence of attribute means it's true, otherwise false
+                        let short_preamble = r
+                            .get_attr_payload_as::<()>(Nl80211BitrateAttr::_2ghzShortpreamble)
+                            .is_ok();
+                        let value = (r
+                            .get_attr_payload_as::<u32>(Nl80211BitrateAttr::Rate)
+                            .unwrap())
+                            / 10;
+
+                        println!(
+                            "            * {value} Mbps{}",
+                            if short_preamble {
+                                " (short preamble supported) "
+                            } else {
+                                ""
+                            }
+                        );
+                    }
+                }
             }
             _ => (),
         }
