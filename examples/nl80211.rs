@@ -8,6 +8,7 @@ use neli::{
     attr::Attribute,
     consts::{
         nl::{GenlId, NlmF},
+        nl80211::{Nl80211Attribute, Nl80211Command, Nl80211IfType},
         socket::NlFamily,
     },
     genl::{AttrTypeBuilder, NlattrBuilder},
@@ -16,38 +17,6 @@ use neli::{
     types::GenlBuffer,
     utils::Groups,
 };
-
-#[neli::neli_enum(serialized_type = "u8")]
-pub enum Nl80211Command {
-    Unspecified = 0,
-    GetWiPhy = 1,
-    GetInterface = 5,
-    /* Many many more elided */
-}
-impl neli::consts::genl::Cmd for Nl80211Command {}
-
-#[neli::neli_enum(serialized_type = "u16")]
-pub enum Nl80211Attribute {
-    Unspecified = 0,
-    Wiphy = 1,
-    WiphyName = 2,
-    Ifname = 4,
-    Iftype = 5,
-    Ssid = 52,
-    Wdev = 153,
-    /* Literally hundreds elided */
-}
-impl neli::consts::genl::NlAttrType for Nl80211Attribute {}
-
-#[neli::neli_enum(serialized_type = "u32")]
-pub enum Nl80211IfType {
-    Unspecified = 0,
-    Station = 2,
-    Ap = 3,
-    Monitor = 6,
-    P2pDevice = 10,
-    /* Several more, common ones above */
-}
 
 fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
     // Messages with the NlmF::DUMP flag end with an empty payload message
@@ -115,7 +84,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             NlmF::DUMP | NlmF::ACK,
             NlPayload::Payload(
                 GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
-                    .cmd(Nl80211Command::GetWiPhy)
+                    .cmd(Nl80211Command::GetWiphy)
                     .version(1)
                     .build()?,
             ),
@@ -187,7 +156,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         NlmF::DUMP | NlmF::ACK,
         NlPayload::Payload(
             GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
-                .cmd(Nl80211Command::GetWiPhy)
+                .cmd(Nl80211Command::GetWiphy)
                 .version(1)
                 .build()?,
         ),

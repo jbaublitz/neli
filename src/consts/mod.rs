@@ -55,6 +55,8 @@ pub mod genl;
 pub mod netfilter;
 /// Constants related to generic netlink top level headers
 pub mod nl;
+/// Constants related to nl80211
+pub mod nl80211;
 /// Constants related to rtnetlink
 pub mod rtnl;
 /// Constants related to netlink socket operations
