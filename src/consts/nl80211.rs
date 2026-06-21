@@ -190,6 +190,26 @@ pub enum Nl80211Attr {
 }
 impl neli::consts::genl::NlAttrType for Nl80211Attr {}
 
+// TODO: Interface types may also be passed as attributes, but
+//       presently there is not an ergonomic way to support
+//       serializing attributes as any size other than u16
+#[neli::neli_enum(serialized_type = "u32")]
+pub enum Nl80211Iftype {
+    Unspecified = nl80211_iftype::NL80211_IFTYPE_UNSPECIFIED as u32,
+    Adhoc = nl80211_iftype::NL80211_IFTYPE_ADHOC as u32,
+    Station = nl80211_iftype::NL80211_IFTYPE_STATION as u32,
+    Ap = nl80211_iftype::NL80211_IFTYPE_AP as u32,
+    ApVlan = nl80211_iftype::NL80211_IFTYPE_AP_VLAN as u32,
+    Wds = nl80211_iftype::NL80211_IFTYPE_WDS as u32,
+    Monitor = nl80211_iftype::NL80211_IFTYPE_MONITOR as u32,
+    MeshPoint = nl80211_iftype::NL80211_IFTYPE_MESH_POINT as u32,
+    P2pClient = nl80211_iftype::NL80211_IFTYPE_P2P_CLIENT as u32,
+    P2pGo = nl80211_iftype::NL80211_IFTYPE_P2P_GO as u32,
+    P2pDevice = nl80211_iftype::NL80211_IFTYPE_P2P_DEVICE as u32,
+    Ocb = nl80211_iftype::NL80211_IFTYPE_OCB as u32,
+    Nan = nl80211_iftype::NL80211_IFTYPE_NAN as u32,
+}
+
 /// `enum nl80211_band_attr - band attributes`
 ///
 /// Payload for `Nl80211Attribute::WiphyBands`
@@ -223,21 +243,7 @@ pub enum Nl80211BandAttr {
     /// `NL80211_BAND_ATTR_S1G_CAPA`
     S1gCapa = nl80211_band_attr::NL80211_BAND_ATTR_S1G_CAPA as u16,
 }
-
 impl neli::consts::genl::NlAttrType for Nl80211BandAttr {}
-
-/// `enum nl80211_bitrate_attr`
-#[neli::neli_enum(serialized_type = "u16")]
-pub enum Nl80211BitrateAttr {
-    /// `__NL80211_BITRATE_ATTR_INVALID`
-    Invalid = nl80211_bitrate_attr::__NL80211_BITRATE_ATTR_INVALID as u16,
-    /// `NL80211_BITRATE_ATTR_RATE`
-    Rate = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_RATE as u16,
-    /// `NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE`
-    _2GhzShortpreamble = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE as u16,
-}
-
-impl neli::consts::genl::NlAttrType for Nl80211BitrateAttr {}
 
 /// `enum nl80211_freq_attr`
 #[neli::neli_enum(serialized_type = "u16")]
@@ -313,21 +319,16 @@ pub enum Nl80211FrequencyAttr {
     /// `NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY`
     Allow20mhzActivity = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY as u16,
 }
-
 impl neli::consts::genl::NlAttrType for Nl80211FrequencyAttr {}
-#[neli::neli_enum(serialized_type = "u32")]
-pub enum Nl80211Iftype {
-    Unspecified = nl80211_iftype::NL80211_IFTYPE_UNSPECIFIED as u32,
-    Adhoc = nl80211_iftype::NL80211_IFTYPE_ADHOC as u32,
-    Station = nl80211_iftype::NL80211_IFTYPE_STATION as u32,
-    Ap = nl80211_iftype::NL80211_IFTYPE_AP as u32,
-    ApVlan = nl80211_iftype::NL80211_IFTYPE_AP_VLAN as u32,
-    Wds = nl80211_iftype::NL80211_IFTYPE_WDS as u32,
-    Monitor = nl80211_iftype::NL80211_IFTYPE_MONITOR as u32,
-    MeshPoint = nl80211_iftype::NL80211_IFTYPE_MESH_POINT as u32,
-    P2pClient = nl80211_iftype::NL80211_IFTYPE_P2P_CLIENT as u32,
-    P2pGo = nl80211_iftype::NL80211_IFTYPE_P2P_GO as u32,
-    P2pDevice = nl80211_iftype::NL80211_IFTYPE_P2P_DEVICE as u32,
-    Ocb = nl80211_iftype::NL80211_IFTYPE_OCB as u32,
-    Nan = nl80211_iftype::NL80211_IFTYPE_NAN as u32,
+
+/// `enum nl80211_bitrate_attr`
+#[neli::neli_enum(serialized_type = "u16")]
+pub enum Nl80211BitrateAttr {
+    /// `__NL80211_BITRATE_ATTR_INVALID`
+    Invalid = nl80211_bitrate_attr::__NL80211_BITRATE_ATTR_INVALID as u16,
+    /// `NL80211_BITRATE_ATTR_RATE`
+    Rate = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_RATE as u16,
+    /// `NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE`
+    _2GhzShortpreamble = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE as u16,
 }
+impl neli::consts::genl::NlAttrType for Nl80211BitrateAttr {}
