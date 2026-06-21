@@ -234,7 +234,7 @@ pub enum Nl80211BitrateAttr {
     /// `NL80211_BITRATE_ATTR_RATE`
     Rate = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_RATE as u16,
     /// `NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE`
-    _2ghzShortpreamble = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE as u16,
+    _2GhzShortpreamble = nl80211_bitrate_attr::NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE as u16,
 }
 
 impl neli::consts::genl::NlAttrType for Nl80211BitrateAttr {}
@@ -265,9 +265,9 @@ pub enum Nl80211FreqAttr {
     /// `NL80211_FREQUENCY_ATTR_NO_HT40_PLUS`
     NoHt40Plus = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_HT40_PLUS as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_80MHZ`
-    No80mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_80MHZ as u16,
+    No80Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_80MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_160MHZ`
-    No160mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_160MHZ as u16,
+    No160Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_160MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_DFS_CAC_TIME`
     DfsCacTime = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_DFS_CAC_TIME as u16,
     /// `NL80211_FREQUENCY_ATTR_INDOOR_ONLY`
@@ -275,9 +275,9 @@ pub enum Nl80211FreqAttr {
     /// `NL80211_FREQUENCY_ATTR_IR_CONCURRENT`
     IrConcurrent = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_IR_CONCURRENT as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_20MHZ`
-    No20mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_20MHZ as u16,
+    No20Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_20MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_10MHZ`
-    No10mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_10MHZ as u16,
+    No10Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_10MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_WMM`
     Wmm = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_WMM as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_HE`
@@ -295,7 +295,7 @@ pub enum Nl80211FreqAttr {
     /// `NL80211_FREQUENCY_ATTR_16MHZ`
     _16Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_16MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_320MHZ`
-    No320mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_320MHZ as u16,
+    No320Mhz = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_320MHZ as u16,
     /// `NL80211_FREQUENCY_ATTR_NO_EHT`
     NoEht = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_NO_EHT as u16,
     /// `NL80211_FREQUENCY_ATTR_PSD`
