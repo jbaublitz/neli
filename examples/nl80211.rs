@@ -104,7 +104,7 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
 
                         // presence of attribute means it's true, otherwise false
                         let short_preamble = r
-                            .get_attr_payload_as::<()>(Nl80211BitrateAttr::_2ghzShortpreamble)
+                            .get_attr_payload_as::<()>(Nl80211BitrateAttr::_2GhzShortpreamble)
                             .is_ok();
                         let value = (r
                             .get_attr_payload_as::<u32>(Nl80211BitrateAttr::Rate)
