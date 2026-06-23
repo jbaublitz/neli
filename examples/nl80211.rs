@@ -9,8 +9,8 @@ use neli::{
     consts::{
         nl::{GenlId, NlmF},
         nl80211::{
-            Nl80211Attribute, Nl80211BandAttr, Nl80211BitrateAttr, Nl80211Command, Nl80211FreqAttr,
-            Nl80211IfType,
+            Nl80211Attr, Nl80211BandAttr, Nl80211BitrateAttr, Nl80211Command, Nl80211FrequencyAttr,
+            Nl80211Iftype,
         },
         socket::NlFamily,
     },
@@ -21,7 +21,7 @@ use neli::{
     utils::Groups,
 };
 
-fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
+fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attr>>) {
     // Messages with the NlmF::DUMP flag end with an empty payload message
     // Don't parse message unless receive proper payload (non-error, non-empty, non-ack)
     let payload = match msg.nl_payload() {
@@ -32,40 +32,40 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
     let attr_handle = payload.attrs().get_attr_handle();
     for attr in attr_handle.iter() {
         match attr.nla_type().nla_type() {
-            Nl80211Attribute::Wiphy => {
+            Nl80211Attr::Wiphy => {
                 let wiphy = attr.get_payload_as::<u32>().unwrap();
                 println!("{:<12}{}", "Wiphy:", wiphy);
             }
-            Nl80211Attribute::WiphyName => {
+            Nl80211Attr::WiphyName => {
                 let wiphy_name = attr.get_payload_as_with_len::<String>().unwrap();
                 println!("{:<12}{}", "WiphyName:", wiphy_name);
             }
-            Nl80211Attribute::Ifname => {
+            Nl80211Attr::Ifname => {
                 let ifname = attr.get_payload_as_with_len::<String>().unwrap();
                 println!("{:<12}{}", "Ifname:", ifname);
             }
-            Nl80211Attribute::Iftype => {
-                let iftype = attr.get_payload_as::<Nl80211IfType>().unwrap();
+            Nl80211Attr::Iftype => {
+                let iftype = attr.get_payload_as::<Nl80211Iftype>().unwrap();
                 println!("{:<12}{:?}", "Iftype:", iftype);
             }
-            Nl80211Attribute::Wdev => {
+            Nl80211Attr::Wdev => {
                 // Wdev is unique 64-bit identifier per WiFi interface containing both the
                 // WiFi radio (wiphy, upper 32 bits) and WiFi interface identifiers (lower 32 bits)
                 // Print lower 9 bytes (36 bits) to simplify printout and match 'iw wlan0 info' output
                 let wdev = attr.get_payload_as::<u64>().unwrap();
                 println!("{:<12}0x{:09x}", "Wdev:", wdev);
             }
-            Nl80211Attribute::Ssid => {
+            Nl80211Attr::Ssid => {
                 // Kernel references this attribute as binary data.
                 // For simplicity, just try to parse as UTF-8
                 let ssid: &[u8] = attr.get_payload_as_with_len_borrowed().unwrap();
                 println!("{:<12}{}", "Ssid:", std::str::from_utf8(ssid).unwrap());
             }
-            Nl80211Attribute::WiphyBands => {
+            Nl80211Attr::WiphyBands => {
                 // Bands are nested arrays of each element having nested arrays itself.
 
                 let bands_iter = attr_handle
-                    .get_nested_attributes::<Nl80211BandAttr>(Nl80211Attribute::WiphyBands)
+                    .get_nested_attributes::<Nl80211BandAttr>(Nl80211Attr::WiphyBands)
                     .unwrap();
 
                 println!("{:<12}", "Bands:");
@@ -77,17 +77,19 @@ fn handle(msg: Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>) {
                     let b = b.get_attr_handle::<Nl80211BandAttr>().unwrap();
                     println!("          {:<12}", "Frequencies:");
                     for f in b
-                        .get_nested_attributes::<Nl80211FreqAttr>(Nl80211BandAttr::Freqs)
+                        .get_nested_attributes::<Nl80211FrequencyAttr>(Nl80211BandAttr::Freqs)
                         .unwrap()
                         .iter()
                     {
-                        let f = f.get_attr_handle::<Nl80211FreqAttr>().unwrap();
+                        let f = f.get_attr_handle::<Nl80211FrequencyAttr>().unwrap();
 
                         // presence of attribute means it's true, otherwise false
                         let disabled = f
-                            .get_attr_payload_as::<()>(Nl80211FreqAttr::Disabled)
+                            .get_attr_payload_as::<()>(Nl80211FrequencyAttr::Disabled)
                             .is_ok();
-                        let value = f.get_attr_payload_as::<u32>(Nl80211FreqAttr::Freq).unwrap();
+                        let value = f
+                            .get_attr_payload_as::<u32>(Nl80211FrequencyAttr::Freq)
+                            .unwrap();
                         println!(
                             "            * {value} MHz{}",
                             if disabled { " (disabled) " } else { "" }
@@ -143,11 +145,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Query system for WiFi radios using the 'GetWiphy' command
     let mut recv = sock
-        .send::<_, _, u16, Genlmsghdr<Nl80211Command, Nl80211Attribute>>(
+        .send::<_, _, u16, Genlmsghdr<Nl80211Command, Nl80211Attr>>(
             family_id,
             NlmF::DUMP | NlmF::ACK,
             NlPayload::Payload(
-                GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+                GenlmsghdrBuilder::<Nl80211Command, Nl80211Attr, NoUserHeader>::default()
                     .cmd(Nl80211Command::GetWiphy)
                     .version(1)
                     .build()?,
@@ -168,7 +170,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         NlattrBuilder::default()
             .nla_type(
                 AttrTypeBuilder::default()
-                    .nla_type(Nl80211Attribute::Ifname)
+                    .nla_type(Nl80211Attr::Ifname)
                     .build()
                     .unwrap(),
             )
@@ -179,11 +181,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .collect::<GenlBuffer<_, _>>();
 
     let mut recv = sock
-        .send::<_, _, u16, Genlmsghdr<Nl80211Command, Nl80211Attribute>>(
+        .send::<_, _, u16, Genlmsghdr<Nl80211Command, Nl80211Attr>>(
             family_id,
             NlmF::DUMP | NlmF::ACK,
             NlPayload::Payload(
-                GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+                GenlmsghdrBuilder::<Nl80211Command, Nl80211Attr, NoUserHeader>::default()
                     .cmd(Nl80211Command::GetInterface)
                     .attrs(attrs)
                     .version(1)
@@ -219,7 +221,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         family_id,
         NlmF::DUMP | NlmF::ACK,
         NlPayload::Payload(
-            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attr, NoUserHeader>::default()
                 .cmd(Nl80211Command::GetWiphy)
                 .version(1)
                 .build()?,
@@ -240,7 +242,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         NlattrBuilder::default()
             .nla_type(
                 AttrTypeBuilder::default()
-                    .nla_type(Nl80211Attribute::Ifname)
+                    .nla_type(Nl80211Attr::Ifname)
                     .build()
                     .unwrap(),
             )
@@ -254,7 +256,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         family_id,
         NlmF::DUMP | NlmF::ACK,
         NlPayload::Payload(
-            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attr, NoUserHeader>::default()
                 .cmd(Nl80211Command::GetInterface)
                 .attrs(attrs)
                 .version(1)

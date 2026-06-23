@@ -170,7 +170,7 @@ pub enum Nl80211Command {
 impl neli::consts::genl::Cmd for Nl80211Command {}
 
 #[neli::neli_enum(serialized_type = "u16")]
-pub enum Nl80211Attribute {
+pub enum Nl80211Attr {
     Unspecified = nl80211_attrs::NL80211_ATTR_UNSPEC as u16,
     /// `NL80211_ATTR_WIPHY`
     Wiphy = nl80211_attrs::NL80211_ATTR_WIPHY as u16,
@@ -188,7 +188,7 @@ pub enum Nl80211Attribute {
     Wdev = nl80211_attrs::NL80211_ATTR_WDEV as u16,
     /* Literally hundreds elided */
 }
-impl neli::consts::genl::NlAttrType for Nl80211Attribute {}
+impl neli::consts::genl::NlAttrType for Nl80211Attr {}
 
 /// `enum nl80211_band_attr - band attributes`
 ///
@@ -241,7 +241,7 @@ impl neli::consts::genl::NlAttrType for Nl80211BitrateAttr {}
 
 /// `enum nl80211_freq_attr`
 #[neli::neli_enum(serialized_type = "u16")]
-pub enum Nl80211FreqAttr {
+pub enum Nl80211FrequencyAttr {
     /// `NL80211_FREQUENCY_ATTR_INVALID`
     Invalid = nl80211_frequency_attr::__NL80211_FREQUENCY_ATTR_INVALID as u16,
     /// `NL80211_FREQUENCY_ATTR_FREQ`
@@ -314,9 +314,9 @@ pub enum Nl80211FreqAttr {
     Allow20mhzActivity = nl80211_frequency_attr::NL80211_FREQUENCY_ATTR_ALLOW_20MHZ_ACTIVITY as u16,
 }
 
-impl neli::consts::genl::NlAttrType for Nl80211FreqAttr {}
+impl neli::consts::genl::NlAttrType for Nl80211FrequencyAttr {}
 #[neli::neli_enum(serialized_type = "u32")]
-pub enum Nl80211IfType {
+pub enum Nl80211Iftype {
     Unspecified = nl80211_iftype::NL80211_IFTYPE_UNSPECIFIED as u32,
     Adhoc = nl80211_iftype::NL80211_IFTYPE_ADHOC as u32,
     Station = nl80211_iftype::NL80211_IFTYPE_STATION as u32,
