@@ -3,6 +3,7 @@ use std::iter::once;
 use neli::{
     consts::{
         nl::{GenlId, NlmF},
+        nl80211::{Nl80211Attr, Nl80211Command},
         socket::NlFamily,
     },
     err::RouterError,
@@ -12,20 +13,6 @@ use neli::{
     types::GenlBuffer,
     utils::Groups,
 };
-
-#[neli::neli_enum(serialized_type = "u8")]
-pub enum Nl80211Command {
-    GetInterface = 5,
-    /* Others elided */
-}
-impl neli::consts::genl::Cmd for Nl80211Command {}
-
-#[neli::neli_enum(serialized_type = "u16")]
-pub enum Nl80211Attribute {
-    Mac = 6,
-    /* Attributes Elided */
-}
-impl neli::consts::genl::NlAttrType for Nl80211Attribute {}
 
 #[neli::neli_enum(serialized_type = "u16")]
 pub enum ExtAckAttr {
@@ -51,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         NlattrBuilder::default()
             .nla_type(
                 AttrTypeBuilder::default()
-                    .nla_type(/* Attribute */ Nl80211Attribute::Mac)
+                    .nla_type(/* Attribute */ Nl80211Attr::Mac)
                     .build()
                     .unwrap(),
             )
@@ -63,18 +50,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .collect::<GenlBuffer<_, _>>();
 
-    let mut recv = sock.send::<_, _, GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>(
+    let mut recv = sock.send::<_, _, GenlId, Genlmsghdr<Nl80211Command, Nl80211Attr>>(
         family_id,
         NlmF::ACK,
         NlPayload::Payload(
-            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attribute, NoUserHeader>::default()
+            GenlmsghdrBuilder::<Nl80211Command, Nl80211Attr, NoUserHeader>::default()
                 .cmd(Nl80211Command::GetInterface)
                 .version(1)
                 .attrs(attrs)
                 .build()?,
         ),
     )?;
-    let data: Option<Result<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attribute>>, _>> =
+    let data: Option<Result<Nlmsghdr<GenlId, Genlmsghdr<Nl80211Command, Nl80211Attr>>, _>> =
         recv.next();
     match data {
         Some(Ok(msgs)) => {
