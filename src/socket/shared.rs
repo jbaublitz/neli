@@ -230,11 +230,15 @@ impl NlSocket {
     {
         let mut addr = unsafe { std::mem::zeroed::<sockaddr_nl>() };
         let mut size: u32 = size_of::<sockaddr_nl>().try_into().unwrap_or(0);
+        // Take the slice once: calling `buf.as_mut()` a second time inside the argument list
+        // reborrows `buf` and invalidates the pointer derived from the first call, which the
+        // kernel then writes through.
+        let buf = buf.as_mut();
         match unsafe {
             libc::recvfrom(
                 self.fd,
-                buf.as_mut() as *mut _ as *mut c_void,
-                buf.as_mut().len(),
+                buf.as_mut_ptr().cast::<c_void>(),
+                buf.len(),
                 flags.bits() as i32,
                 &mut addr as *mut _ as *mut sockaddr,
                 &mut size,
