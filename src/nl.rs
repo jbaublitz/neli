@@ -22,11 +22,10 @@ use getset::Getters;
 use log::trace;
 
 use crate::{
-    self as neli,
+    self as neli, FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
     consts::nl::{NlType, NlmF, Nlmsg},
     err::{DeError, Nlmsgerr, NlmsgerrBuilder, NlmsghdrAck, NlmsghdrErr, RouterError},
     types::{Buffer, GenlBuffer},
-    FromBytes, FromBytesWithInput, Header, Size, ToBytes, TypeSize,
 };
 
 /// An enum representing either the desired payload as requested

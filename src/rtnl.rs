@@ -14,12 +14,11 @@ use derive_builder::{Builder, UninitializedFieldError};
 use getset::Getters;
 
 use crate::{
-    self as neli,
+    self as neli, FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes,
     attr::{AttrHandle, Attribute},
     consts::rtnl::*,
     err::{DeError, SerError},
     types::{Buffer, RtBuffer},
-    FromBytes, FromBytesWithInput, FromBytesWithInputBorrowed, Header, Size, ToBytes,
 };
 
 /// Struct representing interface information messages
