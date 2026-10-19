@@ -211,10 +211,18 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                 )
             };
             if event_count < 0 {
-                warn!(
-                    "Failed to epoll file descriptors: errno {event_count}; exiting processing thread"
-                );
-                return;
+                if let Some(libc::EINTR) = io::Error::last_os_error().raw_os_error() {
+                    debug!(
+                        "Failed to epoll file descriptors: errno {}; restarting...",
+                        libc::EINTR
+                    );
+                } else if let Some(raw_error) = io::Error::last_os_error().raw_os_error() {
+                    warn!("Failed to epoll file descriptors: errno {raw_error}; exiting processing thread",);
+                    return;
+                } else {
+                    warn!("Failed to epoll file descriptors: unknown errno; exiting processing thread",);
+                    return;
+                }
             }
             for event in events.iter().take(event_count as usize) {
                 if unsafe { event.assume_init_ref() }.u64 == EVENT_FD_TOKEN {
@@ -231,9 +239,17 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             debug!("Processing thread signaled to exit; exiting");
                             return;
                         }
-                        libc::EAGAIN => (),
-                        i => {
-                            warn!("Unexpected return value from read: {i}");
+                        i if i == 0 => {
+                            debug!("Processing thread exit signal closed; exiting");
+                            return;
+                        }
+                        _ => {
+                            if let Some(raw) = io::Error::last_os_error().raw_os_error() {
+                                match raw {
+                                    libc::EAGAIN => (),
+                                    i => warn!("Unexpected error from read: {i}"),
+                                }
+                            }
                         }
                     }
                 } else if unsafe { event.assume_init_ref() }.u64 == SOCKET_TOKEN {
