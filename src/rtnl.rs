@@ -565,7 +565,7 @@ mod test {
         let all_msgs = recv
             .try_fold(Vec::new(), |mut v, m| {
                 v.push(m?);
-                Result::<_, RouterError<Rtm, Ifinfomsg>>::Ok(v)
+                Result::<_, Box<RouterError<Rtm, Ifinfomsg>>>::Ok(v)
             })
             .unwrap();
         let non_err_payloads = all_msgs.iter().fold(Vec::new(), |mut v, m| {

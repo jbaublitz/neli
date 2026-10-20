@@ -239,7 +239,7 @@ fn spawn_processing_thread(socket: Arc<NlSocketHandle>, senders: Senders) -> Pro
                             debug!("Processing thread signaled to exit; exiting");
                             return;
                         }
-                        i if i == 0 => {
+                        0 => {
                             debug!("Processing thread exit signal closed; exiting");
                             return;
                         }

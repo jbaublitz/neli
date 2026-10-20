@@ -35,6 +35,7 @@ impl NlSocketHandle {
         socket.nonblock()?;
         let pid = socket.pid()?;
         Ok(NlSocketHandle {
+            // TODO: In v0.8.0 update minimum tokio version.
             socket: AsyncFd::new(socket)?,
             pool: BufferPool::default(),
             pid,

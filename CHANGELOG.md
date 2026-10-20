@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5
+### Bug fixes
+* Fix unsoundness problem in C bindings for NlSocket::recv
+* Fix unsoundness problem in example
+* Fix unhandled EINTR and EAGAIN in libc epoll implementation
+
 ## 0.7.4
 ### Bug fixes
 * Fix memory leak in asynchronous and synchronous router that causes threads not to
