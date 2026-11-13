@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+### Features
+* Support `OsStr` and `OsString` payloads for Unix names that need not be UTF-8.
+
 ## 0.7.5
 ### Bug fixes
 * Fix unsoundness problem in C bindings for NlSocket::recv

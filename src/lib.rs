@@ -38,6 +38,14 @@
 //! easier to use in all use cases. If you have a use case you
 //! would like to see supported, please open an issue on Github.
 //!
+//! ## Unix names
+//!
+//! On Unix, [`std::ffi::OsStr`] references and [`std::ffi::OsString`] implement
+//! [`Size`] and [`ToBytes`] as NUL-terminated byte strings, like `str` and `String`,
+//! without requiring UTF-8. [`std::ffi::OsString`] also implements
+//! [`FromBytesWithInput`] for reading names such as `Ifla::Ifname` through
+//! [`Attribute::get_payload_as_with_len`][crate::attr::Attribute::get_payload_as_with_len].
+//!
 //! ## Examples
 //!
 //! Examples of working code exist in the `examples/` subdirectory on
@@ -141,6 +149,8 @@ pub mod err;
 pub mod genl;
 pub mod iter;
 pub mod nl;
+#[cfg(unix)]
+mod osstring;
 pub mod router;
 pub mod rtnl;
 pub mod socket;
